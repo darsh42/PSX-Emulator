@@ -4,6 +4,8 @@
 #include "error.h"
 #include "common.h"
 
+#define print_memory_error(func) print_error("memory.c", funct)
+
 typedef struct MEM_MAIN                  {uint8_t mem[0X200000];} MEM_MAIN;                  // 2048K
 typedef struct MEM_EXPANSION_1           {uint8_t mem[0X800000];} MEM_EXPANSION_1;           // 8192K
 typedef struct MEM_SCRATCH_PAD           {uint8_t mem[0X400];}    MEM_SCRATCH_PAD;           // 1K
@@ -37,5 +39,4 @@ struct MEMORY {
   MEM_EXTERNAL_MEMORY_CARDS EXTERNAL_MEMORY_CARDS;
 };
 
-  
 #endif
