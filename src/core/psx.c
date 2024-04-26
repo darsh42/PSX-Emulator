@@ -12,5 +12,11 @@ int main(int argc, char **argv) {
         print_psx_error("main");
         exit(1);
     }
+
+    cpu_initialize();
+    cpu_fetch();
+    cpu_decode();
+    cpu_execute();
+
     return 0;
 }

@@ -13,5 +13,10 @@
 
 // device functions
 extern PSX_ERROR memory_load_bios(const char *filebios);
+extern PSX_ERROR cpu_initialize(void);
+extern PSX_ERROR cpu_fetch(void);
+extern PSX_ERROR cpu_decode(void);
+extern PSX_ERROR cpu_execute(void);
+
 
 #endif//PSX_H_INCLUDED

@@ -2,6 +2,10 @@
 
 static struct MEMORY memory;
 
+#ifdef DEBUG
+struct MEMORY *_memory() {return &memory;}
+#endif
+
 PSX_ERROR memory_load_bios(const char *filebios) {
     FILE *fp;
     if ((fp = fopen(filebios, "rb")) == NULL) {

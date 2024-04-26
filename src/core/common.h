@@ -8,6 +8,8 @@
 
 #include "error.h"
 
+#define DEBUG
+
 extern void print_error();
 extern void print_warning();
 extern PSX_ERROR set_PSX_error();

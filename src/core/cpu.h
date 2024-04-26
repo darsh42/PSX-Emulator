@@ -36,7 +36,8 @@ union INSTRUCTION {
 enum INSTRUCTION_TYPE {
     I_TYPE,
     J_TYPE,
-    R_TYPE
+    R_TYPE,
+    UNDECIDED
 };
 
 struct CPU {
@@ -60,7 +61,7 @@ struct CPU {
     // MULTIPLY/DIVIDE REGISTERS 
     uint32_t HI, LO; 
     union INSTRUCTION instruction;
-    enum   INSTRUCTION_TYPE instruction_type;
+    enum  INSTRUCTION_TYPE instruction_type;
 };
 
 // memory functions

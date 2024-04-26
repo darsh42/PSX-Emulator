@@ -46,6 +46,10 @@ static PSX_ERROR SWC3(void);
 
 static struct CPU cpu;
 
+#ifdef DEBUG
+struct CPU *_cpu(void) {return &cpu;}
+#endif
+
 PSX_ERROR cpu_initialize(void) {
     cpu.PC = 0Xbfc00000;
 }
@@ -55,6 +59,7 @@ PSX_ERROR cpu_fetch(void) {
         print_cpu_error("cpu_fetch");
         return CPU_FETCH_ERROR;
     }
+    cpu.instruction_type = UNDECIDED;
     return NO_ERROR;
 }
 
@@ -68,7 +73,7 @@ PSX_ERROR cpu_decode(void) {
     return NO_ERROR;
 }
 
-PSX_ERROR cpu_exec(void) {
+PSX_ERROR cpu_execute(void) {
     switch(cpu.instruction_type) {
         case I_TYPE: EXECUTE_I_TYPE(); break;
         case R_TYPE: EXECUTE_R_TYPE(); break;
@@ -180,3 +185,71 @@ static PSX_ERROR EXECUTE_J_TYPE(void) {
     }
     return NO_ERROR;
 }
+
+PSX_ERROR BCONDZ(void)  {return NO_ERROR;} 
+PSX_ERROR BEQ(void)     {return NO_ERROR;}    
+PSX_ERROR BNE(void)     {return NO_ERROR;}    
+PSX_ERROR BLEZ(void)    {return NO_ERROR;}   
+PSX_ERROR BTGZ(void)    {return NO_ERROR;}   
+PSX_ERROR ADDI(void)    {return NO_ERROR;}   
+PSX_ERROR ADDIU(void)   {return NO_ERROR;}  
+PSX_ERROR SLTI(void)    {return NO_ERROR;}   
+PSX_ERROR SLTIU(void)   {return NO_ERROR;}  
+PSX_ERROR ANDI(void)    {return NO_ERROR;}   
+PSX_ERROR ORI(void)     {return NO_ERROR;}    
+PSX_ERROR XORI(void)    {return NO_ERROR;}   
+PSX_ERROR LUI(void)     {return NO_ERROR;}    
+PSX_ERROR COP0(void)    {return NO_ERROR;}   
+PSX_ERROR COP1(void)    {return NO_ERROR;}   
+PSX_ERROR COP2(void)    {return NO_ERROR;}   
+PSX_ERROR COP3(void)    {return NO_ERROR;}   
+PSX_ERROR LB(void)      {return NO_ERROR;}     
+PSX_ERROR LH(void)      {return NO_ERROR;}     
+PSX_ERROR LWL(void)     {return NO_ERROR;}    
+PSX_ERROR LW(void)      {return NO_ERROR;}     
+PSX_ERROR LBU(void)     {return NO_ERROR;}    
+PSX_ERROR LHU(void)     {return NO_ERROR;}    
+PSX_ERROR LWR(void)     {return NO_ERROR;}    
+PSX_ERROR SB(void)      {return NO_ERROR;}     
+PSX_ERROR SH(void)      {return NO_ERROR;}     
+PSX_ERROR SWL(void)     {return NO_ERROR;}    
+PSX_ERROR SW(void)      {return NO_ERROR;}     
+PSX_ERROR SWR(void)     {return NO_ERROR;}    
+PSX_ERROR LWC0(void)    {return NO_ERROR;}   
+PSX_ERROR LWC1(void)    {return NO_ERROR;}   
+PSX_ERROR LWC2(void)    {return NO_ERROR;}   
+PSX_ERROR LWC3(void)    {return NO_ERROR;}   
+PSX_ERROR SWC0(void)    {return NO_ERROR;}   
+PSX_ERROR SWC1(void)    {return NO_ERROR;}   
+PSX_ERROR SWC2(void)    {return NO_ERROR;}   
+PSX_ERROR SWC3(void)    {return NO_ERROR;}   
+PSX_ERROR SLL(void)     {return NO_ERROR;}    
+PSX_ERROR SRL(void)     {return NO_ERROR;}    
+PSX_ERROR SRA(void)     {return NO_ERROR;}    
+PSX_ERROR SLLV(void)    {return NO_ERROR;}   
+PSX_ERROR SRLV(void)    {return NO_ERROR;}   
+PSX_ERROR SRAV(void)    {return NO_ERROR;}   
+PSX_ERROR JR(void)      {return NO_ERROR;}     
+PSX_ERROR JALR(void)    {return NO_ERROR;}   
+PSX_ERROR SYSCALL(void) {return NO_ERROR;}
+PSX_ERROR BREAK(void)   {return NO_ERROR;}  
+PSX_ERROR MFHI(void)    {return NO_ERROR;}   
+PSX_ERROR MTHI(void)    {return NO_ERROR;}   
+PSX_ERROR MFLO(void)    {return NO_ERROR;}   
+PSX_ERROR MTLO(void)    {return NO_ERROR;}   
+PSX_ERROR MULT(void)    {return NO_ERROR;}   
+PSX_ERROR MULTU(void)   {return NO_ERROR;}  
+PSX_ERROR DIV(void)     {return NO_ERROR;}    
+PSX_ERROR DIVU(void)    {return NO_ERROR;}   
+PSX_ERROR ADD(void)     {return NO_ERROR;}    
+PSX_ERROR ADDU(void)    {return NO_ERROR;}   
+PSX_ERROR SUB(void)     {return NO_ERROR;}    
+PSX_ERROR SUBU(void)    {return NO_ERROR;}   
+PSX_ERROR AND(void)     {return NO_ERROR;}    
+PSX_ERROR OR(void)      {return NO_ERROR;}     
+PSX_ERROR XOR(void)     {return NO_ERROR;}    
+PSX_ERROR NOR(void)     {return NO_ERROR;}    
+PSX_ERROR SLT(void)     {return NO_ERROR;}    
+PSX_ERROR SLTU(void)    {return NO_ERROR;}   
+PSX_ERROR J(void)       {return NO_ERROR;}
+PSX_ERROR JAL(void)     {return NO_ERROR;}
