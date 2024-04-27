@@ -7,7 +7,7 @@
 
 #define copn_imm25 coprocessor.instruction.COPN_IMMEDIATE25.imm
 
-struct COPROCESSOR0 {
+struct COPROCESSOR_0 {
     // REGISTERS
     // r0-r2      N/A
     // r3         BCP - break point on execute
@@ -23,11 +23,7 @@ struct COPROCESSOR0 {
     // r13        CAUSE - describes most recently recognised exception
     // r14        EPC - return address from trap
     // r15        PIRD - processor id
-    // r16-r31    Garbage 
-    // r32-r63    N/A - control registers NOTE: (not implemented here)
-    uint32_t R[32];
-
-    union COPROCESSOR_INSTRUCTION instruction;
+    uint32_t R[16];
 };
 
 #endif//COPROCESSOR0_H_INCLUDED

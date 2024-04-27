@@ -12,7 +12,7 @@ void peek_cpu_pc(void) {
 
 // TODO: translate register number into corresponding names
 void peek_cpu_R_register(int reg) {
-    printf("[DEBUG]: REGISTER: %d, Value: %d\n", reg, cpu->R[reg]);
+    printf("[DEBUG]: CPU REGISTER: %d, Value: %d\n", reg, cpu->R[reg]);
 }
 
 void peek_cpu_R_registers(void) {
@@ -24,6 +24,19 @@ void peek_cpu_R_registers(void) {
 void peek_cpu_mult_div_registers(void) {
     printf("[DEBUG]: REGISTER: HI, Value: %d\n", cpu->HI);
     printf("[DEBUG]: REGISTER: LO, Value: %d\n", cpu->LO);
+}
+
+void peek_coprocessor_n_register(int cop_n, int reg) {
+    switch(cop_n) {
+        case 0X00: printf("[DEBUG]: CO PROCESSOR 0 REGISTER: %d, Value: %d\n", reg, cpu->coprocessor0.R[reg]); break;
+        case 0X02: printf("[DEBUG]: CO PROCESSOR 2 REGISTER: %d, Value: %d\n", reg, cpu->coprocessor2.R[reg]); break;
+    }
+}
+
+void peek_coprocessor_n_registers(int cop_n) {
+    for (int i = 0; i < 32; i++) {
+        peek_coprocessor_n_register(cop_n, i);
+    }
 }
 
 // TODO: translate the opcodes and functions into corresponding mneumonics

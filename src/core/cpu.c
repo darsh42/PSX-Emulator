@@ -5,16 +5,16 @@ static PSX_ERROR EXECUTE_I_TYPE(void);
 static PSX_ERROR EXECUTE_R_TYPE(void);
 static PSX_ERROR EXECUTE_J_TYPE(void);
 
-//     I-TYPE instruction             R-TYPE instructions             J-TYPE instructions
-static PSX_ERROR BCONDZ(void); static PSX_ERROR SLL(void);     static PSX_ERROR J(void);
-static PSX_ERROR BEQ(void);    static PSX_ERROR SRL(void);     static PSX_ERROR JAL(void);
-static PSX_ERROR BNE(void);    static PSX_ERROR SRA(void);    
-static PSX_ERROR BLEZ(void);   static PSX_ERROR SLLV(void);   
-static PSX_ERROR BTGZ(void);   static PSX_ERROR SRLV(void);   
-static PSX_ERROR ADDI(void);   static PSX_ERROR SRAV(void);   
-static PSX_ERROR ADDIU(void);  static PSX_ERROR JR(void);     
-static PSX_ERROR SLTI(void);   static PSX_ERROR JALR(void);   
-static PSX_ERROR SLTIU(void);  static PSX_ERROR SYSCALL(void);
+//     I-TYPE instruction             R-TYPE instructions             J-TYPE instructions         COP0 specific             COPn generic
+static PSX_ERROR BCONDZ(void); static PSX_ERROR SLL(void);     static PSX_ERROR J(void);   static PSX_ERROR TLBR();  static PSX_ERROR MFCn(int cop_n);
+static PSX_ERROR BEQ(void);    static PSX_ERROR SRL(void);     static PSX_ERROR JAL(void); static PSX_ERROR TLBWI(); static PSX_ERROR CFCn(int cop_n);
+static PSX_ERROR BNE(void);    static PSX_ERROR SRA(void);                                 static PSX_ERROR TLBWR(); static PSX_ERROR MTCn(int cop_n);
+static PSX_ERROR BLEZ(void);   static PSX_ERROR SLLV(void);                                static PSX_ERROR TLBP();  static PSX_ERROR CTCn(int cop_n);
+static PSX_ERROR BTGZ(void);   static PSX_ERROR SRLV(void);                                static PSX_ERROR RFE();   static PSX_ERROR COPn(int cop_n);
+static PSX_ERROR ADDI(void);   static PSX_ERROR SRAV(void);                                                          static PSX_ERROR BCnF(int cop_n);
+static PSX_ERROR ADDIU(void);  static PSX_ERROR JR(void);                                                            static PSX_ERROR BCnT(int cop_n);
+static PSX_ERROR SLTI(void);   static PSX_ERROR JALR(void);                                                          static PSX_ERROR LWCn(int cop_n);
+static PSX_ERROR SLTIU(void);  static PSX_ERROR SYSCALL(void);                                                       static PSX_ERROR SWCn(int cop_n);
 static PSX_ERROR ANDI(void);   static PSX_ERROR BREAK(void);  
 static PSX_ERROR ORI(void);    static PSX_ERROR MFHI(void);   
 static PSX_ERROR XORI(void);   static PSX_ERROR MTHI(void);   
@@ -46,8 +46,9 @@ static PSX_ERROR SWC3(void);
 
 static struct CPU cpu;
 
+#ifdef DEBUG
 struct CPU *_cpu(void) {return &cpu;}
-uint32_t *reg_cpu(int reg) {return &cpu.R[reg];}
+#endif
 
 PSX_ERROR cpu_initialize(void) {
     cpu.PC = 0Xbfc00000;
@@ -84,6 +85,16 @@ PSX_ERROR cpu_execute(void) {
     return NO_ERROR;
 }
 
+static PSX_ERROR COPn_reg(int n, int reg, uint32_t **result) {
+    switch (n) {
+        case 0X00: *result = &cpu.coprocessor0.R[reg]; break;
+        // case 0X01: result = &cpu.coprocessor2.R[reg]; break;
+        case 0X02: *result = &cpu.coprocessor2.R[reg]; break;
+        // case 0X03: result = &cpu.coprocessor3.R[reg]; break;
+    }
+    return NO_ERROR;
+}
+
 static PSX_ERROR EXECUTE_I_TYPE(void) {
     PSX_ERROR err;
     switch (i_op) {
@@ -113,18 +124,18 @@ static PSX_ERROR EXECUTE_I_TYPE(void) {
         case 0X2B: err = SW();     break;
         case 0X2E: err = SWR();    break;
         // COPROCESSOR instructions
-        case 0X10: err = coprocessor_execute(cpu.instruction.value, 0);   break;
-        case 0X11: err = coprocessor_execute(cpu.instruction.value, 1);   break;
-        case 0X12: err = coprocessor_execute(cpu.instruction.value, 2);   break;
-        case 0X13: err = coprocessor_execute(cpu.instruction.value, 3);   break;
-        case 0X30: err = coprocessor_execute(cpu.instruction.value, 0);   break;
-        case 0X31: err = coprocessor_execute(cpu.instruction.value, 1);   break;
-        case 0X32: err = coprocessor_execute(cpu.instruction.value, 2);   break;
-        case 0X33: err = coprocessor_execute(cpu.instruction.value, 3);   break;
-        case 0X38: err = coprocessor_execute(cpu.instruction.value, 0);   break;
-        case 0X39: err = coprocessor_execute(cpu.instruction.value, 1);   break;
-        case 0X3A: err = coprocessor_execute(cpu.instruction.value, 2);   break;
-        case 0X3B: err = coprocessor_execute(cpu.instruction.value, 3);   break;
+        case 0X10: err = COP0();   break;
+        case 0X11: err = COP1();   break;
+        case 0X12: err = COP2();   break;
+        case 0X13: err = COP3();   break;
+        case 0X30: err = LWC0();   break;
+        case 0X31: err = LWC1();   break;
+        case 0X32: err = LWC2();   break;
+        case 0X33: err = LWC3();   break;
+        case 0X38: err = SWC0();   break;
+        case 0X39: err = SWC1();   break;
+        case 0X3A: err = SWC2();   break;
+        case 0X3B: err = SWC3();   break;
         default:
     }
     if (err != NO_ERROR) {
@@ -212,10 +223,99 @@ PSX_ERROR LUI(void)     {
     i_rt = i_imm << 16;
     return NO_ERROR;
 }    
-PSX_ERROR COP0(void)    {return NO_ERROR;}   
-PSX_ERROR COP1(void)    {return NO_ERROR;}   
-PSX_ERROR COP2(void)    {return NO_ERROR;}   
-PSX_ERROR COP3(void)    {return NO_ERROR;}   
+PSX_ERROR COP0(void)    {
+    switch (cop_type) {
+        case 0X00:
+            switch (cop_func) {
+                case 0X00: MFCn(0); break; // MFCn
+                case 0X02: CFCn(0); break; // CFCn
+                case 0X04: MTCn(0); break; // MTCn
+                case 0X06: CTCn(0); break; // CTCn
+                case 0X08:
+                    switch(cop_rt) {
+                        case 0X00: BCnF(0); break; // BCnF
+                        case 0X01: BCnT(0); break; // BCnT
+                    }
+                    break;
+            }
+            break;
+        case 0X01:
+            switch (cop_imm25) {
+                case 0X01: TLBR(0);  break; // TLBR
+                case 0X02: TLBWI(0); break; // TLBWI
+                case 0X06: TLBWR(0); break; // TLBWR
+                case 0X08: TLBP(0);  break; // TLBP
+                case 0X0F: RFE(0);   break; // RFE
+                default:   COPn(0);   break; // COPN
+            }
+            break;
+    }
+
+    return NO_ERROR;
+}   
+PSX_ERROR COP1(void)    {
+    switch (cop_type) {
+        case 0X00:
+            switch (cop_func) {
+                case 0X00: MFCn(1); break; // MFCn
+                case 0X02: CFCn(1); break; // CFCn
+                case 0X04: MTCn(1); break; // MTCn
+                case 0X06: CTCn(1); break; // CTCn
+                case 0X08:
+                    switch(cop_rt) {
+                        case 0X00: BCnF(1); break; // BCnF
+                        case 0X01: BCnT(1); break; // BCnT
+                    }
+                    break;
+            }
+            break;
+        case 0X01: COPn(1); break; // COPN
+    }
+
+    return NO_ERROR;
+}   
+PSX_ERROR COP2(void)    {
+    switch (cop_type) {
+        case 0X00:
+            switch (cop_func) {
+                case 0X00: MFCn(2); break; // MFCn
+                case 0X02: CFCn(2); break; // CFCn
+                case 0X04: MTCn(2); break; // MTCn
+                case 0X06: CTCn(2); break; // CTCn
+                case 0X08:
+                    switch(cop_rt) {
+                        case 0X00: BCnF(2); break; // BCnF
+                        case 0X01: BCnT(2); break; // BCnT
+                    }
+                    break;
+            }
+            break;
+        case 0X01: COPn(2); break; // COPN
+    }
+
+    return NO_ERROR;
+}   
+PSX_ERROR COP3(void)    {
+    switch (cop_type) {
+        case 0X00:
+            switch (cop_func) {
+                case 0X00: MFCn(3); break; // MFCn
+                case 0X02: CFCn(3); break; // CFCn
+                case 0X04: MTCn(3); break; // MTCn
+                case 0X06: CTCn(3); break; // CTCn
+                case 0X08:
+                    switch(cop_rt) {
+                        case 0X00: BCnF(3); break; // BCnF
+                        case 0X01: BCnT(3); break; // BCnT
+                    }
+                    break;
+            }
+            break;
+        case 0X01: COPn(3); break; // COPN
+    }
+
+    return NO_ERROR;
+}
 PSX_ERROR LB(void)      {return NO_ERROR;}     
 PSX_ERROR LH(void)      {return NO_ERROR;}     
 PSX_ERROR LWL(void)     {return NO_ERROR;}    
@@ -270,6 +370,7 @@ PSX_ERROR SUB(void)     {return NO_ERROR;}
 PSX_ERROR SUBU(void)    {return NO_ERROR;}   
 PSX_ERROR AND(void)     {return NO_ERROR;}    
 PSX_ERROR OR(void)      {
+    // or rs and rt store in rd
     r_rd = r_rs | r_rt;
     return NO_ERROR;
 }     
@@ -284,3 +385,26 @@ PSX_ERROR J(void)       {
     return NO_ERROR;
 }
 PSX_ERROR JAL(void)     {return NO_ERROR;}
+
+PSX_ERROR MFCn(int cop_n) {return NO_ERROR;}
+PSX_ERROR CFCn(int cop_n) {return NO_ERROR;}
+PSX_ERROR MTCn(int cop_n) {
+    // coprocessor register rd = cpu register rt
+    uint32_t *rd;
+    COPn_reg(cop_n, cop_rd, &rd);
+    
+    *rd  = cpu.R[cop_rt];
+    return NO_ERROR;
+}
+PSX_ERROR CTCn(int cop_n) {return NO_ERROR;}
+PSX_ERROR COPn(int cop_n) {return NO_ERROR;}
+PSX_ERROR BCnF(int cop_n) {return NO_ERROR;}
+PSX_ERROR BCnT(int cop_n) {return NO_ERROR;}
+PSX_ERROR LWCn(int cop_n) {return NO_ERROR;}
+PSX_ERROR SWCn(int cop_n) {return NO_ERROR;}
+
+PSX_ERROR TLBR(int cop_n)  {return NO_ERROR;}
+PSX_ERROR TLBWI(int cop_n) {return NO_ERROR;}
+PSX_ERROR TLBWR(int cop_n) {return NO_ERROR;}
+PSX_ERROR TLBP(int cop_n)  {return NO_ERROR;}
+PSX_ERROR RFE(int cop_n)   {return NO_ERROR;}

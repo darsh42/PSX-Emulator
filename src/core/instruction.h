@@ -3,6 +3,12 @@
 
 union INSTRUCTION {
     uint32_t value;
+    // used to find instruction type
+    struct {
+        uint32_t   : 26;
+        uint32_t op: 6;
+    } generic; 
+    // cpu
     struct {
         uint32_t immediate: 16;
         uint32_t rt: 5;
@@ -21,22 +27,14 @@ union INSTRUCTION {
         uint32_t rs: 5;
         uint32_t op: 6;
     } R_TYPE;
-    // used to find instruction type
-    struct {
-        uint32_t   : 26;
-        uint32_t op: 6;
-    } generic; 
-};
-
-union COPROCESSOR_INSTRUCTION {
-    uint32_t value;
+    // coprocessor
     struct {
         uint32_t : 16;
         uint32_t branch: 5;
-        uint32_t sub_op: 4;
+        uint32_t func: 4;
         uint32_t type: 1;
         uint32_t op: 6;
-    } generic;
+    } COPn;
     struct {
         uint32_t   : 6; // specifies COP0 specific instructions
         uint32_t   : 5;
@@ -44,33 +42,18 @@ union COPROCESSOR_INSTRUCTION {
         uint32_t rt: 5;
         uint32_t funct: 5;    // can specify COP instructions
         uint32_t op: 6;
-    } COPN_R_TYPE;
+    } COPn_rt_rd;
     struct {
         uint32_t imm: 16; // specifies COP0 specific instructions
         uint32_t rt: 5;
         uint32_t rs: 5;    // can specify COP instructions
         uint32_t op: 6;
-    } COPN_I_TYPE;
-    struct {
-        uint32_t imm: 16; // specifies COP0 specific instructions
-        uint32_t funct: 5;
-        uint32_t   : 5;    // can specify COP instructions
-        uint32_t op: 6;
-    } COPN_J_TYPE;
+    } COPn_imm16;
     struct {
         uint32_t imm: 25;    // can specify COP instructions
         uint32_t    : 1;
         uint32_t op: 6;
-    } COPN_IMMEDIATE25;
-    struct {
-        uint32_t funct: 6; // specifies COP0 specific instructions
-        uint32_t : 5;
-        uint32_t : 5;
-        uint32_t : 5;
-        uint32_t : 4;    // can specify COP instructions
-        uint32_t type: 1;
-        uint32_t op: 6;
-    } COP0;
+    } COPn_imm25;
 };
 
 enum INSTRUCTION_TYPE {

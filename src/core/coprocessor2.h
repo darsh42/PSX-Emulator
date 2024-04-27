@@ -1,7 +1,7 @@
 #ifndef COPROCESSOR2_H_INCLUDED
 #define COPROCESSOR2_H_INCLUDED
 
-struct COPROCESSOR2 {
+struct COPROCESSOR_2 {
     uint32_t R[32];
 };
 

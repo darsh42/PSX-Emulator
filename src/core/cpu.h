@@ -4,8 +4,12 @@
 #include "error.h"
 #include "common.h"
 #include "instruction.h"
+#include "coprocessor0.h"
+#include "coprocessor2.h"
 
 #define print_cpu_error(func) print_error("cpu.c", func)
+
+// general access macros for cpu instruction fields, refer to instruction struct for details
 #define i_imm cpu.instruction.I_TYPE.immediate
 #define i_rt  cpu.R[cpu.instruction.I_TYPE.rt]
 #define i_rs  cpu.R[cpu.instruction.I_TYPE.rs]
@@ -19,7 +23,16 @@
 #define r_rd    cpu.R[cpu.instruction.R_TYPE.rd]
 #define r_rt    cpu.R[cpu.instruction.R_TYPE.rt]
 #define r_rs    cpu.R[cpu.instruction.R_TYPE.rs]
-#define r_op    cpu.R[cpu.instruction.R_TYPE.op]
+#define r_op    cpu.instruction.R_TYPE.op
+
+// general access macros for coprocessor instructions (only supporting cop0 and cop2 for now)
+#define cop_op    cpu.instruction.COPn.op
+#define cop_type  cpu.instruction.COPn.type 
+#define cop_func  cpu.instruction.COPn.func 
+#define cop_rt    cpu.instruction.COPn_rt_rd.rt   
+#define cop_rd    cpu.instruction.COPn_rt_rd.rd
+#define cop_imm16 cpu.instruction.COPn_imm16.imm
+#define cop_imm25 cpu.instruction.COPn_imm25.imm
 
 struct CPU {
     // PROGRAM COUNTER
@@ -44,6 +57,9 @@ struct CPU {
     union INSTRUCTION instruction;
     union INSTRUCTION instruction_next;
     enum  INSTRUCTION_TYPE instruction_type;
+
+    struct COPROCESSOR_0 coprocessor0;
+    struct COPROCESSOR_2 coprocessor2;
 };
 
 // coprocessor functions

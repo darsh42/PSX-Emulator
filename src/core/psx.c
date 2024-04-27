@@ -16,13 +16,14 @@ int main(int argc, char **argv) {
     set_debug_cpu();
                                            
     cpu_initialize();
-    coprocessor_initialize();
     while (1) {
         cpu_fetch();
         cpu_decode();
         peek_cpu_instruction();
         cpu_execute();
         peek_cpu_R_registers();
+        peek_coprocessor_n_registers(0);
+        peek_coprocessor_n_registers(2);
     }
 
     return 0;

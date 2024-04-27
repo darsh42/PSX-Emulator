@@ -20,12 +20,15 @@ extern PSX_ERROR cpu_execute(void);
 extern PSX_ERROR coprocessor_initialize(void);
 
 #ifdef DEBUG
+// cpu
 extern void set_debug_cpu(void);
-
 extern void peek_cpu_pc(void);
 extern void peek_cpu_R_registers(void);
 extern void peek_cpu_instruction(void);
 extern void peek_cpu_mult_div_registers(void);
+
+// co processor
+extern void peek_coprocessor_n_registers(int cop_n);
 #endif
 
 
