@@ -46,9 +46,8 @@ static PSX_ERROR SWC3(void);
 
 static struct CPU cpu;
 
-#ifdef DEBUG
 struct CPU *_cpu(void) {return &cpu;}
-#endif
+uint32_t *reg_cpu(int reg) {return &cpu.R[reg];}
 
 PSX_ERROR cpu_initialize(void) {
     cpu.PC = 0Xbfc00000;
@@ -101,10 +100,6 @@ static PSX_ERROR EXECUTE_I_TYPE(void) {
         case 0X0D: err = ORI();    break;
         case 0X0E: err = XORI();   break;
         case 0X0F: err = LUI();    break;
-        case 0X10: err = COP0();   break;
-        case 0X11: err = COP1();   break;
-        case 0X12: err = COP2();   break;
-        case 0X13: err = COP3();   break;
         case 0X20: err = LB();     break;
         case 0X21: err = LH();     break;
         case 0X22: err = LWL();    break;
@@ -117,14 +112,19 @@ static PSX_ERROR EXECUTE_I_TYPE(void) {
         case 0X2A: err = SWL();    break;
         case 0X2B: err = SW();     break;
         case 0X2E: err = SWR();    break;
-        case 0X30: err = LWC0();   break;
-        case 0X31: err = LWC1();   break;
-        case 0X32: err = LWC2();   break;
-        case 0X33: err = LWC3();   break;
-        case 0X38: err = SWC0();   break;
-        case 0X39: err = SWC1();   break;
-        case 0X3A: err = SWC2();   break;
-        case 0X3B: err = SWC3();   break;
+        // COPROCESSOR instructions
+        case 0X10: err = coprocessor_execute(cpu.instruction.value, 0);   break;
+        case 0X11: err = coprocessor_execute(cpu.instruction.value, 1);   break;
+        case 0X12: err = coprocessor_execute(cpu.instruction.value, 2);   break;
+        case 0X13: err = coprocessor_execute(cpu.instruction.value, 3);   break;
+        case 0X30: err = coprocessor_execute(cpu.instruction.value, 0);   break;
+        case 0X31: err = coprocessor_execute(cpu.instruction.value, 1);   break;
+        case 0X32: err = coprocessor_execute(cpu.instruction.value, 2);   break;
+        case 0X33: err = coprocessor_execute(cpu.instruction.value, 3);   break;
+        case 0X38: err = coprocessor_execute(cpu.instruction.value, 0);   break;
+        case 0X39: err = coprocessor_execute(cpu.instruction.value, 1);   break;
+        case 0X3A: err = coprocessor_execute(cpu.instruction.value, 2);   break;
+        case 0X3B: err = coprocessor_execute(cpu.instruction.value, 3);   break;
         default:
     }
     if (err != NO_ERROR) {

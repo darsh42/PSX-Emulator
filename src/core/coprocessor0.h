@@ -1,6 +1,12 @@
 #ifndef COPROCESSOR0_H_INCLUDED
 #define COPROCESSOR0_H_INCLUDED
 
+#include "error.h"
+#include "common.h"
+#include "instruction.h"
+
+#define copn_imm25 coprocessor.instruction.COPN_IMMEDIATE25.imm
+
 struct COPROCESSOR0 {
     // REGISTERS
     // r0-r2      N/A
@@ -20,6 +26,8 @@ struct COPROCESSOR0 {
     // r16-r31    Garbage 
     // r32-r63    N/A - control registers NOTE: (not implemented here)
     uint32_t R[32];
+
+    union COPROCESSOR_INSTRUCTION instruction;
 };
 
 #endif//COPROCESSOR0_H_INCLUDED

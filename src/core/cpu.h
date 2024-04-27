@@ -46,6 +46,9 @@ struct CPU {
     enum  INSTRUCTION_TYPE instruction_type;
 };
 
+// coprocessor functions
+extern PSX_ERROR coprocessor_execute(uint32_t value, int coprocessor_num);
+
 // memory functions
 extern PSX_ERROR memory_cpu_load_32bit(uint32_t address, uint32_t *result);
 extern PSX_ERROR memory_cpu_store_32bit(uint32_t address, uint32_t data);

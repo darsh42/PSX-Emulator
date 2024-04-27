@@ -17,6 +17,7 @@ extern PSX_ERROR cpu_initialize(void);
 extern PSX_ERROR cpu_fetch(void);
 extern PSX_ERROR cpu_decode(void);
 extern PSX_ERROR cpu_execute(void);
+extern PSX_ERROR coprocessor_initialize(void);
 
 #ifdef DEBUG
 extern void set_debug_cpu(void);
