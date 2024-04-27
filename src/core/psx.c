@@ -13,10 +13,16 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    set_debug_cpu();
+                                           
     cpu_initialize();
-    cpu_fetch();
-    cpu_decode();
-    cpu_execute();
+    while (1) {
+        cpu_fetch();
+        cpu_decode();
+        peek_cpu_instruction();
+        cpu_execute();
+        peek_cpu_R_registers();
+    }
 
     return 0;
 }

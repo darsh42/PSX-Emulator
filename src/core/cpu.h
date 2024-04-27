@@ -3,42 +3,23 @@
 
 #include "error.h"
 #include "common.h"
+#include "instruction.h"
 
 #define print_cpu_error(func) print_error("cpu.c", func)
+#define i_imm cpu.instruction.I_TYPE.immediate
+#define i_rt  cpu.R[cpu.instruction.I_TYPE.rt]
+#define i_rs  cpu.R[cpu.instruction.I_TYPE.rs]
+#define i_op  cpu.instruction.I_TYPE.op
 
-union INSTRUCTION {
-    uint32_t value;
-    struct {
-        uint32_t immediate: 16;
-        uint32_t rt: 5;
-        uint32_t rs: 5;
-        uint32_t op: 6;
-    } I_TYPE;
-    struct {
-        uint32_t target: 26;
-        uint32_t op: 6;
-    } J_TYPE;
-    struct {
-        uint32_t funct: 6;
-        uint32_t shamt: 5;
-        uint32_t rd: 5;
-        uint32_t rt: 5;
-        uint32_t rs: 5;
-        uint32_t op: 6;
-    } R_TYPE;
-    // used to find instruction type
-    struct {
-        uint32_t   : 26;
-        uint32_t op: 6;
-    } generic; 
-};
+#define j_tar cpu.instruction.J_TYPE.target
+#define j_op  cpu.instruction.J_TYPE.op
 
-enum INSTRUCTION_TYPE {
-    I_TYPE,
-    J_TYPE,
-    R_TYPE,
-    UNDECIDED
-};
+#define r_funct cpu.instruction.R_TYPE.funct
+#define r_shamt cpu.instruction.R_TYPE.shamt
+#define r_rd    cpu.R[cpu.instruction.R_TYPE.rd]
+#define r_rt    cpu.R[cpu.instruction.R_TYPE.rt]
+#define r_rs    cpu.R[cpu.instruction.R_TYPE.rs]
+#define r_op    cpu.R[cpu.instruction.R_TYPE.op]
 
 struct CPU {
     // PROGRAM COUNTER
@@ -61,10 +42,12 @@ struct CPU {
     // MULTIPLY/DIVIDE REGISTERS 
     uint32_t HI, LO; 
     union INSTRUCTION instruction;
+    union INSTRUCTION instruction_next;
     enum  INSTRUCTION_TYPE instruction_type;
 };
 
 // memory functions
 extern PSX_ERROR memory_cpu_load_32bit(uint32_t address, uint32_t *result);
+extern PSX_ERROR memory_cpu_store_32bit(uint32_t address, uint32_t data);
 
 #endif//CPU_H_INCLUDED

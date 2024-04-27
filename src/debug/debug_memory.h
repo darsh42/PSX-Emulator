@@ -4,6 +4,7 @@
 #include "../core/error.h"
 #include "../core/common.h"
 #include "../core/memory.h"
+#include "../core/instruction.h"
 
 #define print_debug_memory_error(func) print_error("debug_error", func)
 

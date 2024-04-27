@@ -55,11 +55,13 @@ PSX_ERROR cpu_initialize(void) {
 }
 
 PSX_ERROR cpu_fetch(void) {
-    if (memory_cpu_load_32bit(cpu.PC, &cpu.instruction.value) != NO_ERROR) {
+    cpu.instruction = cpu.instruction_next;
+    if (memory_cpu_load_32bit(cpu.PC, &cpu.instruction_next.value) != NO_ERROR) {
         print_cpu_error("cpu_fetch");
         return CPU_FETCH_ERROR;
     }
     cpu.instruction_type = UNDECIDED;
+    cpu.PC += 4;
     return NO_ERROR;
 }
 
@@ -85,7 +87,7 @@ PSX_ERROR cpu_execute(void) {
 
 static PSX_ERROR EXECUTE_I_TYPE(void) {
     PSX_ERROR err;
-    switch (cpu.instruction.I_TYPE.op) {
+    switch (i_op) {
         case 0X01: err = BCONDZ(); break; 
         case 0X04: err = BEQ();    break;
         case 0X05: err = BNE();    break;
@@ -134,7 +136,7 @@ static PSX_ERROR EXECUTE_I_TYPE(void) {
 
 static PSX_ERROR EXECUTE_R_TYPE(void) {
     PSX_ERROR err;
-    switch (cpu.instruction.R_TYPE.funct) {
+    switch (r_funct) {
         case 0X00: err = SLL();     break;
         case 0X02: err = SRL();     break;
         case 0X03: err = SRA();     break;
@@ -174,7 +176,7 @@ static PSX_ERROR EXECUTE_R_TYPE(void) {
 
 static PSX_ERROR EXECUTE_J_TYPE(void) {
     PSX_ERROR err;
-    switch (cpu.instruction.J_TYPE.op) {
+    switch (j_op) {
         case 0X02: err = J();   break;
         case 0X03: err = JAL(); break;
         default: err = set_PSX_error(UNKNOWN_OPCODE);
@@ -192,13 +194,24 @@ PSX_ERROR BNE(void)     {return NO_ERROR;}
 PSX_ERROR BLEZ(void)    {return NO_ERROR;}   
 PSX_ERROR BTGZ(void)    {return NO_ERROR;}   
 PSX_ERROR ADDI(void)    {return NO_ERROR;}   
-PSX_ERROR ADDIU(void)   {return NO_ERROR;}  
+PSX_ERROR ADDIU(void)   {
+    // rt = rs + imm, if overflow set exception
+    i_rt = i_rs + i_imm;
+    return NO_ERROR;
+}  
 PSX_ERROR SLTI(void)    {return NO_ERROR;}   
 PSX_ERROR SLTIU(void)   {return NO_ERROR;}  
 PSX_ERROR ANDI(void)    {return NO_ERROR;}   
-PSX_ERROR ORI(void)     {return NO_ERROR;}    
+PSX_ERROR ORI(void)     {
+    i_rt = i_rs | i_imm;
+    return NO_ERROR;
+}    
 PSX_ERROR XORI(void)    {return NO_ERROR;}   
-PSX_ERROR LUI(void)     {return NO_ERROR;}    
+PSX_ERROR LUI(void)     {
+    // shift immediate << 16 and store in rt
+    i_rt = i_imm << 16;
+    return NO_ERROR;
+}    
 PSX_ERROR COP0(void)    {return NO_ERROR;}   
 PSX_ERROR COP1(void)    {return NO_ERROR;}   
 PSX_ERROR COP2(void)    {return NO_ERROR;}   
@@ -213,7 +226,12 @@ PSX_ERROR LWR(void)     {return NO_ERROR;}
 PSX_ERROR SB(void)      {return NO_ERROR;}     
 PSX_ERROR SH(void)      {return NO_ERROR;}     
 PSX_ERROR SWL(void)     {return NO_ERROR;}    
-PSX_ERROR SW(void)      {return NO_ERROR;}     
+PSX_ERROR SW(void)      {
+    // store word (32bit) at imm + rs
+    uint32_t address = i_imm + i_rs;
+    memory_cpu_store_32bit(address, i_rt);
+    return NO_ERROR;
+}     
 PSX_ERROR SWR(void)     {return NO_ERROR;}    
 PSX_ERROR LWC0(void)    {return NO_ERROR;}   
 PSX_ERROR LWC1(void)    {return NO_ERROR;}   
@@ -223,7 +241,12 @@ PSX_ERROR SWC0(void)    {return NO_ERROR;}
 PSX_ERROR SWC1(void)    {return NO_ERROR;}   
 PSX_ERROR SWC2(void)    {return NO_ERROR;}   
 PSX_ERROR SWC3(void)    {return NO_ERROR;}   
-PSX_ERROR SLL(void)     {return NO_ERROR;}    
+
+PSX_ERROR SLL(void)     {
+    // shift left by shift amount
+    r_rd = r_rs << r_shamt;
+    return NO_ERROR;
+}
 PSX_ERROR SRL(void)     {return NO_ERROR;}    
 PSX_ERROR SRA(void)     {return NO_ERROR;}    
 PSX_ERROR SLLV(void)    {return NO_ERROR;}   
@@ -246,10 +269,18 @@ PSX_ERROR ADDU(void)    {return NO_ERROR;}
 PSX_ERROR SUB(void)     {return NO_ERROR;}    
 PSX_ERROR SUBU(void)    {return NO_ERROR;}   
 PSX_ERROR AND(void)     {return NO_ERROR;}    
-PSX_ERROR OR(void)      {return NO_ERROR;}     
+PSX_ERROR OR(void)      {
+    r_rd = r_rs | r_rt;
+    return NO_ERROR;
+}     
 PSX_ERROR XOR(void)     {return NO_ERROR;}    
 PSX_ERROR NOR(void)     {return NO_ERROR;}    
 PSX_ERROR SLT(void)     {return NO_ERROR;}    
 PSX_ERROR SLTU(void)    {return NO_ERROR;}   
-PSX_ERROR J(void)       {return NO_ERROR;}
+
+PSX_ERROR J(void)       {
+    // jump to address
+    cpu.PC = (cpu.PC & 0XF0000000) + (j_tar << 2);
+    return NO_ERROR;
+}
 PSX_ERROR JAL(void)     {return NO_ERROR;}
