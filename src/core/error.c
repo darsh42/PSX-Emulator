@@ -21,12 +21,31 @@ PSX_ERROR set_PSX_error(PSX_ERROR err) {
     return err;
 }
 
-void print_error(const char *file, const char *function) {
+void print_error(const char *file, const char *function, const char *format, ...) {
     get_PSX_error();
-    printf("[ERROR] %s->%s: %s\n", file, function, error_msg);
+    printf("[ERROR] %s->%s: %s: ", file, function, error_msg);
+
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+
+    printf("\n");
+
+    #ifdef DEBUG
+    peek_cpu_registers();
+    #endif
+
 }
 
-void print_warning(const char *file, const char *function) {
+void print_warning(const char *file, const char *function, const char *format, ...) {
     get_PSX_error();
-    printf("[WARNING] %s->%s: %s\n", file, function, error_msg);
+    printf("[WARNING] %s->%s: %s: ", file, function, error_msg);
+
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+    
+    printf("\n");
 }

@@ -9,7 +9,7 @@
 #include "memory.h"
 
 // macros
-#define print_psx_error(func) print_error("psx.c", func)
+#define print_psx_error(func, format, ...) print_error("psx.c", func, format, __VA_ARGS__)
 
 // device functions
 extern PSX_ERROR memory_load_bios(const char *filebios);

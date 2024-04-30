@@ -7,7 +7,12 @@
 #include "coprocessor0.h"
 #include "coprocessor2.h"
 
-#define print_cpu_error(func) print_error("cpu.c", func)
+#define print_cpu_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
+
+#define sign8(a)  (int32_t) (int8_t)  a
+#define sign16(a) (int32_t) (int16_t) a
+#define sign32(a) (int32_t)           a
+#define overflow(a, b) (a > 0 && b > INT_MAX - b)
 
 // general access macros for cpu instruction fields, refer to instruction struct for details
 #define i_imm cpu.instruction.I_TYPE.immediate
@@ -54,10 +59,18 @@ struct CPU {
     uint32_t R[32]; 
     // MULTIPLY/DIVIDE REGISTERS 
     uint32_t HI, LO; 
-    union INSTRUCTION instruction;
-    union INSTRUCTION instruction_next;
+    // LOAD DELAY
+    struct {
+        uint32_t new;
+        uint32_t old;
+         int32_t cycles;
+    } R_ld[32];
+     
+    // INSTRUCTIONS
+    union INSTRUCTION      instruction;
+    union INSTRUCTION      instruction_next;
     enum  INSTRUCTION_TYPE instruction_type;
-
+    // COPROCESSORS
     struct COPROCESSOR_0 coprocessor0;
     struct COPROCESSOR_2 coprocessor2;
 };
@@ -66,7 +79,11 @@ struct CPU {
 extern PSX_ERROR coprocessor_execute(uint32_t value, int coprocessor_num);
 
 // memory functions
-extern PSX_ERROR memory_cpu_load_32bit(uint32_t address, uint32_t *result);
-extern PSX_ERROR memory_cpu_store_32bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_8bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_16bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
 
 #endif//CPU_H_INCLUDED

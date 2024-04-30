@@ -2,6 +2,8 @@
 #define ERROR_H_INCLUDED
 
 #include <stdio.h>
+#include <stdarg.h>
+#define DEBUG
 
 typedef enum PSX_ERROR {
     NO_ERROR,
@@ -21,6 +23,11 @@ typedef enum PSX_ERROR {
     BIOS_FILE_NOT_FOUND,
     BIOS_FILE_UNREADABLE,
     MEMORY_CPU_UNMAPPED_ADDRESS,
+    MEMORY_UNALIGNED_ADDRESS,
 } PSX_ERROR;
+
+#ifdef DEBUG
+extern void peek_cpu_registers(void);
+#endif
 
 #endif//ERROR_H_INCLUDED

@@ -4,7 +4,7 @@
 #include "error.h"
 #include "common.h"
 
-#define print_memory_error(func) print_error("memory.c", funct)
+#define print_memory_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
 typedef struct MEM_MAIN                  {uint8_t mem[0X200000];} MEM_MAIN;                  // 2048K
 typedef struct MEM_EXPANSION_1           {uint8_t mem[0X800000];} MEM_EXPANSION_1;           // 8192K
@@ -13,6 +13,7 @@ typedef struct MEM_IO_PORTS              {uint8_t mem[0X2000];}   MEM_IO_PORTS; 
 typedef struct MEM_EXPANSION_2           {uint8_t mem[0X2000];}   MEM_EXPANSION_2;           // 8K
 typedef struct MEM_EXPANSION_3           {uint8_t mem[0X800000];} MEM_EXPANSION_3;           // 2048K
 typedef struct MEM_BIOS                  {uint8_t mem[0X100000];} MEM_BIOS;                  // 512K
+typedef struct MEM_CACHE_CONTROL         {uint8_t mem[0X200];}    MEM_CACHE_CONTROL;           // 0.5K
 typedef struct MEM_VRAM                  {uint8_t mem[0X200000];} MEM_VRAM;                  // 1024K
 typedef struct MEM_SOUND                 {uint8_t mem[0X100000];} MEM_SOUND;                 // 512K
 typedef struct MEM_CDROM_CONTROLLER_RAM  {uint8_t mem[0X200];}    MEM_CDROM_CONTROLLER_RAM;  // 0.5K
@@ -29,6 +30,7 @@ struct MEMORY {
   MEM_EXPANSION_2 EXPANSION_2;
   MEM_EXPANSION_3 EXPANSION_3;
   MEM_BIOS BIOS;
+  MEM_CACHE_CONTROL CACHE_CONTROL; // IO_PORTS
 
   // NON-CPU BUS
   MEM_VRAM VRAM;
@@ -38,5 +40,8 @@ struct MEMORY {
   MEM_CDROM_BUFFER CDROM_BUFFER;
   MEM_EXTERNAL_MEMORY_CARDS EXTERNAL_MEMORY_CARDS;
 };
+
+// cpu functions
+extern bool cop0_SR_Isc(void);
 
 #endif

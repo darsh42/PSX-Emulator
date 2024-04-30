@@ -6,7 +6,7 @@
 #include "../core/memory.h"
 #include "../core/instruction.h"
 
-#define print_debug_memory_error(func) print_error("debug_error", func)
+#define print_debug_memory_error(func, format, ...) print_error("debug_error", func, format, __VA_ARGS__)
 
 extern struct MEMORY *_memory();
 extern PSX_ERROR memory_load_bios(const char *filebios);

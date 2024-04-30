@@ -2,7 +2,7 @@
 #define COPROCESSOR2_H_INCLUDED
 
 struct COPROCESSOR_2 {
-    uint32_t R[32];
+    uint32_t *R[32];
 };
 
 #endif//COPROCESSOR2_H_INCLUDED
