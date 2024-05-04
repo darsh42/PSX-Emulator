@@ -12,7 +12,7 @@
 #define sign8(a)  (int32_t) (int8_t)  a
 #define sign16(a) (int32_t) (int16_t) a
 #define sign32(a) (int32_t)           a
-#define overflow(a, b) (a > 0 && b > INT_MAX - b)
+#define overflow(a, b) (a > 0 && (a + b) > 0xffffffff)
 
 // general access macros for cpu instruction fields, refer to instruction struct for details
 #define i_imm cpu.instruction.I_TYPE.immediate
@@ -61,9 +61,12 @@ struct CPU {
     uint32_t HI, LO; 
     // LOAD DELAY
     struct {
-        uint32_t new;
-        uint32_t old;
-         int32_t cycles;
+        uint32_t value;
+        enum {
+            UNUSED,
+            TRANSFER,
+            DELAY
+        } stage;
     } R_ld[32];
      
     // INSTRUCTIONS

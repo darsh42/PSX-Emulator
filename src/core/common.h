@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdio.h>
+#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -14,6 +15,7 @@
 
 extern void print_error(const char *file, const char *function, const char *format, ...);
 extern void print_warning(const char *file, const char *function, const char *format, ...);
-extern PSX_ERROR set_PSX_error();
+extern PSX_ERROR set_PSX_warning(PSX_ERROR err);
+extern PSX_ERROR set_PSX_error(PSX_ERROR err);
 
 #endif//COMMON_H_INCLUDED

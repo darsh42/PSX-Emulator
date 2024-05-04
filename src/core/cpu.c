@@ -76,13 +76,14 @@ PSX_ERROR cpu_initialize(void) {
 }
 
 PSX_ERROR cpu_reset(void) {
-    
     return set_PSX_error(NO_ERROR);
 }
 
 PSX_ERROR cpu_fetch(void) {
     cpu.instruction = cpu.instruction_next;
     memory_cpu_load_32bit(cpu.PC, &cpu.instruction_next.value);
+
+    cpu.PC += 4;
 
     cpu.instruction_type = UNDECIDED;
 
@@ -100,6 +101,9 @@ PSX_ERROR cpu_decode(void) {
 }
 
 PSX_ERROR cpu_execute(void) {
+    // load delay
+    cpu_handle_load_delay();
+    
     // switch to instruction type
     switch(cpu.instruction_type) {
         case I_TYPE: EXECUTE_I_TYPE(); break;
@@ -109,7 +113,6 @@ PSX_ERROR cpu_execute(void) {
                 return set_PSX_error(CPU_EXECUTE_ERROR); 
                 break;
     }
-    cpu.PC += 4;
     return set_PSX_error(NO_ERROR);
 }
 
@@ -130,18 +133,23 @@ static PSX_ERROR cpu_handle_load_delay(void) {
     //  - skips 1 cycle
     //  - register needs to contain the old register value
     for (int i = 0; i < 32; i++) {
-        if (cpu.R_ld[i].cycles < 0) {
-            continue;
+        switch (cpu.R_ld[i].stage) {
+            case UNUSED:    
+                break;
+            case TRANSFER: 
+                cpu.R[i] = cpu.R_ld[i].value;
+                cpu.R_ld[i].stage = UNUSED;
+                break;
+            case DELAY: 
+                cpu.R_ld[i].stage = TRANSFER;
+                break;
         }
-        if (cpu.R[i] == cpu.R_ld[i].old) {
-            cpu.R[i] = cpu.R_ld[i].new;
-        }
-        cpu.R_ld[i].cycles = -1;
     }
 }
 
 static void cpu_branch(void) {
     cpu.PC += sign16(i_imm) << 2;
+    cpu.PC -= 4;
 }
 
 // main instruction execution functions
@@ -251,7 +259,7 @@ static PSX_ERROR EXECUTE_J_TYPE(void) {
 
 void BCONDZ(void)  {} 
 void BEQ(void)     {
-    // Branch Equal, rs != rt 
+    // Branch Equal, rs == rt 
     if (i_rs == i_rt) {
         cpu_branch();
     }
@@ -267,10 +275,10 @@ void BTGZ(void)    {}
 void ADDI(void)    {
     // ADD immediate, overflow trap triggerd
     if (overflow(i_rs, sign16(i_imm))) {
-        // TODO: set trap
-        exit(1);
+        cpu.coprocessor0.CAUSE.reg.excode = 0X0C;
+    } else {
+        i_rt = i_rs + sign16(i_imm);
     }
-    i_rt = i_rs + sign16(i_imm);
 }   
 void ADDIU(void)   {
     // rt = rs + imm, if overflow set exception
@@ -288,7 +296,6 @@ void XORI(void)    {}
 void LUI(void)     {
     // shift immediate << 16 and store in rt
     i_rt = i_imm << 16;
-    i_rt = i_rt & 0Xffff0000;
 }    
 void COP0(void)    {
     switch (cop_type) {
@@ -382,9 +389,8 @@ void LB(void)      {
 
     memory_cpu_load_8bit(address, &result);
     
-    cpu.R_ld[rt].new    = sign8(result);
-    cpu.R_ld[rt].old    = cpu.R[rt];
-    cpu.R_ld[rt].cycles = 1;
+    cpu.R_ld[rt].value   = sign8(result);
+    cpu.R_ld[rt].stage = DELAY;
 }     
 void LH(void)      {
 }     
@@ -398,9 +404,8 @@ void LW(void)      {
 
     memory_cpu_load_32bit(address, &result);
 
-    cpu.R_ld[rt].new    = result;
-    cpu.R_ld[rt].old    = cpu.R[rt];
-    cpu.R_ld[rt].cycles = 1;
+    cpu.R_ld[rt].value   = result;
+    cpu.R_ld[rt].stage = DELAY;
 }     
 void LBU(void)     {}    
 void LHU(void)     {}    
@@ -453,7 +458,13 @@ void MULT(void)    {}
 void MULTU(void)   {}  
 void DIV(void)     {}    
 void DIVU(void)    {}   
-void ADD(void)     {}    
+void ADD(void)     {
+    if (overflow(r_rs, r_rt)) {
+        cpu.coprocessor0.CAUSE.reg.excode = 0X0C;
+    } else {
+        r_rd = r_rs + r_rt;
+    }
+}    
 void ADDU(void)    {
     // ADD Unsigned
     r_rd = r_rs + r_rt;
@@ -477,7 +488,7 @@ void SLTU(void)    {
 
 void J(void)       {
     // jump to address
-    cpu.PC = (cpu.PC & 0XF0000000) | (j_tar << 2);
+    cpu.PC = (cpu.PC & 0XF0000000) + (j_tar << 2);
 }
 void JAL(void)     {
     cpu.R[31] = cpu.PC;

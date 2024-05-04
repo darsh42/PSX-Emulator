@@ -2,11 +2,8 @@
 
 void peak_memory(uint32_t address) {
     uint32_t result;
-    if (memory_cpu_load_32bit(address, &result) != NO_ERROR) {
-        print_debug_memory_error("peek_memory", "", NULL);
-        return;
-    }
-    printf("address: %d, value: %d\n", address, result);
+    memory_cpu_load_32bit(address, &result);
+    printf("address: 0X%08X, value: 0X%08X\n", address, result);
     return;
 }
 

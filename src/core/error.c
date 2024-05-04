@@ -16,6 +16,11 @@ static char *get_PSX_error() {
     }
 }
 
+PSX_ERROR set_PSX_warning(PSX_ERROR err) {
+    error = err;
+    return NO_ERROR;
+}
+
 PSX_ERROR set_PSX_error(PSX_ERROR err) {
     error = err;
     return err;
