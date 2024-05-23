@@ -1,6 +1,6 @@
 #include "debug_cpu.h"
 
-static void decode_instruction(union INSTRUCTION instruction, enum INSTRUCTION_TYPE instruction_type);
+static void decode_instruction(union INSTRUCTION instruction);
 
 static struct CPU *cpu;
 
@@ -48,19 +48,16 @@ void peek_cpu_registers(void) {
     peek_coprocessor_n_registers(2);
 }
 void peek_cpu_instruction(void) {
-    decode_instruction(cpu->instruction, cpu->instruction_type);
+    decode_instruction(cpu->instruction);
 }
 
 // TODO: translate the opcodes and functions into corresponding mneumonics
-static void decode_instruction(union INSTRUCTION instruction, enum INSTRUCTION_TYPE instruction_type) {
+static void decode_instruction(union INSTRUCTION instruction) {
     printf("[DEBUG]: PC: %08X  ", cpu->PC);
 
-    if (instruction_type == UNDECIDED) {
-        printf("[WARNING]: Instruction has not been decoded yet\n");
-        printf(" As Generic: op=%X\n",instruction.generic.op);
-    } else if (instruction_type == R_TYPE) {
+    if (instruction.op == 0X00) {
         printf(" R-TYPE: "); 
-        switch (instruction.R_TYPE.funct) {
+        switch (instruction.funct) {
             case 0X00: printf("SLL    "); break;
             case 0X02: printf("SRL    "); break;
             case 0X03: printf("SRA    "); break;
@@ -90,15 +87,24 @@ static void decode_instruction(union INSTRUCTION instruction, enum INSTRUCTION_T
             case 0X2A: printf("SLT    "); break;
             case 0X2B: printf("SLTU   "); break;
         }
-        printf(" rd=%02d, rt=%02d, rs=%02d, op=%02X, funct=%X, shamt=%X\n", instruction.R_TYPE.rd,
-                                                                            instruction.R_TYPE.rt,
-                                                                            instruction.R_TYPE.rs,
-                                                                            instruction.R_TYPE.op,
-                                                                            instruction.R_TYPE.funct,
-                                                                            instruction.R_TYPE.shamt);
-    } else if (instruction_type == I_TYPE) {
+        printf(" rd=%02d, rt=%02d, rs=%02d, op=%02X, funct=%X, shamt=%X\n", instruction.rd,
+                                                                            instruction.rt,
+                                                                            instruction.rs,
+                                                                            instruction.op,
+                                                                            instruction.funct,
+                                                                            instruction.shamt);
+    } else if (instruction.op == 0X02 || 
+               instruction.op == 0X03) {
+        printf(" J-TYPE: ");
+        switch(instruction.op) {
+            case 0X02: printf("J     "); break;
+            case 0X03: printf("JAL   "); break;
+        }
+        printf("                       op=%02X, target=%X\n", instruction.op, 
+                                                              instruction.target);
+    } else {
         printf(" I-TYPE: ");
-        switch (instruction.I_TYPE.op) {
+        switch (instruction.op) {
             case 0X01: printf("BCONDZ "); break;  
             case 0X04: printf("BEQ    "); break;  
             case 0X05: printf("BNE    "); break;  
@@ -137,18 +143,10 @@ static void decode_instruction(union INSTRUCTION instruction, enum INSTRUCTION_T
             case 0X3A: printf("SWC2   "); break; 
             case 0X3B: printf("SWC3   "); break; 
         }
-        printf("        rt=%02d, rs=%02d, op=%02X, immediate=%X\n", instruction.I_TYPE.rt,
-                                                                    instruction.I_TYPE.rs,
-                                                                    instruction.I_TYPE.op, 
-                                                                    instruction.I_TYPE.immediate);
-    } else {
-        printf(" J-TYPE: ");
-        switch(instruction.J_TYPE.op) {
-            case 0X02: printf("J     "); break;
-            case 0X03: printf("JAL   "); break;
-        }
-        printf("                       op=%02X, target=%X\n", instruction.J_TYPE.op, 
-                                                             instruction.J_TYPE.target);
+        printf("        rt=%02d, rs=%02d, op=%02X, immediate=%X\n", instruction.rt,
+                                                                    instruction.rs,
+                                                                    instruction.op, 
+                                                                    instruction.immediate16);
     }
 }
 

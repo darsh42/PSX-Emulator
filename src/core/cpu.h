@@ -15,29 +15,21 @@
 #define overflow(a, b) (a > 0 && (a + b) > 0xffffffff)
 
 // general access macros for cpu instruction fields, refer to instruction struct for details
-#define i_imm cpu.instruction.I_TYPE.immediate
-#define i_rt  cpu.R[cpu.instruction.I_TYPE.rt]
-#define i_rs  cpu.R[cpu.instruction.I_TYPE.rs]
-#define i_op  cpu.instruction.I_TYPE.op
+#define IMM16 cpu.instruction.immediate16
+#define IMM25 cpu.instruction.immediate25
+#define TAR   cpu.instruction.target
 
-#define j_tar cpu.instruction.J_TYPE.target
-#define j_op  cpu.instruction.J_TYPE.op
+#define FUNCT cpu.instruction.funct
+#define SHAMT cpu.instruction.shamt
+#define RD    cpu.instruction.rd
+#define RT    cpu.instruction.rt
+#define RS    cpu.instruction.rs
+#define OP    cpu.instruction.op
 
-#define r_funct cpu.instruction.R_TYPE.funct
-#define r_shamt cpu.instruction.R_TYPE.shamt
-#define r_rd    cpu.R[cpu.instruction.R_TYPE.rd]
-#define r_rt    cpu.R[cpu.instruction.R_TYPE.rt]
-#define r_rs    cpu.R[cpu.instruction.R_TYPE.rs]
-#define r_op    cpu.instruction.R_TYPE.op
+#define COP_TYPE   cpu.instruction.cop_type 
+#define COP_FUNCT  cpu.instruction.cop_funct
 
-// general access macros for coprocessor instructions (only supporting cop0 and cop2 for now)
-#define cop_op    cpu.instruction.COPn.op
-#define cop_type  cpu.instruction.COPn.type 
-#define cop_func  cpu.instruction.COPn.func 
-#define cop_rt    cpu.instruction.COPn_rt_rd.rt   
-#define cop_rd    cpu.instruction.COPn_rt_rd.rd
-#define cop_imm16 cpu.instruction.COPn_imm16.imm
-#define cop_imm25 cpu.instruction.COPn_imm25.imm
+#define reg(r) cpu.R[r]
 
 struct CPU {
     // PROGRAM COUNTER
@@ -72,7 +64,6 @@ struct CPU {
     // INSTRUCTIONS
     union INSTRUCTION      instruction;
     union INSTRUCTION      instruction_next;
-    enum  INSTRUCTION_TYPE instruction_type;
     // COPROCESSORS
     struct COPROCESSOR_0 coprocessor0;
     struct COPROCESSOR_2 coprocessor2;

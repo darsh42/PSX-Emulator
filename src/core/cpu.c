@@ -1,12 +1,13 @@
 #include "cpu.h"
 
+// main cpu struct
+static struct CPU cpu;
+
 // instruction type execution functions
-static PSX_ERROR EXECUTE_I_TYPE(void);
-static PSX_ERROR EXECUTE_R_TYPE(void);
-static PSX_ERROR EXECUTE_J_TYPE(void);
+static PSX_ERROR cpu_execute_op(void);
 
 // Main OPCODES for the cpu
-//     I-TYPE instruction   R-TYPE instructions       J-TYPE instructions        COP0 specific               COPn generic
+// I-TYPE instruction     R-TYPE instructions      J-TYPE instructions    COP0 specific        COPn generic
 static void BCONDZ(void); static void SLL(void);     static void J(void);   static void TLBR();  static void MFCn(int cop_n);
 static void BEQ(void);    static void SRL(void);     static void JAL(void); static void TLBWI(); static void CFCn(int cop_n);
 static void BNE(void);    static void SRA(void);                            static void TLBWR(); static void MTCn(int cop_n);
@@ -45,13 +46,32 @@ static void SWC1(void);
 static void SWC2(void);   
 static void SWC3(void);   
 
+// simple flag return functions
+bool cop0_SR_IEc() {return cpu.coprocessor0.SR.reg.IEc;}
+bool cop0_SR_KUc() {return cpu.coprocessor0.SR.reg.KUc;}
+bool cop0_SR_IEp() {return cpu.coprocessor0.SR.reg.IEp;}
+bool cop0_SR_KUp() {return cpu.coprocessor0.SR.reg.KUp;}
+bool cop0_SR_IEo() {return cpu.coprocessor0.SR.reg.IEo;}
+bool cop0_SR_KUo() {return cpu.coprocessor0.SR.reg.KUo;}
+bool cop0_SR_Im()  {return cpu.coprocessor0.SR.reg.Im;}
+bool cop0_SR_Isc() {return cpu.coprocessor0.SR.reg.Isc;}
+bool cop0_SR_Swc() {return cpu.coprocessor0.SR.reg.Swc;}
+bool cop0_SR_PZ()  {return cpu.coprocessor0.SR.reg.PZ;}
+bool cop0_SR_CM()  {return cpu.coprocessor0.SR.reg.CM;}
+bool cop0_SR_PE()  {return cpu.coprocessor0.SR.reg.PE;}
+bool cop0_SR_TS()  {return cpu.coprocessor0.SR.reg.TS;}
+bool cop0_SR_BEV() {return cpu.coprocessor0.SR.reg.BEV;}
+bool cop0_SR_RE()  {return cpu.coprocessor0.SR.reg.RE;}
+bool cop0_SR_CU0() {return cpu.coprocessor0.SR.reg.CU0;}
+bool cop0_SR_CU1() {return cpu.coprocessor0.SR.reg.CU1;}
+bool cop0_SR_CU2() {return cpu.coprocessor0.SR.reg.CU2;}
+bool cop0_SR_CU3() {return cpu.coprocessor0.SR.reg.CU3;}
+
 // misc/helpers
 static void cpu_branch(void);
 static PSX_ERROR cpu_handle_load_delay(void);
-static PSX_ERROR COPn_reg(int n, int reg, uint32_t **result);
+static PSX_ERROR COPn_reg(int n, int reg, uint32_t **refrence);
 
-// main cpu struct
-static struct CPU cpu;
 
 #ifdef DEBUG
 struct CPU *_cpu(void) {return &cpu;}
@@ -81,49 +101,30 @@ PSX_ERROR cpu_reset(void) {
 
 PSX_ERROR cpu_fetch(void) {
     cpu.instruction = cpu.instruction_next;
+    
     memory_cpu_load_32bit(cpu.PC, &cpu.instruction_next.value);
 
     cpu.PC += 4;
-
-    cpu.instruction_type = UNDECIDED;
 
     return set_PSX_error(NO_ERROR);
 }
 
 PSX_ERROR cpu_decode(void) {
-    switch (cpu.instruction.generic.op) {
-        case 3:  
-        case 2:  cpu.instruction_type = J_TYPE; break;
-        case 0:  cpu.instruction_type = R_TYPE; break;
-        default: cpu.instruction_type = I_TYPE; break;
-    }
     return set_PSX_error(NO_ERROR);
 }
 
 PSX_ERROR cpu_execute(void) {
-    // load delay
-    cpu_handle_load_delay();
-    
-    // switch to instruction type
-    switch(cpu.instruction_type) {
-        case I_TYPE: EXECUTE_I_TYPE(); break;
-        case R_TYPE: EXECUTE_R_TYPE(); break;
-        case J_TYPE: EXECUTE_J_TYPE(); break;
-        default: 
-                return set_PSX_error(CPU_EXECUTE_ERROR); 
-                break;
-    }
-    return set_PSX_error(NO_ERROR);
+    cpu_handle_load_delay();        // load delay
+    cpu_execute_op();               // switch to instruction type
+    return set_PSX_error(NO_ERROR); // LOG NO ERROR
 }
 
-// simple flag return functions
-bool cop0_SR_Isc() {return cpu.coprocessor0.SR.reg.Isc;}
 
 // simple helper functions
-static PSX_ERROR COPn_reg(int n, int reg, uint32_t **result) {
+static PSX_ERROR COPn_reg(int n, int reg, uint32_t **refrence) {
     switch (n) {
-        case 0X00: *result = cpu.coprocessor0.R[reg]; break;
-        case 0X02: *result = cpu.coprocessor2.R[reg]; break;
+        case 0X00: *refrence = cpu.coprocessor0.R[reg]; break;
+        case 0X02: *refrence = cpu.coprocessor2.R[reg]; break;
     }
     return set_PSX_error(NO_ERROR);
 }
@@ -148,15 +149,51 @@ static PSX_ERROR cpu_handle_load_delay(void) {
 }
 
 static void cpu_branch(void) {
-    cpu.PC += sign16(i_imm) << 2;
+    cpu.PC += sign16(IMM16) << 2;
     cpu.PC -= 4;
 }
 
 // main instruction execution functions
-static PSX_ERROR EXECUTE_I_TYPE(void) {
+static PSX_ERROR cpu_execute_op(void) {
     PSX_ERROR err = NO_ERROR;
-    switch (i_op) {
+    switch (OP) {
+        case 0X00: 
+            // RTYPE
+            switch (FUNCT) {
+                case 0X00: SLL();     break;
+                case 0X02: SRL();     break;
+                case 0X03: SRA();     break;
+                case 0X04: SLLV();    break;
+                case 0X06: SRLV();    break;
+                case 0X07: SRAV();    break;
+                case 0X08: JR();      break;
+                case 0X09: JALR();    break;
+                case 0X0C: SYSCALL(); break;
+                case 0X0D: BREAK();   break;
+                case 0X10: MFHI();    break;
+                case 0X11: MTHI();    break;
+                case 0X12: MFLO();    break;
+                case 0X13: MTLO();    break;
+                case 0X18: MULT();    break;
+                case 0X19: MULTU();   break;
+                case 0X1A: DIV();     break;
+                case 0X1B: DIVU();    break;
+                case 0X20: ADD();     break;
+                case 0X21: ADDU();    break;
+                case 0X22: SUB();     break;
+                case 0X23: SUBU();    break;
+                case 0X24: AND();     break;
+                case 0X25: OR();      break;
+                case 0X26: XOR();     break;
+                case 0X27: NOR();     break;
+                case 0X2A: SLT();     break;
+                case 0X2B: SLTU();    break;
+                default: err = set_PSX_error(UNKNOWN_OPCODE); break;
+            } 
+            break;
         case 0X01: BCONDZ(); break; 
+        case 0X02: J();      break;
+        case 0X03: JAL();    break;
         case 0X04: BEQ();    break;
         case 0X05: BNE();    break;
         case 0X06: BLEZ();   break;
@@ -203,110 +240,65 @@ static PSX_ERROR EXECUTE_I_TYPE(void) {
     return NO_ERROR;
 }
 
-static PSX_ERROR EXECUTE_R_TYPE(void) {
-    PSX_ERROR err = NO_ERROR;
-    switch (r_funct) {
-        case 0X00: SLL();     break;
-        case 0X02: SRL();     break;
-        case 0X03: SRA();     break;
-        case 0X04: SLLV();    break;
-        case 0X06: SRLV();    break;
-        case 0X07: SRAV();    break;
-        case 0X08: JR();      break;
-        case 0X09: JALR();    break;
-        case 0X0C: SYSCALL(); break;
-        case 0X0D: BREAK();   break;
-        case 0X10: MFHI();    break;
-        case 0X11: MTHI();    break;
-        case 0X12: MFLO();    break;
-        case 0X13: MTLO();    break;
-        case 0X18: MULT();    break;
-        case 0X19: MULTU();   break;
-        case 0X1A: DIV();     break;
-        case 0X1B: DIVU();    break;
-        case 0X20: ADD();     break;
-        case 0X21: ADDU();    break;
-        case 0X22: SUB();     break;
-        case 0X23: SUBU();    break;
-        case 0X24: AND();     break;
-        case 0X25: OR();      break;
-        case 0X26: XOR();     break;
-        case 0X27: NOR();     break;
-        case 0X2A: SLT();     break;
-        case 0X2B: SLTU();    break;
-        default: err = set_PSX_error(UNKNOWN_OPCODE); break;
-    }
-    if (err != NO_ERROR) {
-        print_cpu_error("R_TYPE", "", NULL);
-        return RTYPE_ERROR;
-    }
-    return NO_ERROR;
-}
-
-static PSX_ERROR EXECUTE_J_TYPE(void) {
-    PSX_ERROR err = NO_ERROR;
-    switch (j_op) {
-        case 0X02: J();   break;
-        case 0X03: JAL(); break;
-        default: err = set_PSX_error(UNKNOWN_OPCODE); break;
-    }
-    if (err != NO_ERROR) {
-        print_cpu_error("J_TYPE", "", NULL);
-        return JTYPE_ERROR;
-    }
-    return NO_ERROR;
-}
-
+// I-Type
 void BCONDZ(void)  {} 
 void BEQ(void)     {
-    // Branch Equal, rs == rt 
-    if (i_rs == i_rt) {
+    // Branch Equal, RS == RT 
+    if (reg(RS) == reg(RT)) {
         cpu_branch();
     }
 }    
 void BNE(void)     {
-    // Branch Not Equal, rs != rt 
-    if (i_rs != i_rt) {
+    // Branch Not Equal, RS != RT 
+    if (reg(RS) != reg(RT)) {
         cpu_branch();
     }
 }    
-void BLEZ(void)    {}   
-void BTGZ(void)    {}   
+void BLEZ(void)    {
+    if (sign32(reg(RS)) <= 0) {
+        cpu_branch();
+    }
+}   
+void BTGZ(void)    {
+    if (sign32(reg(RS)) > 0) {
+        cpu_branch();
+    }
+}   
 void ADDI(void)    {
-    // ADD immediate, overflow trap triggerd
-    if (overflow(i_rs, sign16(i_imm))) {
+    // ADD immediate, overflow trap triggeRD
+    if (overflow(reg(RS), sign16(IMM16))) {
         cpu.coprocessor0.CAUSE.reg.excode = 0X0C;
     } else {
-        i_rt = i_rs + sign16(i_imm);
+        reg(RT) = reg(RS) + sign16(IMM16);
     }
 }   
 void ADDIU(void)   {
-    // rt = rs + imm, if overflow set exception
-    i_rt = i_rs + sign16(i_imm);
+    // RT = RS + imm, if overflow set exception
+    reg(RT) = reg(RS) + sign16(IMM16);
 }  
 void SLTI(void)    {}   
 void SLTIU(void)   {}  
 void ANDI(void)    {
-    i_rt = i_rs & i_imm;
+    reg(RT) = reg(RS) & IMM16;
 }   
 void ORI(void)     {
-    i_rt = i_rs | i_imm;
+    reg(RT) = reg(RS) | IMM16;
 }    
 void XORI(void)    {}   
 void LUI(void)     {
-    // shift immediate << 16 and store in rt
-    i_rt = i_imm << 16;
+    // shift immediate << 16 and store in RT
+    reg(RT) = IMM16 << 16;
 }    
 void COP0(void)    {
-    switch (cop_type) {
+    switch (COP_TYPE) {
         case 0X00:
-            switch (cop_func) {
+            switch (COP_FUNCT) {
                 case 0X00: MFCn(0); break; // MFCn
                 case 0X02: CFCn(0); break; // CFCn
                 case 0X04: MTCn(0); break; // MTCn
                 case 0X06: CTCn(0); break; // CTCn
                 case 0X08:
-                    switch(cop_rt) {
+                    switch(RT) {
                         case 0X00: BCnF(0); break; // BCnF
                         case 0X01: BCnT(0); break; // BCnT
                     }
@@ -314,7 +306,7 @@ void COP0(void)    {
             }
             break;
         case 0X01:
-            switch (cop_imm25) {
+            switch (IMM25) {
                 case 0X01: TLBR(0);  break; // TLBR
                 case 0X02: TLBWI(0); break; // TLBWI
                 case 0X06: TLBWR(0); break; // TLBWR
@@ -326,15 +318,15 @@ void COP0(void)    {
     }
 }   
 void COP1(void)    {
-    switch (cop_type) {
+    switch (COP_TYPE) {
         case 0X00:
-            switch (cop_func) {
+            switch (COP_FUNCT) {
                 case 0X00: MFCn(1); break; // MFCn
                 case 0X02: CFCn(1); break; // CFCn
                 case 0X04: MTCn(1); break; // MTCn
                 case 0X06: CTCn(1); break; // CTCn
                 case 0X08:
-                    switch(cop_rt) {
+                    switch(RT) {
                         case 0X00: BCnF(1); break; // BCnF
                         case 0X01: BCnT(1); break; // BCnT
                     }
@@ -345,15 +337,15 @@ void COP1(void)    {
     }
 }   
 void COP2(void)    {
-    switch (cop_type) {
+    switch (COP_TYPE) {
         case 0X00:
-            switch (cop_func) {
+            switch (COP_FUNCT) {
                 case 0X00: MFCn(2); break; // MFCn
                 case 0X02: CFCn(2); break; // CFCn
                 case 0X04: MTCn(2); break; // MTCn
                 case 0X06: CTCn(2); break; // CTCn
                 case 0X08:
-                    switch(cop_rt) {
+                    switch(RT) {
                         case 0X00: BCnF(2); break; // BCnF
                         case 0X01: BCnT(2); break; // BCnT
                     }
@@ -364,15 +356,15 @@ void COP2(void)    {
     }
 }   
 void COP3(void)    {
-    switch (cop_type) {
+    switch (COP_TYPE) {
         case 0X00:
-            switch (cop_func) {
+            switch (COP_FUNCT) {
                 case 0X00: MFCn(3); break; // MFCn
                 case 0X02: CFCn(3); break; // CFCn
                 case 0X04: MTCn(3); break; // MTCn
                 case 0X06: CTCn(3); break; // CTCn
                 case 0X08:
-                    switch(cop_rt) {
+                    switch(RT) {
                         case 0X00: BCnF(3); break; // BCnF
                         case 0X01: BCnT(3); break; // BCnT
                     }
@@ -384,46 +376,52 @@ void COP3(void)    {
 }
 void LB(void)      {
     uint32_t result;
-    uint32_t address = i_rs + sign16(i_imm);
-    uint32_t rt = cpu.instruction.I_TYPE.rt;
+    uint32_t address = reg(RS) + sign16(IMM16);
 
     memory_cpu_load_8bit(address, &result);
     
-    cpu.R_ld[rt].value   = sign8(result);
-    cpu.R_ld[rt].stage = DELAY;
+    cpu.R_ld[RT].value = sign8(result);
+    cpu.R_ld[RT].stage = DELAY;
 }     
 void LH(void)      {
 }     
 void LWL(void)     {}    
 void LW(void)      {
-    // Load Word 
+    // Load WoRD 
     // BUG: possible that the load delays do not work properly
     uint32_t result;
-    uint32_t address = i_rs + sign16(i_imm);
-    uint32_t rt = cpu.instruction.I_TYPE.rt;
+    uint32_t address = reg(RS) + sign16(IMM16);
 
     memory_cpu_load_32bit(address, &result);
 
-    cpu.R_ld[rt].value   = result;
-    cpu.R_ld[rt].stage = DELAY;
+    cpu.R_ld[RT].value = result;
+    cpu.R_ld[RT].stage = DELAY;
 }     
-void LBU(void)     {}    
+void LBU(void)     {
+    uint32_t result;
+    uint32_t address = reg(RS) + sign16(IMM16);
+
+    memory_cpu_load_8bit(address, &result);
+
+    cpu.R_ld[RT].value = result;
+    cpu.R_ld[RT].stage = DELAY;
+}    
 void LHU(void)     {}    
 void LWR(void)     {}    
 void SB(void)      {
-    uint32_t address = i_rs + sign16(i_imm);
-    memory_cpu_store_8bit(address, i_rt);
+    uint32_t address = reg(RS) + sign16(IMM16);
+    memory_cpu_store_8bit(address, reg(RT));
 }     
 void SH(void)      {
-    // store half word
-    uint32_t address = i_rs + sign16(i_imm);
-    memory_cpu_store_16bit(address, i_rt);
+    // store half woRD
+    uint32_t address = reg(RS) + sign16(IMM16);
+    memory_cpu_store_16bit(address, reg(RT));
 }     
 void SWL(void)     {}    
 void SW(void)      {
-    // store word (32bit) at imm + rs
-    uint32_t address = i_rs + sign16(i_imm);
-    memory_cpu_store_32bit(address, i_rt);
+    // store woRD (32bit) at imm + RS
+    uint32_t address = reg(RS) + sign16(IMM16);
+    memory_cpu_store_32bit(address, reg(RT));
 }     
 void SWR(void)     {}    
 void LWC0(void)    {}   
@@ -435,9 +433,10 @@ void SWC1(void)    {}
 void SWC2(void)    {}   
 void SWC3(void)    {}   
 
+// R-Type
 void SLL(void)     {
     // shift left by shift amount
-    r_rd = r_rs << r_shamt;
+    reg(RD) = reg(RS) << SHAMT;
 }
 void SRL(void)     {}    
 void SRA(void)     {}    
@@ -445,9 +444,12 @@ void SLLV(void)    {}
 void SRLV(void)    {}   
 void SRAV(void)    {}   
 void JR(void)      {
-    cpu.PC = r_rs;
+    cpu.PC = reg(RS);
 }     
-void JALR(void)    {}   
+void JALR(void)    {
+    cpu.PC = reg(RS);
+    reg(RD) = cpu.PC;
+}   
 void SYSCALL(void) {}
 void BREAK(void)   {}  
 void MFHI(void)    {}   
@@ -459,55 +461,58 @@ void MULTU(void)   {}
 void DIV(void)     {}    
 void DIVU(void)    {}   
 void ADD(void)     {
-    if (overflow(r_rs, r_rt)) {
+    if (overflow(reg(RS), reg(RT))) {
         cpu.coprocessor0.CAUSE.reg.excode = 0X0C;
     } else {
-        r_rd = r_rs + r_rt;
+        reg(RD) = reg(RS) + reg(RT);
     }
 }    
 void ADDU(void)    {
     // ADD Unsigned
-    r_rd = r_rs + r_rt;
+    reg(RD) = reg(RS) + reg(RT);
 }   
 void SUB(void)     {}    
 void SUBU(void)    {}   
 void AND(void)     {
-    r_rd = r_rs & r_rt;
+    reg(RD) = reg(RS) & reg(RT);
 }    
 void OR(void)      {
-    // or rs and rt store in rd
-    r_rd = r_rs | r_rt;
+    // or RS and RT store in RD
+    reg(RD) = reg(RS) | reg(RT);
 }     
 void XOR(void)     {}    
 void NOR(void)     {}    
 void SLT(void)     {}    
 void SLTU(void)    {
     // Set on Less Than Unsigned 
-    r_rd = r_rs < r_rt;
+    reg(RD) = reg(RS) < reg(RT);
 }   
 
+// J-Type
 void J(void)       {
     // jump to address
-    cpu.PC = (cpu.PC & 0XF0000000) + (j_tar << 2);
+    cpu.PC = (cpu.PC & 0XF0000000) + (TAR << 2);
 }
 void JAL(void)     {
     cpu.R[31] = cpu.PC;
     J();
 }
 
+// COPn
 void MFCn(int cop_n) {
-    uint32_t *rd;
-    COPn_reg(cop_n, cop_rd, &rd);
+    // cpu register RT = coprocessor register RD
+    uint32_t *result;
+    COPn_reg(cop_n, RD, &result);
 
-    cpu.R[cop_rt] = *rd;
+    reg(RT) = *result; 
 }
 void CFCn(int cop_n) {}
 void MTCn(int cop_n) {
-    // coprocessor register rd = cpu register rt
-    uint32_t *rd;
-    COPn_reg(cop_n, cop_rd, &rd);
+    // coprocessor register RD = cpu register RT
+    uint32_t *destination;
+    COPn_reg(cop_n, RD, &destination);
     
-    *rd  = cpu.R[cop_rt];
+    *destination = reg(RT);
 }
 void CTCn(int cop_n) {}
 void COPn(int cop_n) {}
@@ -516,6 +521,7 @@ void BCnT(int cop_n) {}
 void LWCn(int cop_n) {}
 void SWCn(int cop_n) {}
 
+// COP0
 void TLBR(int cop_n)  {}
 void TLBWI(int cop_n) {}
 void TLBWR(int cop_n) {}
