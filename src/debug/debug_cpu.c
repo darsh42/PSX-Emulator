@@ -105,7 +105,14 @@ static void decode_instruction(union INSTRUCTION instruction) {
     } else {
         printf(" I-TYPE: ");
         switch (instruction.op) {
-            case 0X01: printf("BCONDZ "); break;  
+            case 0X01: 
+                switch (cpu->instruction.rt) {
+                    case 0b00000: printf("BLTZ   "); break;
+                    case 0b00001: printf("BGEZ   "); break;
+                    case 0b10000: printf("BLTZAL "); break;
+                    case 0b10001: printf("BGEZAL "); break;
+                }
+                break;
             case 0X04: printf("BEQ    "); break;  
             case 0X05: printf("BNE    "); break;  
             case 0X06: printf("BLEZ   "); break;  

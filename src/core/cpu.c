@@ -4,7 +4,7 @@
 static struct CPU cpu;
 
 // instruction type execution functions
-static PSX_ERROR cpu_execute_op(void);
+static void cpu_execute_op(void);
 
 // Main OPCODES for the cpu
 // I-TYPE instruction     R-TYPE instructions      J-TYPE instructions    COP0 specific        COPn generic
@@ -45,6 +45,10 @@ static void SWC0(void);
 static void SWC1(void);   
 static void SWC2(void);   
 static void SWC3(void);   
+static void BLTZ(void);
+static void BGEZ(void);
+static void BLTZAL(void);
+static void BGEZAL(void);
 
 // simple flag return functions
 bool cop0_SR_IEc() {return cpu.coprocessor0.SR.reg.IEc;}
@@ -69,7 +73,7 @@ bool cop0_SR_CU3() {return cpu.coprocessor0.SR.reg.CU3;}
 
 // misc/helpers
 static void cpu_branch(void);
-static PSX_ERROR cpu_handle_load_delay(void);
+static PSX_ERROR cpu_load_delay(void);
 static PSX_ERROR COPn_reg(int n, int reg, uint32_t **refrence);
 
 
@@ -114,7 +118,7 @@ PSX_ERROR cpu_decode(void) {
 }
 
 PSX_ERROR cpu_execute(void) {
-    cpu_handle_load_delay();        // load delay
+    cpu_load_delay();        // load delay
     cpu_execute_op();               // switch to instruction type
     return set_PSX_error(NO_ERROR); // LOG NO ERROR
 }
@@ -129,7 +133,7 @@ static PSX_ERROR COPn_reg(int n, int reg, uint32_t **refrence) {
     return set_PSX_error(NO_ERROR);
 }
 
-static PSX_ERROR cpu_handle_load_delay(void) {
+static PSX_ERROR cpu_load_delay(void) {
     // if a load instruction has occurred
     //  - skips 1 cycle
     //  - register needs to contain the old register value
@@ -140,6 +144,7 @@ static PSX_ERROR cpu_handle_load_delay(void) {
             case TRANSFER: 
                 cpu.R[i] = cpu.R_ld[i].value;
                 cpu.R_ld[i].stage = UNUSED;
+                cpu.R_ld[i].value = 0;
                 break;
             case DELAY: 
                 cpu.R_ld[i].stage = TRANSFER;
@@ -154,8 +159,7 @@ static void cpu_branch(void) {
 }
 
 // main instruction execution functions
-static PSX_ERROR cpu_execute_op(void) {
-    PSX_ERROR err = NO_ERROR;
+static void cpu_execute_op(void) {
     switch (OP) {
         case 0X00: 
             // RTYPE
@@ -188,10 +192,16 @@ static PSX_ERROR cpu_execute_op(void) {
                 case 0X27: NOR();     break;
                 case 0X2A: SLT();     break;
                 case 0X2B: SLTU();    break;
-                default: err = set_PSX_error(UNKNOWN_OPCODE); break;
             } 
             break;
-        case 0X01: BCONDZ(); break; 
+        case 0X01: 
+            switch (RT) {
+                case 0b00000: BLTZ();   break;
+                case 0b00001: BGEZ();   break;
+                case 0b10000: BLTZAL(); break;
+                case 0b10001: BGEZAL(); break;
+            }
+            break;
         case 0X02: J();      break;
         case 0X03: JAL();    break;
         case 0X04: BEQ();    break;
@@ -231,17 +241,34 @@ static PSX_ERROR cpu_execute_op(void) {
         case 0X39: SWC1();   break;
         case 0X3A: SWC2();   break;
         case 0X3B: SWC3();   break;
-        default: err = set_PSX_error(UNKNOWN_OPCODE); break;
     }
-    if (err != NO_ERROR) {
-        print_cpu_error("I_TYPE", "", NULL);
-        return ITYPE_ERROR;
-    }
-    return NO_ERROR;
 }
 
 // I-Type
-void BCONDZ(void)  {} 
+void BCONDZ(void)  {
+} 
+void BLTZ(void)    {
+    if (reg(RS) < 0) {
+        cpu_branch();
+    }
+}
+void BGEZ(void)    {
+    if (reg(RS) >= 0) {
+        cpu_branch();
+    }
+}
+void BLTZAL(void)    {
+    if (reg(RS) < 0) {
+        cpu.R[31] = cpu.PC;
+        cpu_branch();
+    }
+}
+void BGEZAL(void)    {
+    if (reg(RS) >= 0) {
+        cpu.R[31] = cpu.PC;
+        cpu_branch();
+    }
+}
 void BEQ(void)     {
     // Branch Equal, RS == RT 
     if (reg(RS) == reg(RT)) {
@@ -276,15 +303,21 @@ void ADDIU(void)   {
     // RT = RS + imm, if overflow set exception
     reg(RT) = reg(RS) + sign16(IMM16);
 }  
-void SLTI(void)    {}   
-void SLTIU(void)   {}  
+void SLTI(void)    {
+    // Set if Less Than Immediate, signed
+    reg(RT) = reg(RS) < sign16(IMM16);
+}   
+void SLTIU(void)   {
+    // Set if Less Than Immediate, unsigned
+    reg(RT) = reg(RS) < IMM16;
+}  
 void ANDI(void)    {
     reg(RT) = reg(RS) & IMM16;
 }   
 void ORI(void)     {
     reg(RT) = reg(RS) | IMM16;
 }    
-void XORI(void)    {}   
+void XORI(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
 void LUI(void)     {
     // shift immediate << 16 and store in RT
     reg(RT) = IMM16 << 16;
@@ -385,7 +418,7 @@ void LB(void)      {
 }     
 void LH(void)      {
 }     
-void LWL(void)     {}    
+void LWL(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
 void LW(void)      {
     // Load WoRD 
     // BUG: possible that the load delays do not work properly
@@ -406,8 +439,8 @@ void LBU(void)     {
     cpu.R_ld[RT].value = result;
     cpu.R_ld[RT].stage = DELAY;
 }    
-void LHU(void)     {}    
-void LWR(void)     {}    
+void LHU(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void LWR(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
 void SB(void)      {
     uint32_t address = reg(RS) + sign16(IMM16);
     memory_cpu_store_8bit(address, reg(RT));
@@ -417,49 +450,64 @@ void SH(void)      {
     uint32_t address = reg(RS) + sign16(IMM16);
     memory_cpu_store_16bit(address, reg(RT));
 }     
-void SWL(void)     {}    
+void SWL(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
 void SW(void)      {
     // store woRD (32bit) at imm + RS
     uint32_t address = reg(RS) + sign16(IMM16);
     memory_cpu_store_32bit(address, reg(RT));
 }     
-void SWR(void)     {}    
-void LWC0(void)    {}   
-void LWC1(void)    {}   
-void LWC2(void)    {}   
-void LWC3(void)    {}   
-void SWC0(void)    {}   
-void SWC1(void)    {}   
-void SWC2(void)    {}   
-void SWC3(void)    {}   
+void SWR(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void LWC0(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void LWC1(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void LWC2(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void LWC3(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void SWC0(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void SWC1(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void SWC2(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void SWC3(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
 
 // R-Type
 void SLL(void)     {
     // shift left by shift amount
     reg(RD) = reg(RS) << SHAMT;
 }
-void SRL(void)     {}    
-void SRA(void)     {}    
-void SLLV(void)    {}   
-void SRLV(void)    {}   
-void SRAV(void)    {}   
+void SRL(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void SRA(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void SLLV(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void SRLV(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void SRAV(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
 void JR(void)      {
     cpu.PC = reg(RS);
 }     
 void JALR(void)    {
-    cpu.PC = reg(RS);
     reg(RD) = cpu.PC;
+    JR();
 }   
-void SYSCALL(void) {}
-void BREAK(void)   {}  
-void MFHI(void)    {}   
-void MTHI(void)    {}   
-void MFLO(void)    {}   
-void MTLO(void)    {}   
-void MULT(void)    {}   
-void MULTU(void)   {}  
-void DIV(void)     {}    
-void DIVU(void)    {}   
+void SYSCALL(void) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void BREAK(void)   {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}  
+void MFHI(void)    {
+    // Move From HI
+    reg(RD) = cpu.HI;
+}   
+void MTHI(void)    {
+    // Move To HI
+    cpu.HI = reg(RS);
+}   
+void MFLO(void)    {
+    // Move From LO
+    reg(RD) = cpu.LO;
+}   
+void MTLO(void)    {
+    // Move To LO
+    cpu.LO = reg(RS);
+}
+void MULT(void)    {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}   
+void MULTU(void)   {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}  
+void DIV(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void DIVU(void)    {
+    cpu.HI = reg(RS) % reg(RT);
+    cpu.LO = reg(RS) / reg(RT);
+}   
 void ADD(void)     {
     if (overflow(reg(RS), reg(RT))) {
         cpu.coprocessor0.CAUSE.reg.excode = 0X0C;
@@ -471,8 +519,11 @@ void ADDU(void)    {
     // ADD Unsigned
     reg(RD) = reg(RS) + reg(RT);
 }   
-void SUB(void)     {}    
-void SUBU(void)    {}   
+void SUB(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void SUBU(void)    {
+    // SUBtract Unsigned
+    reg(RD) = reg(RS) - reg(RT);
+}   
 void AND(void)     {
     reg(RD) = reg(RS) & reg(RT);
 }    
@@ -480,9 +531,12 @@ void OR(void)      {
     // or RS and RT store in RD
     reg(RD) = reg(RS) | reg(RT);
 }     
-void XOR(void)     {}    
-void NOR(void)     {}    
-void SLT(void)     {}    
+void XOR(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void NOR(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void SLT(void)     {
+    // Set on Less Than 
+    reg(RD) = sign32(reg(RS)) < sign32(reg(RT));
+}    
 void SLTU(void)    {
     // Set on Less Than Unsigned 
     reg(RD) = reg(RS) < reg(RT);
@@ -506,7 +560,7 @@ void MFCn(int cop_n) {
 
     reg(RT) = *result; 
 }
-void CFCn(int cop_n) {}
+void CFCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
 void MTCn(int cop_n) {
     // coprocessor register RD = cpu register RT
     uint32_t *destination;
@@ -514,16 +568,16 @@ void MTCn(int cop_n) {
     
     *destination = reg(RT);
 }
-void CTCn(int cop_n) {}
-void COPn(int cop_n) {}
-void BCnF(int cop_n) {}
-void BCnT(int cop_n) {}
-void LWCn(int cop_n) {}
-void SWCn(int cop_n) {}
+void CTCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void COPn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void BCnF(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void BCnT(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void LWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void SWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
 
 // COP0
-void TLBR(int cop_n)  {}
-void TLBWI(int cop_n) {}
-void TLBWR(int cop_n) {}
-void TLBP(int cop_n)  {}
-void RFE(int cop_n)   {}
+void TLBR(int cop_n)  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void TLBWI(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void TLBWR(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void TLBP(int cop_n)  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void RFE(int cop_n)   {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}

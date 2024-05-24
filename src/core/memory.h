@@ -14,40 +14,40 @@ typedef union MEM_IO_PORTS              {
                                             uint8_t mem[0X2000];
                                             struct {
                                                 // Memory control
-                                                uint8_t expansion_1_base_address[4];
-                                                uint8_t expansion_2_base_address[4];
-                                                uint8_t expansion_1[4];
-                                                uint8_t expansion_3[4];
-                                                uint8_t bios_rom[4];
-                                                uint8_t spu_delay[4];
-                                                uint8_t cdrom_delay[4];
-                                                uint8_t expansion_2[4];
-                                                uint8_t com_delay[4];
+                                                uint32_t expansion_1_base_address;
+                                                uint32_t expansion_2_base_address;
+                                                uint32_t expansion_1;
+                                                uint32_t expansion_3;
+                                                uint32_t bios_rom;
+                                                uint32_t spu_delay;
+                                                uint32_t cdrom_delay;
+                                                uint32_t expansion_2;
+                                                uint32_t com_delay;
                                                 
                                                 uint8_t _pad_mem_cont_periph[28];
 
                                                 // Peripherals
-                                                uint8_t joy_data[4];
-                                                uint8_t joy_stat[4];
-                                                uint8_t joy_mode[2];
-                                                uint8_t joy_ctrl[2];
-                                                uint8_t _pad_joy[2];
-                                                uint8_t joy_baud[2];
-                                                uint8_t sio_data[4];
-                                                uint8_t sio_stat[4];
-                                                uint8_t sio_mode[2];
-                                                uint8_t sio_ctrl[2];
-                                                uint8_t sio_misc[2];
-                                                uint8_t sio_baud[2];
+                                                uint32_t joy_data;
+                                                uint32_t joy_stat;
+                                                uint16_t joy_mode;
+                                                uint16_t joy_ctrl;
+                                                uint16_t _pad_joy;
+                                                uint16_t joy_baud;
+                                                uint32_t sio_data;
+                                                uint32_t sio_stat;
+                                                uint16_t sio_mode;
+                                                uint16_t sio_ctrl;
+                                                uint16_t sio_misc;
+                                                uint16_t sio_baud;
 
                                                 // Memory control 2
-                                                uint8_t ram_size[4];
+                                                uint32_t ram_size;
 
                                                 uint8_t _pad_mem_cont_2_interrupt[12];
                                                 
                                                 // Interrupt control
-                                                uint8_t i_stat[4];
-                                                uint8_t i_mask[4];
+                                                uint32_t i_stat;
+                                                uint32_t i_mask;
                                                 
                                                 uint8_t _pad_interrupt_dma[8];
                                                 
@@ -59,8 +59,8 @@ typedef union MEM_IO_PORTS              {
                                                 uint8_t dma4_spu[16];
                                                 uint8_t dma5_pio[16];
                                                 uint8_t dma6_otc[16];
-                                                uint8_t dpcr[4];
-                                                uint8_t dicr[4];
+                                                uint32_t dpcr;
+                                                uint32_t dicr;
 
                                                 uint8_t _pad_dma_timer[8];
 
@@ -97,18 +97,18 @@ typedef union MEM_IO_PORTS              {
                                                 uint8_t _pad_cdrom_gpu[12];
 
                                                 // GPU Registers
-                                                uint8_t gp0_send_gp0[4];   // GP0 Send GP0 Commands/Packets (Rendering and VRAM Access)
-                                                uint8_t gp1_send_gp1[4];   // GP1 Send GP1 Commands (Display Control)
-                                                uint8_t gpuread[4];        // GPUREAD Read responses to GP0(C0h) and GP1(10h) commands
-                                                uint8_t gpustat[4];        // GPUSTAT Read GPU Status Register
+                                                uint32_t gp0_send_gp0;   // GP0 Send GP0 Commands/Packets (Rendering and VRAM Access)
+                                                uint32_t gp1_send_gp1;   // GP1 Send GP1 Commands (Display Control)
+                                                uint32_t gpuread;        // GPUREAD Read responses to GP0(C0h) and GP1(10h) commands
+                                                uint32_t gpustat;        // GPUSTAT Read GPU Status Register
 
                                                 uint8_t _pad_gpu_mdec[8];
 
                                                 // MDEC Registers
-                                                uint8_t mdec_command_parameter[4];   // MDEC Command/Parameter Register (W)
-                                                uint8_t mdec_data_response[4];       // MDEC Data/Response Register (R)
-                                                uint8_t mdec_control_reset[4];       // MDEC Control/Reset Register (W)
-                                                uint8_t mdec_status[4];              // MDEC Status Register (R)
+                                                uint32_t mdec_command_parameter;   // MDEC Command/Parameter Register (W)
+                                                uint32_t mdec_data_response;       // MDEC Data/Response Register (R)
+                                                uint32_t mdec_control_reset;       // MDEC Control/Reset Register (W)
+                                                uint32_t mdec_status;              // MDEC Status Register (R)
 
                                                 // TODO: SPU Voice 0..23 Registers
                                                 // 

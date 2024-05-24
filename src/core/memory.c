@@ -7,7 +7,7 @@ static uint32_t segment_lookup[] = {
     (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, // KUSEG
     (uint32_t) 0X7FFFFFFF,                                     // KSEG0
     (uint32_t) 0X1FFFFFFF,                                     // KSEG1
-    (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF                          // KSEG2
+    (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF               // KSEG2
 };
 
 #ifdef DEBUG
@@ -36,7 +36,6 @@ void memory_cpu_load_8bit(uint32_t address, uint32_t *result) {
         return;
     }
 
-
     uint8_t b0 = *(segment + address + 0);
     *result &= 0X00000000;
     *result  = b0;
@@ -55,7 +54,7 @@ void memory_cpu_store_8bit(uint32_t address, uint32_t data) {
     }
 
     uint8_t b0 = (data >> 0) & 0X000000FF;
-    *(segment + address + 0);
+    *(segment + address + 0) = b0;
 }
 
 void memory_cpu_load_16bit(uint32_t address, uint32_t *result) {
@@ -89,8 +88,8 @@ void memory_cpu_store_16bit(uint32_t address, uint32_t data) {
         return;
     }
 
-    *(segment + address + 0);
-    *(segment + address + 1);
+    *(segment + address + 0) = b0;
+    *(segment + address + 1) = b1;
 }
 
 void memory_cpu_load_32bit(uint32_t address, uint32_t *result) {
@@ -129,10 +128,10 @@ void memory_cpu_store_32bit(uint32_t address, uint32_t data) {
     uint8_t b2 = (data >> 16) & 0X000000FF;
     uint8_t b3 = (data >> 24) & 0X000000FF;
 
-    segment[address + 0] = b0; 
-    segment[address + 1] = b1;
-    segment[address + 2] = b2;
-    segment[address + 3] = b3;
+    *(segment + address + 0) = b0; 
+    *(segment + address + 1) = b1;
+    *(segment + address + 2) = b2;
+    *(segment + address + 3) = b3;
 }
 
 PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t alignment) {

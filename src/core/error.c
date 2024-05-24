@@ -27,6 +27,10 @@ PSX_ERROR set_PSX_error(PSX_ERROR err) {
 }
 
 void print_error(const char *file, const char *function, const char *format, ...) {
+    #ifdef DEBUG
+    peek_cpu_registers();
+    #endif
+
     get_PSX_error();
     printf("[ERROR] %s->%s: %s: ", file, function, error_msg);
 
@@ -36,11 +40,6 @@ void print_error(const char *file, const char *function, const char *format, ...
     va_end(args);
 
     printf("\n");
-
-    #ifdef DEBUG
-    peek_cpu_registers();
-    #endif
-
 }
 
 void print_warning(const char *file, const char *function, const char *format, ...) {
