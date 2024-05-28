@@ -1,6 +1,10 @@
 #include "debug_cpu.h"
 
 static void decode_instruction(union INSTRUCTION instruction);
+static const char *register_names[32] = {"$zr", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", 
+                                         "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", 
+                                         "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", "$s6", "$s7", 
+                                         "$t8", "$t9", "$k0", "$k1", "$gp", "$sp", "$fp", "$ra"};
 
 static struct CPU *cpu;
 
@@ -14,7 +18,7 @@ void peek_cpu_pc(void) {
 
 // TODO: translate register number into corresponding names
 void peek_cpu_R_register(int reg) {
-    printf("[DEBUG]: CPU REGISTER: %02d, Value: %08X\n", reg, cpu->R[reg]);
+    printf("[DEBUG]: CPU REGISTER: %s, Value: %08X\n", register_names[reg], cpu->R[reg]);
 }
 
 void peek_cpu_R_registers(void) {
@@ -30,8 +34,8 @@ void peek_cpu_mult_div_registers(void) {
 
 void peek_coprocessor_n_register(int cop_n, int reg) {
     switch(cop_n) {
-        case 0X00: if (cpu->coprocessor0.R[reg] != NULL) {printf("[DEBUG]: CO PROCESSOR 0 REGISTER: %d, Value: %X\n", reg, *cpu->coprocessor0.R[reg]);} break;
-        case 0X02: if (cpu->coprocessor2.R[reg] != NULL) {printf("[DEBUG]: CO PROCESSOR 2 REGISTER: %d, Value: %X\n", reg, *cpu->coprocessor2.R[reg]);} break;
+        case 0X00: if (cpu->cop0.R[reg] != NULL) {printf("[DEBUG]: CO PROCESSOR 0 REGISTER: %d, Value: %X\n", reg, *cpu->cop0.R[reg]);} break;
+        case 0X02: if (cpu->cop2.R[reg] != NULL) {printf("[DEBUG]: CO PROCESSOR 2 REGISTER: %d, Value: %X\n", reg, *cpu->cop2.R[reg]);} break;
     }
 }
 
@@ -53,8 +57,7 @@ void peek_cpu_instruction(void) {
 
 // TODO: translate the opcodes and functions into corresponding mneumonics
 static void decode_instruction(union INSTRUCTION instruction) {
-    printf("[DEBUG]: PC: %08X  ", cpu->PC);
-
+    printf("[DEBUG]: PC: %08X    HEX: %08X   ", cpu->PC, instruction.value);
     if (instruction.op == 0X00) {
         printf(" R-TYPE: "); 
         switch (instruction.funct) {
@@ -87,12 +90,12 @@ static void decode_instruction(union INSTRUCTION instruction) {
             case 0X2A: printf("SLT    "); break;
             case 0X2B: printf("SLTU   "); break;
         }
-        printf(" rd=%02d, rt=%02d, rs=%02d, op=%02X, funct=%X, shamt=%X\n", instruction.rd,
-                                                                            instruction.rt,
-                                                                            instruction.rs,
-                                                                            instruction.op,
-                                                                            instruction.funct,
-                                                                            instruction.shamt);
+        printf(" rd=%s, rt=%s, rs=%s, op=%02X, funct=%X, shamt=%X\n", register_names[instruction.rd],
+                                                                      register_names[instruction.rt],
+                                                                      register_names[instruction.rs],
+                                                                      instruction.op,
+                                                                      instruction.funct,
+                                                                      instruction.shamt);
     } else if (instruction.op == 0X02 || 
                instruction.op == 0X03) {
         printf(" J-TYPE: ");
@@ -100,7 +103,7 @@ static void decode_instruction(union INSTRUCTION instruction) {
             case 0X02: printf("J     "); break;
             case 0X03: printf("JAL   "); break;
         }
-        printf("                       op=%02X, target=%X\n", instruction.op, 
+        printf("                          op=%02X, target=%X\n", instruction.op, 
                                                               instruction.target);
     } else {
         printf(" I-TYPE: ");
@@ -116,7 +119,7 @@ static void decode_instruction(union INSTRUCTION instruction) {
             case 0X04: printf("BEQ    "); break;  
             case 0X05: printf("BNE    "); break;  
             case 0X06: printf("BLEZ   "); break;  
-            case 0X07: printf("BTGZ   "); break;  
+            case 0X07: printf("BGTZ   "); break;  
             case 0X08: printf("ADDI   "); break;  
             case 0X09: printf("ADDIU  "); break;  
             case 0X0A: printf("SLTI   "); break;  
@@ -150,10 +153,10 @@ static void decode_instruction(union INSTRUCTION instruction) {
             case 0X3A: printf("SWC2   "); break; 
             case 0X3B: printf("SWC3   "); break; 
         }
-        printf("        rt=%02d, rs=%02d, op=%02X, immediate=%X\n", instruction.rt,
-                                                                    instruction.rs,
-                                                                    instruction.op, 
-                                                                    instruction.immediate16);
+        printf("         rt=%s, rs=%s, op=%02X, immediate=%X\n", register_names[instruction.rt],
+                                                                register_names[instruction.rs],
+                                                                instruction.op, 
+                                                                instruction.immediate16);
     }
 }
 

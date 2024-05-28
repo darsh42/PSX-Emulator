@@ -12,7 +12,9 @@
 #define sign8(a)  (int32_t) (int8_t)  a
 #define sign16(a) (int32_t) (int16_t) a
 #define sign32(a) (int32_t)           a
+#define sign64(a) (int64_t) (int32_t) a
 #define overflow(a, b) (a > 0 && (a + b) > 0xffffffff)
+#define underflow(a,b) ((b < 0) && (a > INT_MAX + b)) 
 
 // general access macros for cpu instruction fields, refer to instruction struct for details
 #define IMM16 cpu.instruction.immediate16
@@ -31,9 +33,17 @@
 
 #define reg(r) cpu.R[r]
 
+struct delay {
+    uint32_t value;
+    enum {UNUSED, TRANSFER, DELAY} stage;
+};
+
 struct CPU {
     // PROGRAM COUNTER
     uint32_t PC;
+    
+    struct delay branch;
+
     // GENERAL REGISTERS
     // NAME   | ALIAS | DESCRIPTION
     // R0       zero    Constant always 0 (not real register)
@@ -52,21 +62,14 @@ struct CPU {
     // MULTIPLY/DIVIDE REGISTERS 
     uint32_t HI, LO; 
     // LOAD DELAY
-    struct {
-        uint32_t value;
-        enum {
-            UNUSED,
-            TRANSFER,
-            DELAY
-        } stage;
-    } R_ld[32];
+    struct delay load[32];
      
     // INSTRUCTIONS
-    union INSTRUCTION      instruction;
-    union INSTRUCTION      instruction_next;
+    union INSTRUCTION instruction;
+    union INSTRUCTION instruction_next;
     // COPROCESSORS
-    struct COPROCESSOR_0 coprocessor0;
-    struct COPROCESSOR_2 coprocessor2;
+    struct COPROCESSOR_0 cop0;
+    struct COPROCESSOR_2 cop2;
 };
 
 // coprocessor functions

@@ -5,8 +5,6 @@
 #include "common.h"
 #include "instruction.h"
 
-#define copn_imm25 coprocessor.instruction.COPN_IMMEDIATE25.imm
-
 struct COPROCESSOR_0 {
     // REGISTERS
     // r0-r2      N/A
@@ -40,7 +38,7 @@ struct COPROCESSOR_0 {
         uint32_t value;
         struct {
             uint32_t badaddress:32;
-        } reg;
+        };
     } BadVaddr;
     union {
         uint32_t value;
@@ -76,27 +74,27 @@ struct COPROCESSOR_0 {
             uint32_t CU1:1;  // COP1 enable (0=disable, 1=enable) not in psx
             uint32_t CU2:1;  // COP2 enable (0=disable, 1=enable) GTE in psx
             uint32_t CU3:1;  // COP3 enable (0=disable, 1=enable) not in psx
-        } reg;
+        };
     } SR;
     union {
         uint32_t value;
         struct {
-            uint32_t       :1; 
-            uint32_t       :1; 
-            uint32_t excode:4; // Exception type that occured
-            uint32_t       :1;  
-            uint32_t     Ip:8; // Interrupt pending field
-            uint32_t       :12;
-            uint32_t     CE:2; // ??
-            uint32_t       :1;
-            uint32_t     BD:1; // Branch delay (set the exception point to the branch instruction instead of the branch delay instruction)
-        } reg;
+            uint32_t                  : 2;
+            uint32_t           EXECODE: 5;
+            uint32_t SoftwareInterrupt: 2;
+            uint32_t                  : 1;
+            uint32_t InterruptsPending: 6;
+            uint32_t                  : 12;
+            uint32_t  CoprocessorError: 2;
+            uint32_t                  : 1;
+            uint32_t       BranchDelay: 1;
+        };
     } CAUSE;
     union {
         uint32_t value;
         struct {
-            uint32_t return_address:32;
-        } reg;
+            uint32_t return_address: 32;
+        };
     } EPC;
     union {
         uint32_t value;
@@ -104,7 +102,7 @@ struct COPROCESSOR_0 {
             uint32_t revision:8;
             uint32_t implementation:8;
             uint32_t :16;
-        } reg;
+        };
     } PIRD;
 };
 

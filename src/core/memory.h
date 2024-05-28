@@ -175,13 +175,13 @@ typedef union MEM_IO_PORTS              {
                                             } ports;
                                         } MEM_IO_PORTS;                                       // 8K
 typedef union MEM_EXPANSION_2           {uint8_t mem[0X2000];}     MEM_EXPANSION_2;           // 8K
-typedef union MEM_EXPANSION_3           {uint8_t mem[0X800000];}   MEM_EXPANSION_3;           // 2048K
-typedef union MEM_BIOS                  {uint8_t mem[0X100000];}   MEM_BIOS;                  // 512K
+typedef union MEM_EXPANSION_3           {uint8_t mem[0X200000];}   MEM_EXPANSION_3;           // 2048K
+typedef union MEM_BIOS                  {uint8_t mem[0X80000];}   MEM_BIOS;                  // 512K
 typedef union MEM_KSEG2                 {uint8_t mem[0X40000000];} MEM_KSEG2;
 
 // NON-CPU address space
-typedef union MEM_VRAM                  {uint8_t mem[0X200000];} MEM_VRAM;                  // 1024K
-typedef union MEM_SOUND                 {uint8_t mem[0X100000];} MEM_SOUND;                 // 512K
+typedef union MEM_VRAM                  {uint8_t mem[0X100000];} MEM_VRAM;                  // 1024K
+typedef union MEM_SOUND                 {uint8_t mem[0X80000];} MEM_SOUND;                 // 512K
 typedef union MEM_CDROM_CONTROLLER_RAM  {uint8_t mem[0X200];}    MEM_CDROM_CONTROLLER_RAM;  // 0.5K
 typedef union MEM_CDROM_CONTROLLER_ROM  {uint8_t mem[0X4200];}   MEM_CDROM_CONTROLLER_ROM;  // 16.5K
 typedef union MEM_CDROM_BUFFER          {uint8_t mem[0X8400];}   MEM_CDROM_BUFFER;          // 32K
@@ -217,6 +217,7 @@ union VIRTUAL_ADDRESS {
 };
 
 // cpu functions
+extern void cpu_exception(enum EXCEPTION_CAUSE cause);
 extern bool cop0_SR_Isc(void);
 
 #endif

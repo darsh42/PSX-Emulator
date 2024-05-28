@@ -15,7 +15,7 @@ void peak_memory(uint32_t address) {
 
 void peak_memory_chunk(uint32_t base, int chunk_size) {
     for (int i = 0; i < chunk_size; i++) {
-        peak_memory(base + i);
+        peak_memory(base + i*4);
     }
 }
 

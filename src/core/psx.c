@@ -1,5 +1,14 @@
 #include "psx.h"
 
+void psx_reset(char **argv) {
+    if (memory_load_bios(*(++argv)) != NO_ERROR) {
+        print_psx_error("main", "Cannot load BIOS file", NULL);
+        exit(1);
+    }
+
+    cpu_reset();
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) {
         set_PSX_error(INSUFFICIENT_ARGS);
@@ -7,23 +16,17 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if (memory_load_bios(*(++argv)) != NO_ERROR) {
-        print_psx_error("main", "Cannot load BIOS file", NULL);
-        exit(1);
-    }
+    psx_reset(argv);
+
+    // disassemble(); exit(0);
 
     set_debug_cpu();
-                                           
-    cpu_initialize();
+
     while (1) {
         cpu_fetch();
-        cpu_decode();
-        // peek_cpu_pc();
         peek_cpu_instruction();
+        cpu_decode();
         cpu_execute();
-        // peek_cpu_R_registers();
-        // peek_coprocessor_n_registers(0);
-        // peek_coprocessor_n_registers(2);
     }
 
     return 0;

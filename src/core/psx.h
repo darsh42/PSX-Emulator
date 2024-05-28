@@ -12,14 +12,20 @@
 #define print_psx_error(func, format, ...) print_error("psx.c", func, format, __VA_ARGS__)
 
 // device functions
+// memory
 extern PSX_ERROR memory_load_bios(const char *filebios);
-extern PSX_ERROR cpu_initialize(void);
+
+// cpu
+extern PSX_ERROR cpu_reset(void);
 extern PSX_ERROR cpu_fetch(void);
 extern PSX_ERROR cpu_decode(void);
 extern PSX_ERROR cpu_execute(void);
 extern PSX_ERROR coprocessor_initialize(void);
 
 #ifdef DEBUG
+// disassembler
+extern void disassemble(void);
+
 // cpu
 extern void set_debug_cpu(void);
 extern void peek_cpu_pc(void);
@@ -30,6 +36,5 @@ extern void peek_cpu_mult_div_registers(void);
 // co processor
 extern void peek_coprocessor_n_registers(int cop_n);
 #endif
-
 
 #endif//PSX_H_INCLUDED

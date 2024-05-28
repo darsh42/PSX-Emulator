@@ -13,6 +13,23 @@
 
 #define DEBUG
 
+enum EXCEPTION_CAUSE {
+    INT,
+    MOD,
+    TLBL,
+    TLBS,
+    ADEL,
+    ADES,
+    IBE,
+    DBE,
+    SYS,
+    BP,
+    RI,
+    CPU,
+    OVF
+};
+
+
 extern void print_error(const char *file, const char *function, const char *format, ...);
 extern void print_warning(const char *file, const char *function, const char *format, ...);
 extern PSX_ERROR set_PSX_warning(PSX_ERROR err);
