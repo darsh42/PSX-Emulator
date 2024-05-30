@@ -24,25 +24,71 @@ struct COPROCESSOR_0 {
     uint32_t *R[16];
     union {
         uint32_t value;
-    } BCP;
+        struct {
+            uint32_t : 8;
+            uint32_t Index: 6;
+            uint32_t : 17;
+            uint32_t P: 1;
+        };
+    } INDX;
+    union {
+        uint32_t value;
+        struct {
+            uint32_t : 8;
+            uint32_t Index: 6;
+            uint32_t : 18;
+        };
+    } RAND;
+    union {
+        uint32_t value;
+        struct {
+            uint32_t : 8;
+            uint32_t G: 1;
+            uint32_t V: 1;
+            uint32_t D: 1;
+            uint32_t N: 1;
+            uint32_t FPN: 20;
+        };
+    } TLBL;
+    union {
+        uint32_t value;
+    } BPC;
+    union {
+        uint32_t value;
+        struct {
+            uint32_t : 2;
+            uint32_t BADV: 19;
+            uint32_t PTEB: 11;
+        };
+    } CTXT;
     union {
         uint32_t value;
     } BDA;
     union {
         uint32_t value;
-    } JUMPDEST;
+        struct {
+        };
+    } PIDMASK;
     union {
         uint32_t value;
     } DCIC;
     union {
         uint32_t value;
         struct {
-            uint32_t badaddress:32;
+            uint32_t BADV: 32;
         };
-    } BadVaddr;
+    } BADV;
     union {
         uint32_t value;
     } BDAM;
+    union {
+        uint32_t value;
+        struct {
+            uint32_t : 6;
+            uint32_t PID: 6;
+            uint32_t VPN: 20;
+        };
+    } TLBH;
     union {
         uint32_t value;
     } BCPM;
@@ -99,8 +145,8 @@ struct COPROCESSOR_0 {
     union {
         uint32_t value;
         struct {
-            uint32_t revision:8;
-            uint32_t implementation:8;
+            uint32_t Rev:8;
+            uint32_t Imp:8;
             uint32_t :16;
         };
     } PIRD;

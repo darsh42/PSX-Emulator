@@ -1,7 +1,6 @@
 #ifndef CPU_H_INCLUDED
 #define CPU_H_INCLUDED
 
-#include "error.h"
 #include "common.h"
 #include "instruction.h"
 #include "coprocessor0.h"

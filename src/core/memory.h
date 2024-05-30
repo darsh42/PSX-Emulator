@@ -52,13 +52,13 @@ typedef union MEM_IO_PORTS              {
                                                 uint8_t _pad_interrupt_dma[8];
                                                 
                                                 // DMA
-                                                uint8_t dma0_mdec_in[16];
-                                                uint8_t dma1_mdec_out[16];
-                                                uint8_t dma2_gpu[16];
-                                                uint8_t dma3_cdrom[16];
-                                                uint8_t dma4_spu[16];
-                                                uint8_t dma5_pio[16];
-                                                uint8_t dma6_otc[16];
+                                                uint32_t dma0_mdec_in[4];
+                                                uint32_t dma1_mdec_out[4];
+                                                uint32_t dma2_gpu[4];
+                                                uint32_t dma3_cdrom[4];
+                                                uint32_t dma4_spu[4];
+                                                uint32_t dma5_pio[4];
+                                                uint32_t dma6_otc[4];
                                                 uint32_t dpcr;
                                                 uint32_t dicr;
 
@@ -72,7 +72,10 @@ typedef union MEM_IO_PORTS              {
                                                 uint8_t _pad_timers_cdrom[1744];
 
                                                 // TODO: CDROM registers use of bits needs attention
-                                                uint8_t cd_regs[4];
+                                                uint8_t cd_index_status;
+                                                uint8_t cd_response_fifo;
+                                                uint8_t cd_data_fifo;
+                                                uint8_t cd_interrupt;
                                                 // uint8_t cd_index_status[1];                 //  CD Index/Status Register (Bit0-1 R/W, Bit2-7 Read Only)
                                                 // uint8_t cd_response_fifo[1];                //  CD Response Fifo (R) (usually with Index1)
                                                 // uint8_t cd_data_fifo[2];                    //  CD Data Fifo - 8bit/16bit (R) (usually with Index0..1)
@@ -97,10 +100,8 @@ typedef union MEM_IO_PORTS              {
                                                 uint8_t _pad_cdrom_gpu[12];
 
                                                 // GPU Registers
-                                                uint32_t gp0_send_gp0;   // GP0 Send GP0 Commands/Packets (Rendering and VRAM Access)
-                                                uint32_t gp1_send_gp1;   // GP1 Send GP1 Commands (Display Control)
-                                                uint32_t gpuread;        // GPUREAD Read responses to GP0(C0h) and GP1(10h) commands
-                                                uint32_t gpustat;        // GPUSTAT Read GPU Status Register
+                                                uint32_t gp0_and_gpu_read; // GP0 (Write) GPUREAD (Read) responses to GP0(C0h) and GP1(10h) commands
+                                                uint32_t gp1_and_gpu_stat; // GP1 (Write) GPUSTAT (Read) GPU Status Register
 
                                                 uint8_t _pad_gpu_mdec[8];
 
@@ -172,16 +173,22 @@ typedef union MEM_IO_PORTS              {
                                                 //   1F801E60h      20h Unknown? (R/W)
                                                 //   1F801E80h     180h Unknown? (Read: FFh-filled) (Unused or Write only?)
 
-                                            } ports;
+                                            };
                                         } MEM_IO_PORTS;                                       // 8K
 typedef union MEM_EXPANSION_2           {uint8_t mem[0X2000];}     MEM_EXPANSION_2;           // 8K
 typedef union MEM_EXPANSION_3           {uint8_t mem[0X200000];}   MEM_EXPANSION_3;           // 2048K
-typedef union MEM_BIOS                  {uint8_t mem[0X80000];}   MEM_BIOS;                  // 512K
-typedef union MEM_KSEG2                 {uint8_t mem[0X40000000];} MEM_KSEG2;
+typedef union MEM_BIOS                  {uint8_t mem[0X80000];}    MEM_BIOS;                  // 512K
+typedef union MEM_KSEG2                 {
+                                            uint8_t mem[0X40000000];
+                                            struct {
+                                                uint8_t unused[0X3FFE0130];
+                                                uint32_t cache_control;
+                                            };
+                                        } MEM_KSEG2;
 
 // NON-CPU address space
-typedef union MEM_VRAM                  {uint8_t mem[0X100000];} MEM_VRAM;                  // 1024K
-typedef union MEM_SOUND                 {uint8_t mem[0X80000];} MEM_SOUND;                 // 512K
+typedef union MEM_VRAM                  {uint8_t mem[0X100000];} MEM_VRAM;                  // 1024K used for frame buffers, textures and CLUTs
+typedef union MEM_SOUND                 {uint8_t mem[0X80000];}  MEM_SOUND;                 // 512K
 typedef union MEM_CDROM_CONTROLLER_RAM  {uint8_t mem[0X200];}    MEM_CDROM_CONTROLLER_RAM;  // 0.5K
 typedef union MEM_CDROM_CONTROLLER_ROM  {uint8_t mem[0X4200];}   MEM_CDROM_CONTROLLER_ROM;  // 16.5K
 typedef union MEM_CDROM_BUFFER          {uint8_t mem[0X8400];}   MEM_CDROM_BUFFER;          // 32K
@@ -210,9 +217,9 @@ struct MEMORY {
 
 union VIRTUAL_ADDRESS {
     struct {
-        
+        uint32_t address: 29;
         uint32_t segment: 3;
-    } fields;
+    };
     uint32_t value;
 };
 

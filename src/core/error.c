@@ -3,7 +3,7 @@
 static PSX_ERROR error;
 static char *error_msg;
 
-static char *get_PSX_error() {
+static void get_PSX_error() {
     switch (error) {
         case NO_ERROR: error_msg = "NO_ERROR"; break;
         // PSX
@@ -15,7 +15,6 @@ static char *get_PSX_error() {
         default: error_msg = "UNEXPECTED ERROR"; break;
     }
 }
-
 PSX_ERROR set_PSX_warning(PSX_ERROR err) {
     error = err;
     return NO_ERROR;

@@ -7,6 +7,8 @@ void psx_reset(char **argv) {
     }
 
     cpu_reset();
+    gpu_reset();
+    dma_reset();
 }
 
 int main(int argc, char **argv) {
@@ -18,10 +20,8 @@ int main(int argc, char **argv) {
 
     psx_reset(argv);
 
-    // disassemble(); exit(0);
-
     set_debug_cpu();
-
+    
     while (1) {
         cpu_fetch();
         peek_cpu_instruction();

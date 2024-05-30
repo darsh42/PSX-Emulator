@@ -87,12 +87,17 @@ PSX_ERROR cpu_reset(void) {
     cpu.PC = 0Xbfc00000;
 
     // set cop
-    cpu.cop0.R[3]  = &cpu.cop0.BCP.value;
+    cpu.cop0.R[0]  = &cpu.cop0.INDX.value;
+    cpu.cop0.R[1]  = &cpu.cop0.RAND.value;
+    cpu.cop0.R[2]  = &cpu.cop0.TLBL.value;
+    cpu.cop0.R[3]  = &cpu.cop0.BPC.value;
+    cpu.cop0.R[4]  = &cpu.cop0.CTXT.value;
     cpu.cop0.R[5]  = &cpu.cop0.BDA.value;
-    cpu.cop0.R[6]  = &cpu.cop0.JUMPDEST.value;
+    cpu.cop0.R[6]  = &cpu.cop0.PIDMASK.value;
     cpu.cop0.R[7]  = &cpu.cop0.DCIC.value;
-    cpu.cop0.R[8]  = &cpu.cop0.BadVaddr.value;
+    cpu.cop0.R[8]  = &cpu.cop0.BADV.value;
     cpu.cop0.R[9]  = &cpu.cop0.BDAM.value;
+    cpu.cop0.R[10] = &cpu.cop0.TLBH.value;
     cpu.cop0.R[11] = &cpu.cop0.BCPM.value;
     cpu.cop0.R[12] = &cpu.cop0.SR.value;
     cpu.cop0.R[13] = &cpu.cop0.CAUSE.value;
@@ -120,7 +125,7 @@ PSX_ERROR cpu_execute(void) {
 
     cpu.PC += 4;
 
-    return set_PSX_error(NO_ERROR); // LOG NO ERROR
+    return set_PSX_error(NO_ERROR);
 }
 
 
@@ -133,7 +138,8 @@ void COPn_reg(int n, int reg, uint32_t **refrence) {
 }
 
 void cpu_exception(enum EXCEPTION_CAUSE cause) {
-    uint32_t handler = (cpu.cop0.SR.BEV) ? 0XBFC0180: 0X80000080; // determine exception handler
+    // determine exception handler
+    uint32_t handler = (cpu.cop0.SR.BEV) ? 0XBFC0180: 0X80000080; 
                                                                   
     // set exception cause
     cpu.cop0.CAUSE.EXECODE = cause; 
@@ -443,7 +449,6 @@ void LH(void)      {
     cpu.load[RT].value = sign16(result);
     cpu.load[RT].stage = DELAY;
 }    
-void LWL(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
 void LW(void)      {
     // Load Word 
     uint32_t result, address = reg(RS) + sign16(IMM16);
@@ -453,7 +458,44 @@ void LW(void)      {
     cpu.load[RT].value = result;
     cpu.load[RT].stage = DELAY;
 }     
-void LWR(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void LWL(void)     {
+    // Load Halfword 
+    uint32_t mask, result, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+
+    memory_cpu_load_16bit(address, &result);
+
+    switch ((reg(RS) + sign16(IMM16)) & 0X3) {
+        case 0: mask = 0X00FFFFFF; result <<= 24; break;
+        case 1: mask = 0X0000FFFF; result <<= 16; break;
+        case 2: mask = 0X000000FF; result <<= 8;  break;
+        case 3: mask = 0X00000000; result <<= 0;  break;
+    }
+    
+    cpu.load[RT].value &= mask;
+    cpu.load[RT].value |= result;
+    if (cpu.load[RT].stage == UNUSED) {
+        cpu.load[RT].stage = DELAY;
+    }
+}
+void LWR(void)     {
+    // Load Halfword 
+    uint32_t mask, result, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+
+    memory_cpu_load_16bit(address, &result);
+
+    switch ((reg(RS) + sign16(IMM16)) & 0X3) {
+        case 1: mask = 0X00000000; result <<= 0;  break;
+        case 2: mask = 0X000000FF; result <<= 8;  break;
+        case 3: mask = 0X0000FFFF; result <<= 16; break;
+        case 4: mask = 0X00FFFFFF; result <<= 24; break;
+    }
+    
+    cpu.load[RT].value &= mask;
+    cpu.load[RT].value |= result;
+    if (cpu.load[RT].stage == UNUSED) {
+        cpu.load[RT].stage = DELAY;
+    }
+}
 void LBU(void)     {
     // Load Byte Unsigned
     uint32_t result, address = reg(RS) + sign16(IMM16);
@@ -482,13 +524,47 @@ void SH(void)      {
     uint32_t address = reg(RS) + sign16(IMM16);
     memory_cpu_store_16bit(address, reg(RT));
 }     
-void SWL(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
+void SWL(void)     {
+    // Store Halfword Left
+    uint32_t mask, current, value, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+
+    memory_cpu_load_16bit(address, &current);
+
+    switch ((reg(RS) + sign16(IMM16)) & 0X3) {
+        case 0: mask = 0X00FFFFFF; value = current << 24; break;
+        case 1: mask = 0X0000FFFF; value = current << 16; break;
+        case 2: mask = 0X000000FF; value = current << 8;  break;
+        case 3: mask = 0X00000000; value = current << 0;  break;
+    }
+    
+    current &= mask;
+    current |= value;
+
+    memory_cpu_store_32bit(address, current);
+}
+void SWR(void)     {
+    // Store Halfword Right
+    uint32_t mask, current, value, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+
+    memory_cpu_load_16bit(address, &current);
+
+    switch ((reg(RS) + sign16(IMM16)) & 0X3) {
+        case 0: mask = 0X00000000; value = current << 0;  break;
+        case 1: mask = 0X000000FF; value = current << 8;  break;
+        case 2: mask = 0X0000FFFF; value = current << 16; break;
+        case 3: mask = 0X00FFFFFF; value = current << 24; break;
+    }
+    
+    current &= mask;
+    current |= value;
+
+    memory_cpu_store_32bit(address, current);
+}
 void SW(void)      {
     // Store Word 
     uint32_t address = reg(RS) + sign16(IMM16);
     memory_cpu_store_32bit(address, reg(RT));
 }     
-void SWR(void)     {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}    
 void LWC0(void)    {
     // Load Word Coprocessor 0
     cpu_exception(CPU);
@@ -705,13 +781,13 @@ void LWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
 void SWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
 
 // COP0
-void TLBR(int cop_n)  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void TLBWI(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void TLBWR(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void TLBP(int cop_n)  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void RFE(int cop_n)   {
+void TLBR()  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void TLBWI() {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void TLBWR() {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void TLBP()  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void RFE()   {
     // Return From Exception
-    if (cpu.instruction.value & 0b11111 == 0b01000) {
+    if ((cpu.instruction.value & 0b11111) == 0b01000) {
         cpu.cop0.SR.value = (cpu.cop0.SR.value & ~0X3F) |
                             ((cpu.cop0.SR.value & 0X3F) >> 2); // increment exception stack
     }

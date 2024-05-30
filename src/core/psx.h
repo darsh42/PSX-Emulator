@@ -22,6 +22,12 @@ extern PSX_ERROR cpu_decode(void);
 extern PSX_ERROR cpu_execute(void);
 extern PSX_ERROR coprocessor_initialize(void);
 
+// gpu
+extern void gpu_reset(void);
+
+// dma
+extern PSX_ERROR dma_reset(void);
+
 #ifdef DEBUG
 // disassembler
 extern void disassemble(void);
