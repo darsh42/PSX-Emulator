@@ -1,4 +1,4 @@
-#include "debug_cpu.h"
+#include "../../include/debug_cpu.h"
 
 static void decode_instruction(union INSTRUCTION instruction);
 static const char *register_names[32] = {"$zr", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", 

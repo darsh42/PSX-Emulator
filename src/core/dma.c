@@ -1,4 +1,4 @@
-#include "dma.h"
+#include "../../include/dma.h"
 
 static struct DMA dma;
 

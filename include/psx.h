@@ -28,6 +28,13 @@ extern void gpu_reset(void);
 // dma
 extern PSX_ERROR dma_reset(void);
 
+// gui and sdl
+PSX_ERROR debugger_init(void);
+PSX_ERROR debugger_exec(void);
+PSX_ERROR debugger_destroy(void);
+void sdl_initialize(void);
+void sdl_destroy(void);
+
 #ifdef DEBUG
 // disassembler
 extern void disassemble(void);

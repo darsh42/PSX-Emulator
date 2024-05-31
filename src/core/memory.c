@@ -1,4 +1,4 @@
-#include "memory.h"
+#include "../../include/memory.h"
 
 static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t aligned, bool load);
 

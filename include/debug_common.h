@@ -1,5 +1,5 @@
 #ifndef DEBUG_COMMON_INCLUEDED
 #define DEBUG_COMMON_INCLUDED
 
-#include "../core/common.h"
+#include "common.h"
 #endif // DEBUG_COMMON_INCLUDED

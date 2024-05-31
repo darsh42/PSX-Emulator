@@ -1,4 +1,4 @@
-#include "gpu.h"
+#include "../../include/gpu.h"
 
 static struct GPU gpu;
 

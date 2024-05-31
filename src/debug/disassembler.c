@@ -1,131 +1,110 @@
-#include "../core/common.h"
-#include "../core/instruction.h"
+#include "../../include/disassembler.h"
 
-extern void memory_load_bios(const char *filebios);
-extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
+struct DISASSEMBLER DA;
 
-struct disassembler {
-    uint32_t pc;
-    union INSTRUCTION current;
-} DA;
-
-static void print_r_type(const char *mneumonic) {
-    printf("[DISASSEMBLY]: PC: %08X:      HEX: %08X      ", DA.pc, DA.current.value);
-    printf("%s rd=%02d, rt=%02d, rs=%02d, op=%02X, funct=%X, shamt=%X\n", mneumonic,
-                                                                          DA.current.rd,
-                                                                          DA.current.rt,
-                                                                          DA.current.rs,
-                                                                          DA.current.op,
-                                                                          DA.current.funct,
-                                                                          DA.current.shamt);
-}
-
-static void print_i_type(const char *mneumonic) {
-    printf("[DISASSEMBLY]: PC: %08X:      HEX: %08X      ", DA.pc, DA.current.value);
-    printf("%s         rt=%02d, rs=%02d, op=%02X, immediate=%X\n", mneumonic,
-                                                                   DA.current.rt,
-                                                                   DA.current.rs,
-                                                                   DA.current.op, 
-                                                                   DA.current.immediate16);
-}
-static void print_j_type(const char *mneumonic) {
-    uint32_t target = (DA.pc & 0Xf0000000) + (DA.current.target << 2);
-    printf("[DISASSEMBLY]: PC: %08X:      HEX: %08X      ", DA.pc, DA.current.value);
-    printf("%s                       op=%02X, target=%X\n", mneumonic,
-                                                            DA.current.op, 
-                                                            target);
-}
+static uint32_t     base_addresses[] = {0X00000000, 0X1F000000, 0X1FC00000};
+static uint32_t      end_addresses[] = {0X00200000, 0X1F800000, 0X1FC80000};
+static const char  *register_names[] = {"$zr", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", 
+                                        "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", 
+                                        "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", "$s6", "$s7", 
+                                        "$t8", "$t9", "$k0", "$k1", "$gp", "$sp", "$fp", "$ra"};
+char ***get_main_disassembly(void) { return (char ***) &DA.main_disassembly; }
+char ***get_bios_disassembly(void) { return (char ***) &DA.bios_disassembly; }
+char ***get_exp1_disassembly(void) { return (char ***) &DA.exp1_disassembly; }
 
 void disassemble(void) {
-    DA.pc = 0XBFC00000;
+    for (int i = 0; i < 3; i++) {
+        DA.pc = base_addresses[i];
+        for (int j = 0; DA.pc < end_addresses[i]; DA.pc+=4, j++) {
+            char ptr[MAXLEN];
+            memory_cpu_load_32bit(DA.pc, &DA.ins.value);
+            switch (DA.ins.op) {
+                case 0X00: 
+                    switch (DA.ins.funct) {
+                        case 0X00: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLL      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rt], register_names[DA.ins.rs]); break;
+                        case 0X02: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRL      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rt], register_names[DA.ins.rs]); break;
+                        case 0X03: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRA      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rt], register_names[DA.ins.rs]); break;
+                        case 0X04: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLLV     %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rt], register_names[DA.ins.rs]); break;
+                        case 0X06: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRLV     %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rt], register_names[DA.ins.rs]); break;
+                        case 0X07: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRAV     %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rt], register_names[DA.ins.rs]); break;
+                        case 0X08: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    JR       $pc=%s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs]); break;
+                        case 0X09: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    JALR     %s, %s=0X%08X\n", DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rd], DA.pc); break;
+                        case 0X0C: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SYSCALL  \n",              DA.pc, DA.ins.value); break;
+                        case 0X0D: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BREAK    \n",              DA.pc, DA.ins.value); break;
+                        case 0X10: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MFHI     %s=$hi\n",        DA.pc, DA.ins.value, register_names[DA.ins.rd]); break;
+                        case 0X11: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MTHI     %s=$lo\n",        DA.pc, DA.ins.value, register_names[DA.ins.rd]); break;
+                        case 0X12: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MFLO     $hi=%s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs]); break;
+                        case 0X13: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MTLO     $lo=%s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs]); break;
+                        case 0X18: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MULT     %s, %s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X19: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MULTU    %s, %s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X1A: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    DIV      %s, %s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X1B: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    DIVU     %s, %s\n",        DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X20: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADD      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X21: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADDU     %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X22: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SUB      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X23: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SUBU     %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X24: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    AND      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X25: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    OR       %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X26: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    XOR      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X27: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    NOR      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X2A: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLT      %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
+                        case 0X2B: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLTU     %s, %s, %s\n",    DA.pc, DA.ins.value, register_names[DA.ins.rd], register_names[DA.ins.rs], register_names[DA.ins.rt]); break;
 
-    while (DA.pc < 0XBFC80000) {
-        memory_cpu_load_32bit(DA.pc, &DA.current.value);
-        switch (DA.current.op) {
-            case 0X00: 
-                // RTYPE
-                switch (DA.current.funct) {
-                    case 0X00: print_r_type("SLL     "); break;
-                    case 0X02: print_r_type("SRL     "); break;
-                    case 0X03: print_r_type("SRA     "); break;
-                    case 0X04: print_r_type("SLLV    "); break;
-                    case 0X06: print_r_type("SRLV    "); break;
-                    case 0X07: print_r_type("SRAV    "); break;
-                    case 0X08: print_r_type("JR      "); break;
-                    case 0X09: print_r_type("JALR    "); break;
-                    case 0X0C: print_r_type("SYSCALL "); break;
-                    case 0X0D: print_r_type("BREAK   "); break;
-                    case 0X10: print_r_type("MFHI    "); break;
-                    case 0X11: print_r_type("MTHI    "); break;
-                    case 0X12: print_r_type("MFLO    "); break;
-                    case 0X13: print_r_type("MTLO    "); break;
-                    case 0X18: print_r_type("MULT    "); break;
-                    case 0X19: print_r_type("MULTU   "); break;
-                    case 0X1A: print_r_type("DIV     "); break;
-                    case 0X1B: print_r_type("DIVU    "); break;
-                    case 0X20: print_r_type("ADD     "); break;
-                    case 0X21: print_r_type("ADDU    "); break;
-                    case 0X22: print_r_type("SUB     "); break;
-                    case 0X23: print_r_type("SUBU    "); break;
-                    case 0X24: print_r_type("AND     "); break;
-                    case 0X25: print_r_type("OR      "); break;
-                    case 0X26: print_r_type("XOR     "); break;
-                    case 0X27: print_r_type("NOR     "); break;
-                    case 0X2A: print_r_type("SLT     "); break;
-                    case 0X2B: print_r_type("SLTU    "); break;
-
-                } 
-                break;
-            case 0X01: 
-                switch (DA.current.rt) {
-                    case 0b00000: print_i_type("BLTZ   "); break;
-                    case 0b00001: print_i_type("BGEZ   "); break;
-                    case 0b10000: print_i_type("BLTZAL "); break;
-                    case 0b10001: print_i_type("BGEZAL "); break;
-                }
-                break;
-            case 0X02: print_j_type("J      "); break;
-            case 0X03: print_j_type("JAL    "); break;
-            case 0X04: print_i_type("BEQ    "); break;
-            case 0X05: print_i_type("BNE    "); break;
-            case 0X06: print_i_type("BLEZ   "); break;
-            case 0X07: print_i_type("BGTZ   "); break;
-            case 0X08: print_i_type("ADDI   "); break;
-            case 0X09: print_i_type("ADDIU  "); break;
-            case 0X0A: print_i_type("SLTI   "); break;
-            case 0X0B: print_i_type("SLTIU  "); break;
-            case 0X0C: print_i_type("ANDI   "); break;
-            case 0X0D: print_i_type("ORI    "); break;
-            case 0X0E: print_i_type("XORI   "); break;
-            case 0X0F: print_i_type("LUI    "); break;
-            case 0X20: print_i_type("LB     "); break;
-            case 0X21: print_i_type("LH     "); break;
-            case 0X22: print_i_type("LWL    "); break;
-            case 0X23: print_i_type("LW     "); break;
-            case 0X24: print_i_type("LBU    "); break;
-            case 0X25: print_i_type("LHU    "); break;
-            case 0X26: print_i_type("LWR    "); break;
-            case 0X28: print_i_type("SB     "); break;
-            case 0X29: print_i_type("SH     "); break;
-            case 0X2A: print_i_type("SWL    "); break;
-            case 0X2B: print_i_type("SW     "); break;
-            case 0X2E: print_i_type("SWR    "); break;
-            // COPROCESSOR instructions
-            case 0X10: print_i_type("COP0   "); break;
-            case 0X11: print_i_type("COP1   "); break;
-            case 0X12: print_i_type("COP2   "); break;
-            case 0X13: print_i_type("COP3   "); break;
-            case 0X30: print_i_type("LWC0   "); break;
-            case 0X31: print_i_type("LWC1   "); break;
-            case 0X32: print_i_type("LWC2   "); break;
-            case 0X33: print_i_type("LWC3   "); break;
-            case 0X38: print_i_type("SWC0   "); break;
-            case 0X39: print_i_type("SWC1   "); break;
-            case 0X3A: print_i_type("SWC2   "); break;
-            case 0X3B: print_i_type("SWC3   "); break;
+                    } 
+                    break;
+                case 0X01: 
+                    switch (DA.ins.rt) {
+                        case 0b00000: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BLTZ     %s, 0X%04X\n",             DA.pc, DA.ins.value, register_names[DA.ins.rs], DA.ins.immediate16); break;
+                        case 0b00001: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BGEZ     %s, 0X%04X\n",             DA.pc, DA.ins.value, register_names[DA.ins.rs], DA.ins.immediate16); break;
+                        case 0b10000: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BLTZAL   %s, 0X%04X %s = 0X%08X\n", DA.pc, DA.ins.value, register_names[DA.ins.rs], DA.ins.immediate16, register_names[31], DA.pc); break;
+                        case 0b10001: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BGEZAL   %s, 0X%04X %s = 0X%08X\n", DA.pc, DA.ins.value, register_names[DA.ins.rs], DA.ins.immediate16, register_names[31], DA.pc); break;
+                    }
+                    break;
+                case 0X02: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    J        0X%08X\n",              DA.pc, DA.ins.value, (DA.pc & 0XF0000000) | (DA.ins.target << 2)); break;
+                case 0X03: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    JAL      0X%08X, %s = 0X%08X\n", DA.pc, DA.ins.value, (DA.pc & 0XF0000000) | (DA.ins.target << 2), register_names[31], DA.pc); break;
+                case 0X04: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BEQ      %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rt], DA.ins.immediate16); break;
+                case 0X05: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BNE      %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rs], register_names[DA.ins.rt], DA.ins.immediate16); break;
+                case 0X06: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BLEZ     %s, 0X%04X\n",          DA.pc, DA.ins.value, register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X07: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BGTZ     %s, 0X%04X\n",          DA.pc, DA.ins.value, register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X08: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADDI     %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X09: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADDIU    %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X0A: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLTI     %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X0B: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLTIU    %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X0C: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ANDI     %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X0D: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ORI      %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X0E: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    XORI     %s, %s, 0X%04X\n",      DA.pc, DA.ins.value, register_names[DA.ins.rt], register_names[DA.ins.rs], DA.ins.immediate16); break;
+                case 0X0F: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LUI      %s, 0X%04X\n",          DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16); break;
+                case 0X20: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LB       %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X21: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LH       %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X22: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWL      %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X23: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LW       %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X24: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LBU      %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X25: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LHU      %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X26: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWR      %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X28: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SB       %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X29: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SH       %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X2A: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWL      %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X2B: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SW       %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X2E: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWR      %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                // COsprOCESSOR instructions                        
+                case 0X10: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP0     0X%08X\n",              DA.pc, DA.ins.value, DA.ins.immediate25); break;
+                case 0X11: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP1     0X%08X\n",              DA.pc, DA.ins.value, DA.ins.immediate25); break;
+                case 0X12: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP2     0X%08X\n",              DA.pc, DA.ins.value, DA.ins.immediate25); break;
+                case 0X13: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP3     0X%08X\n",              DA.pc, DA.ins.value, DA.ins.immediate25); break;
+                case 0X30: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC0     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X31: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC1     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X32: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC2     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X33: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC3     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X38: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC0     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X39: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC1     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X3A: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC2     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+                case 0X3B: sprintf(ptr, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC3     %s, 0X%04X(%s)\n",    DA.pc, DA.ins.value, register_names[DA.ins.rt], DA.ins.immediate16, register_names[DA.ins.rs]); break;
+            }
+            switch (i) {
+                case 0: strncpy(DA.main_disassembly[j], ptr, MAXLEN); break;
+                case 1: strncpy(DA.exp1_disassembly[j], ptr, MAXLEN); break;
+                case 2: strncpy(DA.bios_disassembly[j], ptr, MAXLEN); break;
+            }
         }
-        DA.pc += 4;
     }
 }

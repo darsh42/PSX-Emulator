@@ -1,4 +1,4 @@
-#include "psx.h"
+#include "../../include/psx.h"
 
 void psx_reset(char **argv) {
     if (memory_load_bios(*(++argv)) != NO_ERROR) {
@@ -9,6 +9,20 @@ void psx_reset(char **argv) {
     cpu_reset();
     gpu_reset();
     dma_reset();
+
+    // sdl_initialize();
+
+#ifdef DEBUG
+    // debugger_init();
+    set_debug_cpu();
+#endif
+}
+
+void psx_destroy(void) {
+#ifdef DEBUG
+    // debugger_destroy();
+#endif
+    // sdl_destroy();
 }
 
 int main(int argc, char **argv) {
@@ -19,15 +33,16 @@ int main(int argc, char **argv) {
     }
 
     psx_reset(argv);
-
-    set_debug_cpu();
-    
-    while (1) {
-        cpu_fetch();
-        peek_cpu_instruction();
-        cpu_decode();
-        cpu_execute();
-    }
-
+    disassemble();
+//     while (1) {
+//         cpu_fetch();
+// #ifdef DEBUG
+//         // debugger_exec();
+//         peek_cpu_instruction();
+// #endif
+//         cpu_decode();
+//         cpu_execute();
+//     }
+    psx_destroy();
     return 0;
 }

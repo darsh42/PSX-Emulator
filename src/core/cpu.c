@@ -1,4 +1,4 @@
-#include "cpu.h"
+#include "../../include/cpu.h"
 
 // main cpu struct
 static struct CPU cpu;

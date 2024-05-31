@@ -2,11 +2,11 @@
 #define COMMON_H_INCLUDED
 
 #include <stdio.h>
-#include <stdio.h>
 #include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdbool.h>
 
 #include "error.h"

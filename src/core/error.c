@@ -1,4 +1,4 @@
-#include "error.h"
+#include "../../include/error.h"
 
 static PSX_ERROR error;
 static char *error_msg;
@@ -27,7 +27,7 @@ PSX_ERROR set_PSX_error(PSX_ERROR err) {
 
 void print_error(const char *file, const char *function, const char *format, ...) {
     #ifdef DEBUG
-    peek_cpu_registers();
+    // peek_cpu_registers();
     #endif
 
     get_PSX_error();

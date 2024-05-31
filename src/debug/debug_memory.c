@@ -1,6 +1,6 @@
-#include "debug_memory.h"
+#include "../../include/debug_memory.h"
 
-void peak_memory(uint32_t address) {
+void peek_memory(uint32_t address) {
     uint32_t b0, b1, b2, b3;
     memory_cpu_load_8bit(address + 0, &b0);
     memory_cpu_load_8bit(address + 1, &b1);
@@ -13,9 +13,9 @@ void peak_memory(uint32_t address) {
     return;
 }
 
-void peak_memory_chunk(uint32_t base, int chunk_size) {
+void peek_memory_chunk(uint32_t base, int chunk_size) {
     for (int i = 0; i < chunk_size; i++) {
-        peak_memory(base + i*4);
+        peek_memory(base + i*4);
     }
 }
 
