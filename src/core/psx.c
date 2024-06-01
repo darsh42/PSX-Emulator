@@ -10,19 +10,18 @@ void psx_reset(char **argv) {
     gpu_reset();
     dma_reset();
 
-    // sdl_initialize();
+    sdl_initialize();
 
 #ifdef DEBUG
-    // debugger_init();
-    set_debug_cpu();
+    debugger_init();
 #endif
 }
 
 void psx_destroy(void) {
 #ifdef DEBUG
-    // debugger_destroy();
+    debugger_destroy();
 #endif
-    // sdl_destroy();
+    sdl_destroy();
 }
 
 int main(int argc, char **argv) {
@@ -33,16 +32,17 @@ int main(int argc, char **argv) {
     }
 
     psx_reset(argv);
-    disassemble();
-//     while (1) {
-//         cpu_fetch();
-// #ifdef DEBUG
-//         // debugger_exec();
-//         peek_cpu_instruction();
-// #endif
-//         cpu_decode();
-//         cpu_execute();
-//     }
+    uint32_t time = 0;
+    while (1) {
+        cpu_fetch();
+#ifdef DEBUG
+        if (time % 10 == 0)
+            debugger_exec();
+#endif
+        cpu_decode();
+        cpu_execute();
+        time++;
+    }
     psx_destroy();
     return 0;
 }

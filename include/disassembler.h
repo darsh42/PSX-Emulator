@@ -6,11 +6,8 @@
 
 #define MAXLEN 100
 
-extern void memory_load_bios(const char *filebios);
-extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
 
+extern struct DEBUGGER *get_debugger(void);
 struct DISASSEMBLER {
     uint32_t pc;
     union INSTRUCTION ins;

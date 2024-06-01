@@ -29,6 +29,11 @@ enum EXCEPTION_CAUSE {
     OVF
 };
 
+enum GENERAL_ENABLE {
+    DISABLE = 0,
+    ENABLE = 1
+};
+
 
 extern void print_error(const char *file, const char *function, const char *format, ...);
 extern void print_warning(const char *file, const char *function, const char *format, ...);

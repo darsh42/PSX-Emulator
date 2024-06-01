@@ -2,10 +2,9 @@
 
 struct SDL_HANDLER handler;
 
-PSX_ERROR sdl_return_handler(struct SDL_HANDLER **phandler) {
-    *phandler = &handler;
-    return set_PSX_error(NO_ERROR);
-}
+#ifdef DEBUG
+struct SDL_HANDLER *sdl_return_handler(void) { return &handler; }
+#endif
 
 PSX_ERROR sdl_initialize(void) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -77,6 +76,9 @@ PSX_ERROR sdl_update_psx_screen(void) {
 PSX_ERROR sdl_render_present(void) {
     SDL_RenderPresent(handler.renderer);
     return set_PSX_error(NO_ERROR);
+}
+
+PSX_ERROR sdl_handler_inputs(void) {
 }
 
 // Callee passes created SDL event

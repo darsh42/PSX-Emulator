@@ -1,4 +1,6 @@
-#include "../../include/debug_memory.h"
+#include "../../include/debugger.h"
+
+extern struct DEBUGGER debugger;
 
 void peek_memory(uint32_t address) {
     uint32_t b0, b1, b2, b3;
@@ -18,5 +20,3 @@ void peek_memory_chunk(uint32_t base, int chunk_size) {
         peek_memory(base + i*4);
     }
 }
-
-// TODO: disassembler

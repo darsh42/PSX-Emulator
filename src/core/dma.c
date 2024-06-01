@@ -2,6 +2,10 @@
 
 static struct DMA dma;
 
+#ifdef DEBUG
+struct DMA *get_dma(void) { return &dma; }
+#endif
+
 PSX_ERROR dma_reset(void) {
     dma.DMA0_MDEC_IN.MADR = (union D_MADR*) memory_pointer(0X1F801080);
     dma.DMA0_MDEC_IN.BRC  = (union D_BRC*)  memory_pointer(0X1F801084);

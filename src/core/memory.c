@@ -11,7 +11,7 @@ static uint32_t segment_lookup[] = {
 };
 
 #ifdef DEBUG
-struct MEMORY *_memory() {return &memory;}
+struct MEMORY *get_memory() {return &memory;}
 #endif
 
 PSX_ERROR memory_load_bios(const char *filebios) {
