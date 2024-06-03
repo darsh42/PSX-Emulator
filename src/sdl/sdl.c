@@ -38,6 +38,7 @@ PSX_ERROR sdl_initialize(void) {
         return set_PSX_error(SDL_TEXTURE_CREATION);
     }
     handler.scaled_display = (SDL_Rect) {0, 0, SCALED_DISPLAY_WIDTH, SCALED_DISPLAY_HEIGHT};
+    handler.status = CONTINUE;
     return set_PSX_error(NO_ERROR);
 }
 
@@ -49,7 +50,7 @@ PSX_ERROR sdl_destroy(void) {
 }
 
 PSX_ERROR sdl_render_clear(void) {
-    if (SDL_SetRenderDrawColor(handler.renderer, 0XFF, 0XFF, 0XFF, 0XFF) != 0) {
+    if (SDL_SetRenderDrawColor(handler.renderer, 0, 0, 0, 255) != 0) {
         print_sdl_error("sdl_render_screen", "SDL could not set color, SDL error %s", SDL_GetError());
         return set_PSX_error(SDL_RENDER_SCREEN);
     }
@@ -78,19 +79,53 @@ PSX_ERROR sdl_render_present(void) {
     return set_PSX_error(NO_ERROR);
 }
 
-PSX_ERROR sdl_handler_inputs(void) {
-}
-
 // Callee passes created SDL event
 // Callee passes context destruction function incase user quits application
 // Callee passes context event handler in case it requires (Nuklear GUI)
-PSX_ERROR sdl_handle_events(SDL_Event *event, void (*context_destroy)(void), void (*context_handler)(SDL_Event *)) {
+//
+PSX_ERROR sdl_handle_events(SDL_Event *event, int (*nk_sdl_input_handler) (SDL_Event *e)) {
     while (SDL_PollEvent(event)) {
-        if (event->type == SDL_QUIT) {
-            if (context_destroy) context_destroy();
-            return sdl_destroy();
+        switch (event->type) {
+            case SDL_QUIT: 
+                handler.status = QUIT; break;
+            case SDL_KEYDOWN:
+                switch (event->key.keysym.sym) {
+                    case SDLK_ESCAPE:  handler.status = QUIT;         break; // quit
+                    case SDLK_SPACE:   handler.status = TOGGLE_PAUSE; break; // pause
+                    case SDLK_F10:     handler.status = STEPINTO;     break; // step into
+                    case SDLK_F11:     handler.status = STEP;         break; // step 
+                    case SDLK_F12:     handler.status = STEPOVER;     break; // step over
+                    case SDLK_LCTRL:
+                    case SDLK_RCTRL:
+                        switch (event->key.keysym.sym) {
+                            case SDLK_p: handler.status = TOGGLE_FOLLOW_PC; break; // follow PC
+                        }
+                        break;
+                }
+            default:
+                                      break;
         }
-        context_handler(event);
+        nk_sdl_input_handler(event);
     }
-    return set_PSX_error(NO_ERROR);
 }
+// PSX_ERROR sdl_handle_events(SDL_Event *event, void (*context_destroy)(void), void (*context_handler)(SDL_Event *)) {
+//      while (SDL_PollEvent(event)) {
+//          switch (event->type) {
+//              case SDL_QUIT:
+//                  if (context_destroy) {
+//                      context_destroy();
+//                  }
+//                  return sdl_destroy();
+//              case SDL_KEYDOWN:
+//                  switch (event->key.keysym.sym) {
+//                      case SDLK_ESCAPE:
+//                      default:
+//                  }
+//  
+//          }
+//  
+//  
+//          context_handler(event);
+//      }
+//      return set_PSX_error(NO_ERROR);
+//  }

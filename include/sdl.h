@@ -16,11 +16,22 @@
 #define WINDOW_SIZE_WIDTH  1920
 #define WINDOW_SIZE_HEIGHT 1080
 
+enum SDL_STATUS {
+    CONTINUE,
+    QUIT,
+    TOGGLE_PAUSE,
+    STEPINTO,
+    STEP,
+    STEPOVER,
+    TOGGLE_FOLLOW_PC,
+};
+
 struct SDL_HANDLER {
     SDL_Window   *window;
     SDL_Renderer *renderer;
     SDL_Texture  *native_display;
     SDL_Rect      scaled_display;
+    enum SDL_STATUS    status;
 };
 
 // retrieves the screen data

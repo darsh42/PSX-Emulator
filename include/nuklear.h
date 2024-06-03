@@ -16735,7 +16735,7 @@ nk_font_bake_pack(struct nk_font_baker *baker,
     }
     *height = 0;
     *width = (total_glyph_count > 1000) ? 1024 : 512;
-    stbtt_PackBegin(&baker->spc, 0, (int)*width, (int)max_height, 0, 1, alloc);
+    stbtt_PackBegin(&baker->spc, 0, (int)*width, (int)max_height, 0, 1, (void *) alloc);
     {
         int input_i = 0;
         int range_n = 0;
