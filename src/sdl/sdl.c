@@ -88,6 +88,8 @@ PSX_ERROR sdl_handle_events(SDL_Event *event, int (*nk_sdl_input_handler) (SDL_E
         switch (event->type) {
             case SDL_QUIT: 
                 handler.status = QUIT; break;
+            case SDL_KEYUP:
+                handler.status = CONTINUE;
             case SDL_KEYDOWN:
                 switch (event->key.keysym.sym) {
                     case SDLK_ESCAPE:  handler.status = QUIT;         break; // quit

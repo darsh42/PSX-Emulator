@@ -12,6 +12,7 @@
 #include "error.h"
 
 #define DEBUG
+#define abs(a) (a < 0) ? -a: a
 
 enum EXCEPTION_CAUSE {
     INT,

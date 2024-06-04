@@ -12,61 +12,24 @@
 #include "../../include/nuklear_sdl_renderer.h"
 
 struct DEBUGGER debugger;
-struct DEBUGGER *get_debugger(void) { return &debugger; }
 
-static void debugger_render(void);
-static void debugger_handle_input(void);
-static void debugger_draw_psx_screen(void);
-static void debugger_draw_registers(void);
-static void debugger_draw_assembly(void);
-static void debugger_draw_memory_viewer(void);
-static void debugger_draw_breakpoint_handler(void);
-static void debugger_draw_assembly_navigator(void);
-static void debugger_draw_memory_navigator(void);
-static void debugger_draw_debug_controls(void);
+PSX_ERROR debugger_init(void);
+PSX_ERROR debugger_destroy(void);
+PSX_ERROR debugger_exec(void);
 
-// custom nuklear widgets
-static int  hex_str_to_int(const char* str, int *out);
-static void int_to_hex_str(int value, char* buffer, int buffer_size);
-static void nk_property_hex(struct nk_context* ctx, const char* name, int min, int* value, int max);
-static void nk_text_hex(struct nk_context *ctx, const char *fmt, uint32_t value, const int nk_flags);
-
-PSX_ERROR debugger_exec(void) {
-    /* breakpoint, pause and stepping mode check */
-    debugger.hit_breakpoint = (ll_find(debugger.breakpoints, debugger.cpu->PC) > 0);
-    do {
-        /* Input handler */
-        debugger_handle_input();
-
-        /* Draw all parts of the UI */
-        debugger_draw_psx_screen();
-        debugger_draw_registers();
-        debugger_draw_assembly();
-
-        debugger_draw_breakpoint_handler();
-        debugger_draw_assembly_navigator();
-        debugger_draw_memory_navigator();
-        debugger_draw_debug_controls();
-        debugger_draw_memory_viewer();
-
-        /* Rendering */
-        debugger_render();
-    }
-    while (debugger.hit_breakpoint || debugger.is_paused || debugger.is_stepping);
-    
-    return set_PSX_error(NO_ERROR);
-}
+static void draw_debugger(struct nk_context *ctx);
 
 PSX_ERROR debugger_init(void) {
     debugger.fontscale = 1;
-    debugger.assembly_lines = 60;
+    debugger.assembly_lines = 65;
     debugger.asm_base_address = 0X1FC00000;
     debugger.focus_pc = false;
     debugger.mem_base_address = 0X00000000;
-    debugger.mem_view_count   = 256;
+    debugger.mem_view_count   = 512;
     debugger.hit_breakpoint   = false;
     debugger.breakpoints      = NULL;
     debugger.is_paused        = true;
+    ll_prepend(&debugger.breakpoints, 0Xbfc00000);
 
     debugger.cpu         = get_cpu();
     debugger.gpu         = get_gpu();
@@ -93,278 +56,395 @@ PSX_ERROR debugger_init(void) {
     return set_PSX_error(NO_ERROR);
 }
 
+PSX_ERROR debugger_exec(void) {
+    do {
+        /* Input handler */
+        SDL_Event event;
+        nk_input_begin(debugger.ctx);
+        sdl_handle_events(&event, nk_sdl_handle_event);
+        
+        switch (debugger.sdl_handler->status) {
+            case QUIT:          debugger_destroy(); break;
+            case TOGGLE_PAUSE:  debugger.is_paused = !debugger.is_paused; break;
+            case STEPINTO:       break; // debugger.is_stepping = true;
+            case STEP:           break; // debugger.is_stepping = true;
+            case STEPOVER:       break; // debugger.is_stepping = true;
+            case TOGGLE_FOLLOW_PC: debugger.focus_pc = !debugger.focus_pc; break;
+            case CONTINUE: break;
+        }
+        nk_input_end(debugger.ctx);
+        
+        draw_debugger(debugger.ctx);
+
+        sdl_render_clear();
+        nk_sdl_render(NK_ANTI_ALIASING_ON);
+        sdl_render_present();
+        
+        if (debugger.is_stepping) {
+            debugger.is_stepping = false;
+            debugger.is_paused   = true;
+            break;
+        }
+
+    } while (debugger.is_paused);
+    
+    return set_PSX_error(NO_ERROR);
+}
+
 PSX_ERROR debugger_destroy(void) {
     nk_sdl_shutdown();
     return set_PSX_error(NO_ERROR);
 }
 
-void debugger_handle_input(void) {
-    /* Input handler */
-    SDL_Event event;
-    nk_input_begin(debugger.ctx);
-    sdl_handle_events(&event, nk_sdl_handle_event);
+#define TOGGLE(truth) (truth) ? NK_SYMBOL_CIRCLE_SOLID  : \
+                                NK_SYMBOL_CIRCLE_OUTLINE
+
+void draw_debugger(struct nk_context *ctx) {
+    // update all status values
+    peek_cpu_registers();
+
+    // text properties
+    int  t_height = 12;
+    int  t_buffer_size; 
+    static char t_buffer[MAXLEN];
+
+    // label properties
+    int l_height = 12;
+    int l_buffer_size;
+    static char l_buffer[MAXLEN];
+
+    // button properties
+    int b_height = 25;
+    int b_buffer_size;
+    static char b_buffer[MAXLEN];
+
+    // edit string properties
+    int e_height = 25;
     
-    switch (debugger.sdl_handler->status) {
-        case QUIT:          debugger_destroy(); break;
-        case TOGGLE_PAUSE:  debugger.is_paused != debugger.is_paused; break;
-        case STEPINTO:      debugger.is_stepping = true; break;
-        case STEP:          debugger.is_stepping = true; break;
-        case STEPOVER:      debugger.is_stepping = true; break;
-        case TOGGLE_FOLLOW_PC: debugger.focus_pc != debugger.focus_pc; break;
-    }
+    // window flags
+    int w_c_flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE;
+    int w_n_flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE;
 
-    nk_input_end(debugger.ctx);
-}
+    // content windows
+    struct nk_rect w_c_psx       = {0, 0, NATIVE_DISPLAY_WIDTH, NATIVE_DISPLAY_HEIGHT};
+    struct nk_rect w_c_assembly  = {ASM_WIN_X, ASM_WIN_Y, ASM_WIN_WIDTH, ASM_WIN_HEIGHT};
+    struct nk_rect w_c_registers = {REG_WIN_X, REG_WIN_Y, REG_WIN_WIDTH, REG_WIN_HEIGHT};
+    struct nk_rect w_c_memory    = {MEM_VIEW_WIN_X, MEM_VIEW_WIN_Y, MEM_VIEW_WIN_WIDTH, MEM_VIEW_WIN_HEIGHT};
 
-void debugger_render(void) {
-    /* Rendering */
-    sdl_render_clear();
-    nk_sdl_render(NK_ANTI_ALIASING_ON);
-    sdl_render_present();
-}
-
-void debugger_draw_psx_screen(void) {
-    /* Drawing psx screen */
-    if (nk_begin(debugger.ctx, "psx", nk_rect(0, 0, NATIVE_DISPLAY_WIDTH, NATIVE_DISPLAY_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+    // navigation windows
+    struct nk_rect w_n_assembly    = {ASM_NAV_WIN_X, ASM_NAV_WIN_Y, ASM_NAV_WIN_WIDTH, ASM_NAV_WIN_HEIGHT};
+    struct nk_rect w_n_memory      = {MEM_NAV_WIN_X, MEM_NAV_WIN_Y, MEM_NAV_WIN_WIDTH, MEM_NAV_WIN_HEIGHT};
+    struct nk_rect w_n_controls    = {DEB_CNT_WIN_X, DEB_CNT_WIN_Y, DEB_CNT_WIN_WIDTH, DEB_CNT_WIN_HEIGHT};
+    struct nk_rect w_n_breakpoints = {BRKPNT_WIN_X, BRKPNT_WIN_Y, BRKPNT_WIN_WIDTH, BRKPNT_WIN_HEIGHT};
+    
+    if (nk_begin(ctx, "psx render", w_c_psx, w_c_flags)) 
     {
     }
-    nk_end(debugger.ctx);
-}
+    nk_end(ctx);
 
-void debugger_draw_assembly(void) {
-    static uint32_t segment_lookup[] = {
-        (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, // KUSEG
-        (uint32_t) 0X7FFFFFFF,                                     // KSEG0
-        (uint32_t) 0X1FFFFFFF,                                     // KSEG1
-        (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF               // KSEG2
-    };
-
-    char *ptr;
-    uint32_t address, region;
-    // Follow pc?
-    address = (debugger.focus_pc) ? debugger.cpu->PC: debugger.asm_base_address;
-
-    // Map correct disassembly
-    region = address & segment_lookup[address >> 29];
-    if      (region >= 0X00000000 && region <= 0X00200000) { address = (region - 0X00000000)/4 ; ptr = debugger.main_assembly[address]; }
-    else if (region >= 0X1F000000 && region <= 0X1F800000) { address = (region - 0X1F000000)/4 ; ptr = debugger.exp1_assembly[address]; }
-    else if (region >= 0X1FC00000 && region <= 0X1FC80000) { address = (region - 0X1FC00000)/4 ; ptr = debugger.bios_assembly[address]; }
-    else {
-        // set the address to the closest acceptable address
-        int32_t main_diff = region - 0X00000000;
-        int32_t exp1_diff = region - 0X1F000000;
-        int32_t bios_diff = region - 0X1FC00000;
+    if (nk_begin(ctx, "assembly", w_c_assembly, w_c_flags)) 
+    {
         
-        address  = 0;
-        if (main_diff < exp1_diff && main_diff < bios_diff) { ptr = debugger.main_assembly[address]; debugger.asm_base_address = 0X00000000; }
-        if (exp1_diff < main_diff && exp1_diff < bios_diff) { ptr = debugger.exp1_assembly[address]; debugger.asm_base_address = 0X1F000000; }
-        if (bios_diff < main_diff && bios_diff < exp1_diff) { ptr = debugger.bios_assembly[address]; debugger.asm_base_address = 0X1FC00000; }
-    }
+        nk_layout_row_dynamic(debugger.ctx, t_height, 1);
 
-    /* Draw assembly */
-    if (nk_begin(debugger.ctx, "assembly", nk_rect(ASM_WIN_X, ASM_WIN_Y, ASM_WIN_WIDTH, ASM_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE)) 
-    {
-        nk_layout_row_dynamic(debugger.ctx, DBG_TEXT_SIZE, 1);
-        for (int i = 0; ptr && i < debugger.assembly_lines; ptr += 100*i, i++) {
-            nk_text(debugger.ctx, ptr, strlen(ptr) - 1, NK_TEXT_LEFT);
-        }
-    }
-    nk_end(debugger.ctx);
-}
+        static uint32_t segment_lookup[] = {
+            (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, 
+            (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF,
+            (uint32_t) 0X7FFFFFFF, (uint32_t) 0X1FFFFFFF,
+            (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF
+        };
 
-void debugger_draw_registers(void) {
-    /* Drawing cpu registers */
-    if (nk_begin(debugger.ctx, "cpu registers", nk_rect(REG_WIN_X(1), REG_WIN_Y, REG_WIN_WIDTH, REG_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
-    {
-        peek_cpu_registers();
-        nk_layout_row_dynamic(debugger.ctx, DBG_TEXT_SIZE, 1);
         char *ptr;
-        for (int i = 0; i < 51; i++) {
-            if ((ptr = debugger.cpu_registers[i])) {
-                nk_text(debugger.ctx, ptr, strlen(ptr) - 1, NK_TEXT_LEFT);
+        uint32_t address, region;
+        // Follow pc?
+        address = (debugger.focus_pc) ? debugger.cpu->PC: debugger.asm_base_address;
+
+        // Map correct disassembly
+        region = address & segment_lookup[address >> 29];
+        if (region >= 0X00000000 && region <= 0X00200000) { 
+            address   = (region - 0X00000000);
+            address >>= 2;
+
+            ptr = debugger.main_assembly[address]; 
+        } else if (region >= 0X1F000000 && region <= 0X1F800000) {
+            address   = (region - 0X1F000000); 
+            address >>= 2;
+
+            ptr = debugger.exp1_assembly[address]; 
+        }
+        else if (region >= 0X1FC00000 && region <= 0X1FC80000) { 
+            address   = (region - 0X1FC00000); 
+            address >>= 2;
+
+            ptr = debugger.bios_assembly[address];
+        }
+        else {
+            // set the address to the closest acceptable address
+            uint32_t main_diff = region - 0X00000000;
+            uint32_t exp1_diff = region - 0X1F000000;
+            uint32_t bios_diff = region - 0X1FC00000;
+
+            if (main_diff < exp1_diff && main_diff < bios_diff) { 
+                debugger.asm_base_address = 0X00000000; 
+
+                ptr = debugger.main_assembly[address]; 
+            }
+            if (exp1_diff < main_diff && exp1_diff < bios_diff) {
+                debugger.asm_base_address = 0X1F000000; 
+
+                ptr = debugger.exp1_assembly[address]; 
+            }
+            if (bios_diff < main_diff && bios_diff < exp1_diff) { 
+                debugger.asm_base_address = 0X1FC00000; 
+
+                ptr = debugger.bios_assembly[address]; 
             }
         }
+
+        /* Draw assembly */
+        for (int i = 1; ptr && i < debugger.assembly_lines; ptr += 100*i, i++) {
+            nk_text(ctx, ptr, strlen(ptr) - 1, NK_TEXT_LEFT);
+        }
     }
-    nk_end(debugger.ctx);
+    nk_end(ctx);
 
-    /* Drawing gpu info */
-    if (nk_begin(debugger.ctx, "gpu registers", nk_rect(REG_WIN_X(2), REG_WIN_Y, REG_WIN_WIDTH, REG_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+    if (nk_begin(ctx, "registers", w_c_registers, w_c_flags | NK_WINDOW_NO_SCROLLBAR)) 
     {
-    }
-    nk_end(debugger.ctx);
-
-    /* Drawing dma info */
-    if (nk_begin(debugger.ctx, "dma registers", nk_rect(REG_WIN_X(3), REG_WIN_Y, REG_WIN_WIDTH, REG_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
-    {
-    }
-    nk_end(debugger.ctx);
-}
-
-void debugger_draw_memory_viewer(void) {
-    if (nk_begin(debugger.ctx, "memory viewer", nk_rect(MEM_VIEW_WIN_X, MEM_VIEW_WIN_Y, MEM_VIEW_WIN_WIDTH, MEM_VIEW_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
-    {
-        uint32_t value, address = 0XBFC00000;
-        /* Top index */
-
-
-        float row_layout[2];
-        row_layout[0] = 0.2f * MEM_VIEW_WIN_WIDTH;
-        row_layout[1] = 0.8f * MEM_VIEW_WIN_WIDTH;
+        char *ptr;
+        nk_layout_row_dynamic(ctx, REG_WIN_HEIGHT - 50, 3);
         
-        nk_layout_row(debugger.ctx, NK_STATIC, MEM_VIEW_WIN_WIDTH, 2, row_layout);
-        /* Address viewer */
-        if (nk_group_begin(debugger.ctx, "address", 0)) {   
-            nk_layout_row_dynamic(debugger.ctx, DBG_TEXT_SIZE, 1);
-            for (int i = 0; i < debugger.mem_view_count*16; i+=16) {
-                nk_text_hex(debugger.ctx, "0X%08X", address + i, NK_TEXT_CENTERED);
+        if (nk_group_begin(ctx, "cpu", 0)) 
+        {
+            nk_layout_row_dynamic(ctx, t_height, 1);
+
+            for (int i = 0; i < 51; i++) 
+            {
+                if ((ptr = debugger.cpu_registers[i])) 
+                {
+                    nk_text(debugger.ctx, ptr, strlen(ptr) - 1, NK_TEXT_CENTERED);
+                }
             }
-            nk_group_end(debugger.ctx);
+            nk_group_end(ctx);
+        }
+
+        if (nk_group_begin(ctx, "gpu", 0)) 
+        {
+            nk_layout_row_dynamic(ctx, t_height, 1);
+
+            nk_group_end(ctx);
+        }
+
+        if (nk_group_begin(ctx, "dma", 0)) 
+        {
+            nk_layout_row_dynamic(ctx, t_height, 1);
+
+            nk_group_end(ctx);
+        }
+    }
+    nk_end(ctx);
+
+    if (nk_begin(ctx, "memory", w_c_memory, w_c_flags | NK_WINDOW_NO_SCROLLBAR)) 
+    {
+
+        float size[] = {0.2f * MEM_VIEW_WIN_WIDTH, 
+                        0.8f * MEM_VIEW_WIN_WIDTH};
+        uint32_t value, address = debugger.mem_base_address;
+        
+        nk_layout_row(ctx, NK_STATIC, 2*t_height, 2, size);
+
+        /* Top index */
+        if (nk_group_begin(ctx, "padding", 0)) 
+        {
+            nk_group_end(ctx);
+        }
+
+        if (nk_group_begin(ctx, "index", 0)) 
+        {
+            nk_layout_row_static(ctx, t_height, 20, 16);
+            
+            for (int i = 0; i < 16; i++) 
+            {
+                snprintf(t_buffer, sizeof(t_buffer), "%02X", i);
+
+                nk_text(ctx, t_buffer, strlen(t_buffer), NK_TEXT_CENTERED);
+            }
+
+            nk_group_end(ctx);
+        }
+
+
+        nk_layout_row(ctx, NK_STATIC, MEM_VIEW_WIN_WIDTH-t_height-1, 2, size);
+
+        /* Address viewer */
+        if (nk_group_begin(ctx, "address", NK_WINDOW_NO_SCROLLBAR)) 
+        {   
+            nk_layout_row_dynamic(ctx, t_height, 1);
+
+            for (int i = 0; i < debugger.mem_view_count; i+=16) 
+            {
+                snprintf(t_buffer, sizeof(t_buffer), "%08X", address + i);
+
+                nk_text(ctx, t_buffer, strlen(t_buffer), NK_TEXT_CENTERED);
+            }
+
+            nk_group_end(ctx);
         }
 
         /* Value viewer */
-        if (nk_group_begin(debugger.ctx, "memory", 0)) {
-            nk_layout_row_static(debugger.ctx, DBG_TEXT_SIZE, 15, 16);
-            for (int i = 0; i < debugger.mem_view_count; i++) {
-                memory_cpu_load_8bit(address, &value);
-                nk_text_hex(debugger.ctx, "%02X", value, NK_TEXT_CENTERED);
+        if (nk_group_begin(ctx, "memory", NK_WINDOW_NO_SCROLLBAR)) 
+        {
+            nk_layout_row_static(ctx, t_height, 20, 16);
+
+            for (int i = 0; i < debugger.mem_view_count; i++) 
+            {
+                memory_cpu_load_8bit(address+i, &value);
+                snprintf(t_buffer, sizeof(t_buffer), "%02X", value);
+
+                nk_text(ctx, t_buffer, strlen(t_buffer), NK_TEXT_CENTERED);
             }
 
-            nk_group_end(debugger.ctx);
+            nk_group_end(ctx);
         }
-        
     }
-    nk_end(debugger.ctx);
-}
+    nk_end(ctx);
 
-void debugger_draw_assembly_navigator(void) {
-    /* Address selector */
-    if (nk_begin(debugger.ctx, "assembly navigation", nk_rect(ASM_NAV_WIN_X, ASM_NAV_WIN_Y, ASM_NAV_WIN_WIDTH, ASM_NAV_WIN_HEIGHT), 
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE)) 
-    {   
+    if (nk_begin(ctx, "assembly controls", w_n_assembly, w_n_flags)) 
+    {
         /* Follow pc? */
-        nk_layout_row_dynamic(debugger.ctx, DBG_BUTTON_SIZE, 1);
-        if (nk_button_symbol_label(debugger.ctx, 
-                    (debugger.focus_pc) ? NK_SYMBOL_CIRCLE_SOLID: NK_SYMBOL_CIRCLE_OUTLINE, 
-                    "follow PC", NK_TEXT_CENTERED)) 
-        { 
+        nk_layout_row_dynamic(ctx, b_height, 1);
+        if (nk_button_symbol_label(ctx, TOGGLE(debugger.focus_pc), "follow PC", NK_TEXT_CENTERED))
+        {
             debugger.focus_pc = !debugger.focus_pc; 
         }
 
         /* Select memory region */
-        nk_layout_row_dynamic(debugger.ctx, DBG_BUTTON_SIZE, 4);
-        nk_label(debugger.ctx, "region", NK_TEXT_LEFT);
-        if (nk_button_label(debugger.ctx, "main")) { debugger.asm_base_address = 0X00000000; }
-        if (nk_button_label(debugger.ctx, "exp1")) { debugger.asm_base_address = 0X1F000000; }
-        if (nk_button_label(debugger.ctx, "bios")) { debugger.asm_base_address = 0X1FC00000; }
+        nk_layout_row_dynamic(ctx, b_height, 4);
+
+        nk_label(ctx, "region", NK_TEXT_LEFT);
+
+        if (nk_button_label(ctx, "main")) 
+        { 
+            debugger.asm_base_address = 0X00000000; 
+        }
+        if (nk_button_label(ctx, "exp1")) 
+        { 
+            debugger.asm_base_address = 0X1F000000; 
+        }
+        if (nk_button_label(ctx, "bios")) 
+        { 
+            debugger.asm_base_address = 0X1FC00000; 
+        }
         
         /* Move forward and backward in assembly */
-        float assembly_page_ratio[] = {0.5f, 0.25f, 0.25f};
-        nk_layout_row(debugger.ctx, NK_DYNAMIC, DBG_BUTTON_SIZE, 3, assembly_page_ratio);
-        nk_label(debugger.ctx, "page", NK_TEXT_LEFT);
-        if (nk_button_symbol_label(debugger.ctx, NK_SYMBOL_TRIANGLE_LEFT, "prev", NK_TEXT_RIGHT)) { debugger.asm_base_address -= debugger.assembly_lines; }
-        if (nk_button_symbol_label(debugger.ctx, NK_SYMBOL_TRIANGLE_RIGHT, "next", NK_TEXT_LEFT)) { debugger.asm_base_address += debugger.assembly_lines; }
-    }
-    nk_end(debugger.ctx);
-}
+        float assembly_page_ratio[] = {0.25f, 0.375f, 0.375f};
+        nk_layout_row(ctx, NK_DYNAMIC, b_height, 3, assembly_page_ratio);
 
-void debugger_draw_breakpoint_handler(void) {
-    if (nk_begin(debugger.ctx, "breakpoint creator", nk_rect(BRKPNT_WIN_X, BRKPNT_WIN_Y, BRKPNT_WIN_WIDTH, BRKPNT_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE)) 
-    {   
-        nk_layout_row_dynamic(debugger.ctx, DBG_BUTTON_SIZE, 1);
-        nk_label(debugger.ctx, "Current breakpoints", NK_TEXT_LEFT);
-
-        char defined_breakpoints[9];
-        nk_layout_row_dynamic(debugger.ctx, DBG_TEXT_SIZE, 1);
-        for(ll_node_t *current = debugger.breakpoints; current; current = current->next) {
-            int_to_hex_str(current->value, defined_breakpoints, 9);
-            nk_text(debugger.ctx, defined_breakpoints, 8, NK_TEXT_LEFT);
+        nk_label(ctx, "page", NK_TEXT_LEFT);
+        if (nk_button_symbol_label(ctx, NK_SYMBOL_TRIANGLE_LEFT, "prev", NK_TEXT_RIGHT)) 
+        { 
+            debugger.asm_base_address -= debugger.assembly_lines; 
+        }
+        if (nk_button_symbol_label(ctx, NK_SYMBOL_TRIANGLE_RIGHT, "next", NK_TEXT_LEFT)) 
+        { 
+            debugger.asm_base_address += debugger.assembly_lines; 
         }
     }
-    nk_end(debugger.ctx);
-}
+    nk_end(ctx);
 
-void debugger_draw_memory_navigator(void) {
-    if (nk_begin(debugger.ctx, "memory navigator", nk_rect(MEM_NAV_WIN_X, MEM_NAV_WIN_Y, MEM_NAV_WIN_WIDTH, MEM_NAV_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+    if (nk_begin(ctx, "breakpoint controls", w_n_breakpoints, w_n_flags)) 
     {
+        /* check for breakpoint hit */
+        for (ll_node_t *current = debugger.breakpoints; current; current = current->next) 
+        {
+            if (debugger.cpu->PC == current->value) 
+            {
+                debugger.is_paused = true;
+                break;
+            }
+        }
+
+        /* Print current breakpoints */
+        nk_layout_row_dynamic(ctx, b_height, 1);
+
+        nk_label(ctx, "Current breakpoints", NK_TEXT_LEFT);
+
+        for(ll_node_t *current = debugger.breakpoints; current; current = current->next) 
+        {
+            snprintf(t_buffer, sizeof(t_buffer), "0X%08X", current->value);
+
+            nk_text(ctx, t_buffer, strlen(t_buffer), NK_TEXT_CENTERED);
+        }
+        
+        /* Create new breakpoints */
+        static int buffer_size;
+        static char buffer[MAXLEN];
+        nk_layout_row_dynamic(ctx, b_height, 2);
+
+        nk_label(ctx, "breakpoint address", NK_TEXT_LEFT);
+        nk_edit_string(ctx, NK_EDIT_SIMPLE, buffer, &buffer_size, 9, nk_filter_hex);
+        
+        nk_layout_row_dynamic(ctx, b_height, 1);
+
+        if (nk_button_label(ctx, "add breakpoint")) 
+        {
+            int address;
+
+            sscanf(buffer, "%X", &address);
+            ll_prepend(&debugger.breakpoints, address);
+        }
     }
-    nk_end(debugger.ctx);
-}
+    nk_end(ctx);
 
+    if (nk_begin(ctx, "memory controls", w_n_memory, w_n_flags)) 
+    {
+        static int buffer_size;
+        static char buffer[MAXLEN];
+        nk_layout_row_dynamic(ctx, b_height, 2);
 
-void debugger_draw_debug_controls(void) {
-    if (nk_begin(debugger.ctx, "debug controls", nk_rect(DEB_CNT_WIN_X, DEB_CNT_WIN_Y, DEB_CNT_WIN_WIDTH, DEB_CNT_WIN_HEIGHT),
-                NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+        nk_label(ctx, "inspect address", NK_TEXT_LEFT);
+        nk_edit_string(ctx, NK_EDIT_SIMPLE, buffer, &buffer_size, 9, nk_filter_hex);
+        
+        nk_layout_row_dynamic(ctx, b_height, 1);
+
+        if (nk_button_label(ctx, "search memory")) 
+        {
+            int address;
+
+            sscanf(buffer, "%X", &address);
+            debugger.mem_base_address = address;
+        }
+
+        float ratio[] = {0.25f, 0.375f, 0.375f};
+
+        nk_layout_row(ctx, NK_DYNAMIC, b_height, 3, ratio);
+
+        nk_label(ctx, "page", NK_TEXT_LEFT);
+        if (nk_button_symbol_label(ctx, NK_SYMBOL_TRIANGLE_LEFT, "prev", NK_TEXT_RIGHT)) 
+        { 
+            debugger.mem_base_address -= debugger.mem_view_count; 
+        }
+        if (nk_button_symbol_label(ctx, NK_SYMBOL_TRIANGLE_RIGHT, "next", NK_TEXT_LEFT)) 
+        { 
+            debugger.mem_base_address += debugger.mem_view_count; 
+        }
+    }
+    nk_end(ctx);
+
+    if (nk_begin(ctx, "general controls", w_n_controls, w_n_flags)) 
     {
         debugger.is_stepping = false;
-        nk_layout_row_dynamic(debugger.ctx, DBG_BUTTON_SIZE, 1);
-        if (nk_button_symbol_label(debugger.ctx, 
-                    (debugger.is_paused) ? NK_SYMBOL_CIRCLE_SOLID: NK_SYMBOL_CIRCLE_OUTLINE, 
-                    "pause", NK_TEXT_CENTERED)) 
+
+        nk_layout_row_dynamic(ctx, b_height, 1);
+
+        if (nk_button_symbol_label(ctx, TOGGLE(debugger.is_paused), "pause", NK_TEXT_CENTERED))
         {
             debugger.is_paused = !debugger.is_paused;
         }
 
-        if (nk_button_label(debugger.ctx, "step")) {
+        if (nk_button_label(ctx, "step")) 
+        {
             debugger.is_stepping = true;
         }
     }
-    nk_end(debugger.ctx);
-}
-
-////////////////// UTILS ///////////////////////////////////////
-
-// Utility function to convert an integer to a hexadecimal string
-void int_to_hex_str(int value, char* buffer, int buffer_size) {
-    snprintf(buffer, buffer_size, "%X", value);
-}
-
-// Utility function to convert a hexadecimal string to an integer
-int hex_str_to_int(const char* str, int *out) {
-    return sscanf(str, "%X", out);
-}
-
-// Custom widget to display and edit an integer value in hexadecimal format
-void nk_property_hex(struct nk_context* ctx, const char* name, int min, int* value, int max) {
-    char buffer[16];
-    int len;
-    int temp_value = *value;
-
-    // Convert the current value to a hexadecimal string
-    int_to_hex_str(temp_value, buffer, sizeof(buffer));
-    len = strlen(buffer);
-
-    // Layout row for the property
-    nk_layout_row_dynamic(ctx, 25, 2);
-    nk_label(ctx, name, NK_TEXT_LEFT);
-
-    // Editable text field with hex filter
-    if (nk_edit_string(ctx, NK_EDIT_FIELD, buffer, &len, sizeof(buffer), nk_filter_hex)) {
-        buffer[len] = '\0'; // Ensure null-terminated string
-
-        // Try to convert the hex string to an integer
-        if (hex_str_to_int(buffer, &temp_value)) {
-            // Clamp the value within the specified range
-            if (temp_value < min) temp_value = min;
-            if (temp_value > max) temp_value = max;
-
-            // Update the original value
-            *value = temp_value;
-        }
-    }
-}
-
-#define HEXLEN 9
-
-void nk_text_hex(struct nk_context *ctx, const char *fmt, uint32_t value, const int nk_flags) {
-    char str[HEXLEN];
-    snprintf(str, HEXLEN, fmt, value);
-    nk_text(ctx, str, strlen(str), nk_flags);
+    nk_end(ctx);
 }
