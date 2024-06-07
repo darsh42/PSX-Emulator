@@ -36,8 +36,7 @@ int main(int argc, char **argv) {
     while (1) {
         cpu_fetch();
 #ifdef DEBUG
-        if (time % 10 == 0)
-            debugger_exec();
+        debugger_exec();
 #endif
         cpu_decode();
         cpu_execute();

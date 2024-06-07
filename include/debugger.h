@@ -35,6 +35,7 @@ extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
 // linklist functions
 extern void ll_prepend(ll_node_t **head, uint32_t value);
 extern void ll_remove_first(ll_node_t **head);
+extern void ll_remove_find(ll_node_t **head, uint32_t value);
 extern int  ll_find(ll_node_t *head, uint32_t value);
 extern void ll_destroy(ll_node_t *head);
 
@@ -84,29 +85,29 @@ extern void peek_cpu_registers(void);
 #define DBG_BUTTON_SIZE 25
 #define DBG_TEXT_SIZE   10
 
-#define ASM_WIN_WIDTH  3*WINDOW_SIZE_WIDTH/10
-#define ASM_WIN_HEIGHT WINDOW_SIZE_HEIGHT
-#define ASM_WIN_X      NATIVE_DISPLAY_WIDTH
-#define ASM_WIN_Y      0
+#define ASM_WIN_WIDTH  (float) 3*WINDOW_SIZE_WIDTH/10
+#define ASM_WIN_HEIGHT (float) WINDOW_SIZE_HEIGHT
+#define ASM_WIN_X      (float) NATIVE_DISPLAY_WIDTH
+#define ASM_WIN_Y      (float) 0
 
-#define MEM_VIEW_WIN_WIDTH  NATIVE_DISPLAY_WIDTH/2
-#define MEM_VIEW_WIN_HEIGHT WINDOW_SIZE_HEIGHT - NATIVE_DISPLAY_HEIGHT
-#define MEM_VIEW_WIN_X      0
-#define MEM_VIEW_WIN_Y      NATIVE_DISPLAY_HEIGHT
+#define MEM_VIEW_WIN_WIDTH  (float) NATIVE_DISPLAY_WIDTH/2
+#define MEM_VIEW_WIN_HEIGHT (float) WINDOW_SIZE_HEIGHT - NATIVE_DISPLAY_HEIGHT
+#define MEM_VIEW_WIN_X      (float) 0
+#define MEM_VIEW_WIN_Y      (float) NATIVE_DISPLAY_HEIGHT
 
-#define REG_WIN_WIDTH  MEM_VIEW_WIN_WIDTH
-#define REG_WIN_HEIGHT MEM_VIEW_WIN_HEIGHT
-#define REG_WIN_X      MEM_VIEW_WIN_WIDTH
-#define REG_WIN_Y      MEM_VIEW_WIN_Y
+#define REG_WIN_WIDTH  (float) MEM_VIEW_WIN_WIDTH
+#define REG_WIN_HEIGHT (float) MEM_VIEW_WIN_HEIGHT
+#define REG_WIN_X      (float) MEM_VIEW_WIN_WIDTH
+#define REG_WIN_Y      (float) MEM_VIEW_WIN_Y
 
-#define MEM_NAV_WIN_WIDTH  MENU_WIN_WIDTH
-#define MENU_WIN_WIDTH  WINDOW_SIZE_WIDTH - ASM_WIN_X - ASM_WIN_WIDTH
-#define MENU_WIN_HEIGHT WINDOW_SIZE_HEIGHT
-#define MENU_WIN_X      ASM_WIN_X + ASM_WIN_WIDTH
-#define MENU_WIN_Y      ASM_WIN_Y
-#define NUM_MENUS       4
-#define SUBMENU_HEIGHT    MENU_WIN_HEIGHT/NUM_MENUS
-#define SUBMENU_Y(n)      (n-1)*MENU_WIN_HEIGHT/NUM_MENUS
+#define MEM_NAV_WIN_WIDTH (float) MENU_WIN_WIDTH
+#define MENU_WIN_WIDTH    (float) WINDOW_SIZE_WIDTH - ASM_WIN_X - ASM_WIN_WIDTH
+#define MENU_WIN_HEIGHT   (float) WINDOW_SIZE_HEIGHT
+#define MENU_WIN_X        (float) ASM_WIN_X + ASM_WIN_WIDTH
+#define MENU_WIN_Y        (float) ASM_WIN_Y
+#define NUM_MENUS         (float) 4
+#define SUBMENU_HEIGHT    (float) MENU_WIN_HEIGHT/NUM_MENUS
+#define SUBMENU_Y(n)      (float) (n-1)*MENU_WIN_HEIGHT/NUM_MENUS
 
 #define ASM_NAV_WIN_WIDTH   MENU_WIN_WIDTH
 #define ASM_NAV_WIN_HEIGHT  SUBMENU_HEIGHT

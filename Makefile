@@ -2,7 +2,7 @@ CC=gcc
 FILES=src/core/*.c src/sdl/*.c src/gui/*.c src/utils/*.c
 DEBUG=src/debug/*.c
 FLAGS=
-FLAGS_DEBUG=-g -Wall -fsanitize=address
+FLAGS_DEBUG=-g -Wall -fsanitize=address -pg
 LIBS=-lm -lSDL2 
 TARGET=target/psx
 

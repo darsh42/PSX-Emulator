@@ -58,6 +58,8 @@ PSX_ERROR sdl_render_clear(void) {
         print_sdl_error("sdl_render_screen", "SDL could not clear background, SDL error %s", SDL_GetError());
         return set_PSX_error(SDL_RENDER_SCREEN);
     }
+
+    SDL_Delay(4);
     return set_PSX_error(NO_ERROR);
 }
 
@@ -92,7 +94,7 @@ PSX_ERROR sdl_handle_events(SDL_Event *event, int (*nk_sdl_input_handler) (SDL_E
                 handler.status = CONTINUE;
             case SDL_KEYDOWN:
                 switch (event->key.keysym.sym) {
-                    case SDLK_ESCAPE:  handler.status = QUIT;         break; // quit
+                    case SDLK_ESCAPE:  exit(0); handler.status = QUIT;         break; // quit
                     case SDLK_SPACE:   handler.status = TOGGLE_PAUSE; break; // pause
                     case SDLK_F10:     handler.status = STEPINTO;     break; // step into
                     case SDLK_F11:     handler.status = STEP;         break; // step 
@@ -109,6 +111,7 @@ PSX_ERROR sdl_handle_events(SDL_Event *event, int (*nk_sdl_input_handler) (SDL_E
         }
         nk_sdl_input_handler(event);
     }
+    return set_PSX_error(NO_ERROR);
 }
 // PSX_ERROR sdl_handle_events(SDL_Event *event, void (*context_destroy)(void), void (*context_handler)(SDL_Event *)) {
 //      while (SDL_PollEvent(event)) {

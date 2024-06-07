@@ -391,11 +391,11 @@ void COP0(void)    {
             break;
         case 0X01:
             switch (IMM25) {
-                case 0X01: TLBR(0);  break; // TLBR
-                case 0X02: TLBWI(0); break; // TLBWI
-                case 0X06: TLBWR(0); break; // TLBWR
-                case 0X08: TLBP(0);  break; // TLBP
-                case 0X10: RFE(0);   break; // RFE
+                case 0X01: TLBR();  break; // TLBR
+                case 0X02: TLBWI(); break; // TLBWI
+                case 0X06: TLBWR(); break; // TLBWR
+                case 0X08: TLBP();  break; // TLBP
+                case 0X10: RFE();   break; // RFE
                 default:   COPn(0);  break; // COPN
             }
             break;

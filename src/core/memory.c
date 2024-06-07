@@ -139,7 +139,7 @@ PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t alignmen
 
     // KUSEG, KSEG0, KSEG1
     if (region  >= 0X00000000 && region < 0X00200000) {
-        if (cop0_SR_Isc()) {*address = region - 0X00000000; *segment = memory.SCRATCH_PAD.mem;}
+        if (cop0_SR_Isc()) {*address = (region - 0X00000000) & 0X3FF; *segment = memory.SCRATCH_PAD.mem;}
         else               {*address = region - 0X00000000; *segment = memory.MAIN.mem;}
     }
     else if (region >= 0X1F000000 && region < 0X1F800000) {*address = region - 0X1F000000; *segment = memory.EXPANSION_1.mem;}
