@@ -6,20 +6,27 @@
 #include "common.h"
 
 // device headers
+#include "cpu.h"
+#include "gpu.h"
+#include "dma.h"
 #include "memory.h"
 
 // macros
 #define print_psx_error(func, format, ...) print_error("psx.c", func, format, __VA_ARGS__)
 
 // device functions
+// pointers
+extern struct CPU *get_cpu(void);
+extern struct GPU *get_gpu(void);
+extern struct DMA *get_dma(void);
+extern struct MEMORY *get_memory(void);
+
 // memory
 extern PSX_ERROR memory_load_bios(const char *filebios);
 
 // cpu
 extern PSX_ERROR cpu_reset(void);
-extern PSX_ERROR cpu_fetch(void);
-extern PSX_ERROR cpu_decode(void);
-extern PSX_ERROR cpu_execute(void);
+extern PSX_ERROR cpu_step(void);
 extern PSX_ERROR coprocessor_initialize(void);
 
 // gpu
@@ -29,8 +36,8 @@ extern void gpu_reset(void);
 extern PSX_ERROR dma_reset(void);
 
 // gui and sdl
-PSX_ERROR debugger_init(void);
-PSX_ERROR debugger_exec(void);
+void debugger_reset(void);
+void debugger_exec(void);
 PSX_ERROR debugger_destroy(void);
 void sdl_initialize(void);
 void sdl_destroy(void);

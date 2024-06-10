@@ -9,7 +9,7 @@ static const char *register_names[32] = {"$zr", "$at", "$v0", "$v1", "$a0", "$a1
 static struct CPU *cpu;
 
 void set_debug_cpu(void) {
-    cpu = _cpu();
+    cpu = get_cpu();
 }
 
 void peek_cpu_pc(void) {
@@ -55,108 +55,87 @@ void peek_cpu_instruction(void) {
     decode_instruction(cpu->instruction);
 }
 
-// TODO: translate the opcodes and functions into corresponding mneumonics
 static void decode_instruction(union INSTRUCTION instruction) {
-    printf("[DEBUG]: PC: %08X    HEX: %08X   ", cpu->PC, instruction.value);
-    if (instruction.op == 0X00) {
-        printf(" R-TYPE: "); 
-        switch (instruction.funct) {
-            case 0X00: printf("SLL    "); break;
-            case 0X02: printf("SRL    "); break;
-            case 0X03: printf("SRA    "); break;
-            case 0X04: printf("SLLV   "); break;
-            case 0X06: printf("SRLV   "); break;
-            case 0X07: printf("SRAV   "); break;
-            case 0X08: printf("JR     "); break;
-            case 0X09: printf("JALR   "); break;
-            case 0X0C: printf("SYSCALL"); break;
-            case 0X0D: printf("BREAK  "); break;
-            case 0X10: printf("MFHI   "); break;
-            case 0X11: printf("MTHI   "); break;
-            case 0X12: printf("MFLO   "); break;
-            case 0X13: printf("MTLO   "); break;
-            case 0X18: printf("MULT   "); break;
-            case 0X19: printf("MULTU  "); break;
-            case 0X1A: printf("DIV    "); break;
-            case 0X1B: printf("DIVU   "); break;
-            case 0X20: printf("ADD    "); break;
-            case 0X21: printf("ADDU   "); break;
-            case 0X22: printf("SUB    "); break;
-            case 0X23: printf("SUBU   "); break;
-            case 0X24: printf("AND    "); break;
-            case 0X25: printf("OR     "); break;
-            case 0X26: printf("XOR    "); break;
-            case 0X27: printf("NOR    "); break;
-            case 0X2A: printf("SLT    "); break;
-            case 0X2B: printf("SLTU   "); break;
-        }
-        printf(" rd=%s, rt=%s, rs=%s, op=%02X, funct=%X, shamt=%X\n", register_names[instruction.rd],
-                                                                      register_names[instruction.rt],
-                                                                      register_names[instruction.rs],
-                                                                      instruction.op,
-                                                                      instruction.funct,
-                                                                      instruction.shamt);
-    } else if (instruction.op == 0X02 || 
-               instruction.op == 0X03) {
-        printf(" J-TYPE: ");
-        switch(instruction.op) {
-            case 0X02: printf("J     "); break;
-            case 0X03: printf("JAL   "); break;
-        }
-        printf("                          op=%02X, target=%X\n", instruction.op, 
-                                                              instruction.target);
-    } else {
-        printf(" I-TYPE: ");
-        switch (instruction.op) {
-            case 0X01: 
-                switch (cpu->instruction.rt) {
-                    case 0b00000: printf("BLTZ   "); break;
-                    case 0b00001: printf("BGEZ   "); break;
-                    case 0b10000: printf("BLTZAL "); break;
-                    case 0b10001: printf("BGEZAL "); break;
-                }
-                break;
-            case 0X04: printf("BEQ    "); break;  
-            case 0X05: printf("BNE    "); break;  
-            case 0X06: printf("BLEZ   "); break;  
-            case 0X07: printf("BGTZ   "); break;  
-            case 0X08: printf("ADDI   "); break;  
-            case 0X09: printf("ADDIU  "); break;  
-            case 0X0A: printf("SLTI   "); break;  
-            case 0X0B: printf("SLTIU  "); break;  
-            case 0X0C: printf("ANDI   "); break;  
-            case 0X0D: printf("ORI    "); break;  
-            case 0X0E: printf("XORI   "); break;  
-            case 0X0F: printf("LUI    "); break;  
-            case 0X10: printf("COP0   "); break;  
-            case 0X11: printf("COP1   "); break;  
-            case 0X12: printf("COP2   "); break;  
-            case 0X13: printf("COP3   "); break;  
-            case 0X20: printf("LB     "); break;  
-            case 0X21: printf("LH     "); break;  
-            case 0X22: printf("LWL    "); break;  
-            case 0X23: printf("LW     "); break;  
-            case 0X24: printf("LBU    "); break;  
-            case 0X25: printf("LHU    "); break;  
-            case 0X26: printf("LWR    "); break;  
-            case 0X28: printf("SB     "); break;  
-            case 0X29: printf("SH     "); break;  
-            case 0X2A: printf("SWL    "); break;  
-            case 0X2B: printf("SW     "); break;  
-            case 0X2E: printf("SWR    "); break; 
-            case 0X30: printf("LWC0   "); break; 
-            case 0X31: printf("LWC1   "); break; 
-            case 0X32: printf("LWC2   "); break; 
-            case 0X33: printf("LWC3   "); break; 
-            case 0X38: printf("SWC0   "); break; 
-            case 0X39: printf("SWC1   "); break; 
-            case 0X3A: printf("SWC2   "); break; 
-            case 0X3B: printf("SWC3   "); break; 
-        }
-        printf("         rt=%s, rs=%s, op=%02X, immediate=%X\n", register_names[instruction.rt],
-                                                                register_names[instruction.rs],
-                                                                instruction.op, 
-                                                                instruction.immediate16);
+    switch (debugger.psx->cpu->instruction.op) {
+        case 0X00: 
+            switch (instruction.funct) {
+                case 0X00: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLL      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X02: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRL      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X03: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRA      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X04: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLLV     %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X06: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRLV     %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X07: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SRAV     %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X08: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    JR       $pc=%s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X09: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    JALR     %s, %s=0X%08X\n", debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rd], debugger.psx->cpu->PC); break;
+                case 0X0C: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SYSCALL  \n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value); break;
+                case 0X0D: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BREAK    \n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value); break;
+                case 0X10: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MFHI     %s=$hi\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd]); break;
+                case 0X11: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MTHI     %s=$lo\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd]); break;
+                case 0X12: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MFLO     $hi=%s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X13: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MTLO     $lo=%s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs]); break;
+                case 0X18: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MULT     %s, %s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X19: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    MULTU    %s, %s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X1A: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    DIV      %s, %s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X1B: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    DIVU     %s, %s\n",        debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X20: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADD      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X21: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADDU     %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X22: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SUB      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X23: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SUBU     %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X24: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    AND      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X25: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    OR       %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X26: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    XOR      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X27: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    NOR      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X2A: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLT      %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+                case 0X2B: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLTU     %s, %s, %s\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rd], register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt]); break;
+            } 
+            break;
+        case 0X01: 
+            switch (debugger.psx->cpu->instruction.rt) {
+                case 0b00000: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BLTZ     %s, 0X%04X\n",             debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+                case 0b00001: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BGEZ     %s, 0X%04X\n",             debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+                case 0b10000: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BLTZAL   %s, 0X%04X %s = 0X%08X\n", debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16, register_names[31], debugger.psx->cpu->PC); break;
+                case 0b10001: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BGEZAL   %s, 0X%04X %s = 0X%08X\n", debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16, register_names[31], debugger.psx->cpu->PC); break;
+            }
+            break;
+        case 0X02: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    J        0X%08X\n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, (debugger.psx->cpu->PC & 0XF0000000) | (debugger.psx->cpu->instruction.target << 2)); break;
+        case 0X03: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    JAL      0X%08X, %s = 0X%08X\n", debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, (debugger.psx->cpu->PC & 0XF0000000) | (debugger.psx->cpu->instruction.target << 2), register_names[31], debugger.psx->cpu->PC); break;
+        case 0X04: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BEQ      %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X05: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BNE      %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X06: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BLEZ     %s, 0X%04X\n",          debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X07: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    BGTZ     %s, 0X%04X\n",          debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X08: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADDI     %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X09: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ADDIU    %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X0A: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLTI     %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X0B: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SLTIU    %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X0C: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ANDI     %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X0D: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    ORI      %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X0E: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    XORI     %s, %s, 0X%04X\n",      debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], register_names[debugger.psx->cpu->instruction.rs], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X0F: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LUI      %s, 0X%04X\n",          debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16); break;
+        case 0X20: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LB       %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X21: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LH       %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X22: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWL      %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X23: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LW       %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X24: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LBU      %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X25: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LHU      %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X26: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWR      %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X28: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SB       %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X29: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SH       %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X2A: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWL      %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X2B: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SW       %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X2E: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWR      %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        // COsprOCESSOR instructions                        
+        case 0X10: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP0     0X%08X\n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, debugger.psx->cpu->instruction.immediate25); break;
+        case 0X11: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP1     0X%08X\n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, debugger.psx->cpu->instruction.immediate25); break;
+        case 0X12: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP2     0X%08X\n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, debugger.psx->cpu->instruction.immediate25); break;
+        case 0X13: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    COP3     0X%08X\n",              debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, debugger.psx->cpu->instruction.immediate25); break;
+        case 0X30: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC0     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X31: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC1     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X32: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC2     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X33: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    LWC3     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X38: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC0     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X39: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC1     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X3A: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC2     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
+        case 0X3B: fprintf(stdout, "[DISASSEMBLY]: PC: 0X%08X    HEX: 0X%08X    SWC3     %s, 0X%04X(%s)\n",    debugger.psx->cpu->PC, debugger.psx->cpu->instruction.value, register_names[debugger.psx->cpu->instruction.rt], debugger.psx->cpu->instruction.immediate16, register_names[debugger.psx->cpu->instruction.rs]); break;
     }
 }
 

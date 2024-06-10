@@ -3,7 +3,6 @@
 
 #include "common.h"
 
-enum GPUSTAT_ENABLE                   { DISABLE = false,        ENABLE  = true };
 enum GPUSTAT_READY                    { NOT_READY = false,      READY = true };
 enum GPUSTAT_DRAW_PIXEL               { ALWAYS = false,         NOT_TO_MASKED = true };
 enum GPUSTAT_REVERSEFIELD             { UNDISTORTED = false,    DISTORTED = true };
@@ -20,7 +19,7 @@ enum GPUSTAT_DMA_DIRECTION {
 
 enum COMMAND_PACKET_PRIMATIVE_IIP  { FLAT_SHADING = false,                    GOURAD_SHADING = true };
 enum COMMAND_PACKET_PRIMATIVE_VTX  { VERTEX_3_POLYGON = false,                VERTEX_4_POLYGON = true };
-enum COMMAND_PACKET_PRIMATIVE_TME  { TEXTURE_MAPPING_OFF = false,             TEXTURE_MAPPING_ON = true}i ;
+enum COMMAND_PACKET_PRIMATIVE_TME  { TEXTURE_MAPPING_OFF = false,             TEXTURE_MAPPING_ON = true};
 enum COMMAND_PACKET_PRIMATIVE_ABE  { SEMI_TRANSPARENCY_OFF = false,           SEMI_TRANSPARENCY_ON = true };
 enum COMMAND_PACKET_PRIMATIVE_TGE  { BRIGHTNESS_ON_TEXURE_MAPPING_ON = false, BRIGHTNESS_ON_TEXURE_MAPPING_OFF = true };
 enum COMMAND_PACKET_PRIMATIVE_PLL  { SINGLE_LINE = false,                     POLY_LINE = true };
@@ -38,9 +37,9 @@ union GPUSTAT {
         uint32_t texture_page_y_base: 1;
         uint32_t semi_transparency: 2;
         uint32_t texture_page_colors: 2;
-        enum GPUSTAT_ENABLE dither: 1;
-        enum GPUSTAT_ENABLE draw_to_display_area: 1;
-        enum GPUSTAT_ENABLE set_mask_when_drawing: 1;
+        enum PSX_ENABLE dither: 1;
+        enum PSX_ENABLE draw_to_display_area: 1;
+        enum PSX_ENABLE set_mask_when_drawing: 1;
         enum GPUSTAT_DRAW_PIXEL draw_pixels: 1;
         uint32_t interlace_field: 1;
         enum GPUSTAT_REVERSEFIELD reverse_flag: 1;
@@ -50,9 +49,9 @@ union GPUSTAT {
         uint32_t vertical_resolution: 1;
         enum GPUSTAT_VIDEO_MODE video_mode: 1;
         enum GPUSTAT_DISPLAY_AREA_COLOR_DEPTH display_area_color_depth: 1;
-        enum GPUSTAT_ENABLE vertical_interlace: 1;
-        enum GPUSTAT_ENABLE display_enable: 1;
-        enum GPUSTAT_ENABLE interrupt_request: 1;
+        enum PSX_ENABLE vertical_interlace: 1;
+        enum PSX_ENABLE display_enable: 1;
+        enum PSX_ENABLE interrupt_request: 1;
         uint32_t DMA_data_request: 1;
         enum GPUSTAT_READY ready_recieve_cmd_word: 1;
         enum GPUSTAT_READY ready_send_vram_cpu: 1;

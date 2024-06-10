@@ -13,6 +13,11 @@
 
 #define DEBUG
 
+enum PSX_ENABLE {
+    DISABLE = false,
+    ENABLE  = true
+};
+
 enum EXCEPTION_CAUSE {
     INT,
     MOD,
@@ -27,6 +32,15 @@ enum EXCEPTION_CAUSE {
     RI,
     CPU,
     OVF
+};
+
+struct PSX {
+    bool running;
+
+    struct CPU *cpu;
+    struct GPU *gpu;
+    struct DMA *dma;
+    struct MEMORY *memory;
 };
 
 

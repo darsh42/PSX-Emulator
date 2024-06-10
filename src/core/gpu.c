@@ -14,6 +14,8 @@ static void RENDER_RECTANGLES(void);
 static void RENDERING_ATTRIBUTES(void);
 static void DISPLAY_CONTROL(void);
 
+struct GPU *get_gpu(void) { return &gpu; }
+
 void gpu_reset(void) {
     gpu.gp0     = (union GP0 *) memory_pointer(0X1F801810);
     gpu.gpuread = (union GPUREAD *) memory_pointer(0X1F801810);

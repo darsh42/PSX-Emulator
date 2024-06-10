@@ -1,10 +1,21 @@
 #include "../../include/psx.h"
 
+struct PSX psx;
+
+struct PSX *get_psx(void) { return &psx; }
+
 void psx_reset(char **argv) {
     if (memory_load_bios(*(++argv)) != NO_ERROR) {
         print_psx_error("main", "Cannot load BIOS file", NULL);
         exit(1);
     }
+    
+    psx.running = true;
+
+    psx.cpu = get_cpu();
+    psx.gpu = get_gpu();
+    psx.dma = get_dma();
+    psx.memory = get_memory();
 
     cpu_reset();
     gpu_reset();
@@ -13,7 +24,7 @@ void psx_reset(char **argv) {
     // sdl_initialize();
 
 #ifdef DEBUG
-    // debugger_init();
+    debugger_reset();
     set_debug_cpu();
 #endif
 }
@@ -33,16 +44,13 @@ int main(int argc, char **argv) {
     }
 
     psx_reset(argv);
-    disassemble();
-//     while (1) {
-//         cpu_fetch();
-// #ifdef DEBUG
-//         // debugger_exec();
-//         peek_cpu_instruction();
-// #endif
-//         cpu_decode();
-//         cpu_execute();
-//     }
+    // disassemble();
+    while (psx.running) {
+#ifdef DEBUG
+        debugger_exec();
+#endif
+        cpu_step();
+    }
     psx_destroy();
     return 0;
 }

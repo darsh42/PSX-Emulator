@@ -79,9 +79,7 @@ static void cpu_load_delay(void);
 static void cpu_branch_delay(void);
 static void COPn_reg(int n, int reg, uint32_t **refrence);
 
-#ifdef DEBUG
-struct CPU *_cpu(void) {return &cpu;}
-#endif
+struct CPU *get_cpu(void) { return &cpu; }
 
 PSX_ERROR cpu_reset(void) {
     cpu.PC = 0Xbfc00000;
@@ -107,24 +105,12 @@ PSX_ERROR cpu_reset(void) {
     return set_PSX_error(NO_ERROR);
 }
 
-PSX_ERROR cpu_fetch(void) {
+PSX_ERROR cpu_step(void) {
     cpu_branch_delay();
-
     memory_cpu_load_32bit(cpu.PC, &cpu.instruction.value);
-
-    return set_PSX_error(NO_ERROR);
-}
-
-PSX_ERROR cpu_decode(void) {
-    return set_PSX_error(NO_ERROR);
-}
-
-PSX_ERROR cpu_execute(void) {
-    cpu_load_delay();        // load delay
-    cpu_execute_op();        // switch to instruction type
-
+    cpu_load_delay();
+    cpu_execute_op();
     cpu.PC += 4;
-
     return set_PSX_error(NO_ERROR);
 }
 
@@ -145,14 +131,14 @@ void cpu_exception(enum EXCEPTION_CAUSE cause) {
     cpu.cop0.CAUSE.EXECODE = cause; 
 
     // set exception program return
-    if (cpu.branch.stage != UNUSED) {
+    if (cpu.branch.stage == UNUSED) {
+        cpu.cop0.EPC.return_address = cpu.PC;
+    } else {
         cpu.cop0.EPC.return_address = cpu.branch.value;
         cpu.cop0.CAUSE.BranchDelay  = true;
 
         cpu.branch.value = 0;
         cpu.branch.stage = UNUSED;
-    } else {
-        cpu.cop0.EPC.return_address = cpu.PC;
     }
 
     // increment exception stack
@@ -391,11 +377,11 @@ void COP0(void)    {
             break;
         case 0X01:
             switch (IMM25) {
-                case 0X01: TLBR(0);  break; // TLBR
-                case 0X02: TLBWI(0); break; // TLBWI
-                case 0X06: TLBWR(0); break; // TLBWR
-                case 0X08: TLBP(0);  break; // TLBP
-                case 0X10: RFE(0);   break; // RFE
+                case 0X01: TLBR();  break; // TLBR
+                case 0X02: TLBWI(); break; // TLBWI
+                case 0X06: TLBWR(); break; // TLBWR
+                case 0X08: TLBP();  break; // TLBP
+                case 0X10: RFE();   break; // RFE
                 default:   COPn(0);  break; // COPN
             }
             break;

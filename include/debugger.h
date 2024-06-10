@@ -1,39 +1,88 @@
 #ifndef DEBUGGER_H_INCLUDED
 #define DEBUGGER_H_INCLUDED
 
+#include <signal.h>
+#include <readline/history.h>
+#include <readline/readline.h>
+#include <readline/rltypedefs.h>
 #include "common.h"
-#include "sdl.h"
 #include "cpu.h"
 #include "gpu.h"
-#include "memory.h"
-#include "instruction.h"
-#define NK_INCLUDE_FIXED_TYPES
-#define NK_INCLUDE_STANDARD_IO
-#define NK_INCLUDE_STANDARD_VAARGS
-#define NK_INCLUDE_DEFAULT_ALLOCATOR
-#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
-#define NK_INCLUDE_FONT_BAKING
-#define NK_INCLUDE_DEFAULT_FONT
-#define NK_IMPLEMENTATION
-#define NK_SDL_RENDERER_IMPLEMENTATION
-#include "nuklear.h"
-#include "nuklear_sdl_renderer.h"
+#include "dma.h"
+#include "psx.h"
 
-extern PSX_ERROR sdl_return_handler(struct SDL_HANDLER **);
-extern PSX_ERROR sdl_handle_events(SDL_Event *, void (*)(void), int (*)(SDL_Event *));
-extern PSX_ERROR sdl_render_clear(void);
-extern PSX_ERROR sdl_render_present(void);
 
-char ***get_main_disassembly(void);
-char ***get_bios_disassembly(void);
-char ***get_exp1_disassembly(void);
+#define BP_COMP(bp1, bp2) (bp1.type == BP_INS) ? (bp1.opcode == bp2.opcode) : (bp1.address == bp2.address)
+#define WP_COMP(wp1, wp2) (wp1.type == wp2.type && wp1.location == wp2.location && wp1.value == wp2.value)
+                            
+#define MAX_BREAK 100
+#define MAX_WATCH 100
+#define MAX_MEMORY_VIEW 512
+
+typedef enum breakpoint_type {
+    BP_EMPTY,
+    BP_INS,
+    BP_CON
+} bp_t;
+
+typedef struct breakpoint {
+    int number;
+
+    bp_t type;
+
+    uint32_t opcode;
+    uint32_t address;
+} bp;
+
+typedef enum watchpoint_register {
+    WP_NO_REG,
+    WP_CPU,
+    WP_GPU,
+    WP_SPU,
+} wp_r;
+
+typedef enum watchpoint_type {
+    WP_EMPTY,
+    WP_MEM,
+    WP_REG
+} wp_t;
+
+typedef struct watchpoint {
+    int number;
+    
+    wp_t type;
+    wp_r regtype;
+
+    uint32_t value;
+    uint32_t location;
+} wp;
+
+typedef struct command {
+    char *name;
+    char *help;
+    rl_icpfunc_t *func;
+} COMMAND;
+
+typedef struct argument {
+    char *name;
+    char *help;
+} ARGUMENT;
 
 struct DEBUGGER {
-    uint32_t running;
-    uint32_t fontscale;
+    struct PSX *psx;
 
-    struct nk_context  *ctx;
-    struct SDL_HANDLER *sdl_handler;
+    /* debug variables */
+    int bp_count;
+    int wp_count;
+    bp bps[MAX_BREAK];
+    wp wps[MAX_WATCH];
+
+    bool stepping;
+    volatile sig_atomic_t paused;
 };
+
+struct PSX *get_psx(void);
+
+extern void peek_cpu_instruction();
 
 #endif // DEBUGGER_H_INCLUDED

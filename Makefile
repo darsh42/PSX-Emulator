@@ -1,7 +1,7 @@
 CC=gcc
-FILES=src/core/*.c src/sdl/*.c src/gui/*.c
+FILES=src/core/*.c src/sdl/*.c
 DEBUG=src/debug/*.c
-FLAGS=-g -fsanitize=address -Wall -Wextra -lm -lSDL2 
+FLAGS=-g -pg -fsanitize=address -Wall -Wextra -Wno-unused-parameter -lm -lSDL2 -lreadline
 TARGET=target/psx
 
 psx_debug:
