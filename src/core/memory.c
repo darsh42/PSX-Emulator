@@ -1,6 +1,6 @@
 #include "../../include/memory.h"
 
-static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t aligned, bool load);
+static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t aligned, bool load);
 
 static struct MEMORY memory;
 static uint32_t segment_lookup[] = {
@@ -31,7 +31,7 @@ uint8_t *memory_VRAM_pointer(void) {
 
 uint8_t *memory_pointer(uint32_t address) {
     uint8_t *segment;
-    if (memory_cpu_map(&segment, &address, 4, false) != NO_ERROR) {
+    if (memory_cpu_map(&segment, &address, NULL, 4, true) != NO_ERROR) {
         print_memory_error("memory_cpu_store_32bit", "ADDRESS: 0X%08x\n", address);
         exit(1);
     }
@@ -41,7 +41,7 @@ uint8_t *memory_pointer(uint32_t address) {
 
 void memory_cpu_load_8bit(uint32_t address, uint32_t *result) {
     uint8_t *segment;
-    if (memory_cpu_map(&segment, &address, 1, true) != NO_ERROR) {
+    if (memory_cpu_map(&segment, &address, NULL, 1, true) != NO_ERROR) {
         print_memory_error("memory_cpu_load_8bit", "ADDRESS: 0X%08x", address);
         exit(1);
     }
@@ -53,11 +53,14 @@ void memory_cpu_load_8bit(uint32_t address, uint32_t *result) {
 
 void memory_cpu_store_8bit(uint32_t address, uint32_t data) {
     uint8_t *segment;
-    if (memory_cpu_map(&segment, &address, 1, false) != NO_ERROR) {
+    uint32_t mask = 0XFFFFFFFF;
+    if (memory_cpu_map(&segment, &address, &mask, 1, false) != NO_ERROR) {
         print_memory_error("memory_cpu_store_8bit", "ADDRESS: 0X%08x", address);
         printf("%x\n", address);
         exit(1);
     }
+    
+    data &= mask;
 
     uint8_t b0 = (data >> 0) & 0X000000FF;
     *(segment + address + 0) = b0;
@@ -65,7 +68,7 @@ void memory_cpu_store_8bit(uint32_t address, uint32_t data) {
 
 void memory_cpu_load_16bit(uint32_t address, uint32_t *result) {
     uint8_t *segment;
-    if (memory_cpu_map(&segment, &address, 2, true) != NO_ERROR) {
+    if (memory_cpu_map(&segment, &address, NULL, 2, true) != NO_ERROR) {
         print_memory_error("memory_cpu_load_16bit", "ADDRESS: 0X%08x", address);
         exit(1);
     }
@@ -79,10 +82,13 @@ void memory_cpu_load_16bit(uint32_t address, uint32_t *result) {
 
 void memory_cpu_store_16bit(uint32_t address, uint32_t data) {
     uint8_t *segment;
-    if (memory_cpu_map(&segment, &address, 2, false) != NO_ERROR) {
+    uint32_t mask = 0XFFFFFFFF;
+    if (memory_cpu_map(&segment, &address, &mask, 2, false) != NO_ERROR) {
         print_memory_error("memory_cpu_store_16bit", "ADDRESS: 0X%08x", address);
         exit(1);
     }
+    data &=mask;
+
     uint8_t b0 = (data >> 0) & 0X000000FF;
     uint8_t b1 = (data >> 8) & 0X000000FF;
 
@@ -92,7 +98,7 @@ void memory_cpu_store_16bit(uint32_t address, uint32_t data) {
 
 void memory_cpu_load_32bit(uint32_t address, uint32_t *result) {
     uint8_t *segment;
-    if (memory_cpu_map(&segment, &address, 4, true) != NO_ERROR) {
+    if (memory_cpu_map(&segment, &address, NULL, 4, true) != NO_ERROR) {
         print_memory_error("memory_cpu_load_32bit", "ADDRESS: 0X%08x", address);
         exit(1);
     }
@@ -108,12 +114,13 @@ void memory_cpu_load_32bit(uint32_t address, uint32_t *result) {
 
 void memory_cpu_store_32bit(uint32_t address, uint32_t data) {
     uint8_t *segment;
-    
-    if (memory_cpu_map(&segment, &address, 4, false) != NO_ERROR) {
+    uint32_t mask = 0XFFFFFFFF;
+    if (memory_cpu_map(&segment, &address, &mask, 4, false) != NO_ERROR) {
         print_memory_error("memory_cpu_store_32bit", "ADDRESS: 0X%08x\n", address);
         exit(1);
     }
-    
+    data &= mask;
+
     uint8_t b0 = (data >>  0) & 0X000000FF;
     uint8_t b1 = (data >>  8) & 0X000000FF;
     uint8_t b2 = (data >> 16) & 0X000000FF;
@@ -126,8 +133,16 @@ void memory_cpu_store_32bit(uint32_t address, uint32_t data) {
     segment[address + 3] = b3;
 
 }
+/* This is the main mapping function for each of the memory accessing routines                              *
+ * segment   -> the memory array is being accessed, e.g. main RAM, IO ports, e.t.c.                         *
+ * address   -> the virtual address that is being accessed, this is transformed into a real address         *
+ * mask      -> the mask when writing to io ports, this is because some ports have "always zero" bits       *
+ *                  for information on why the mask is a given value check the no$psx docs                  *
+ * alignment -> stores the number of bytes being accessed and checks if the address is aligned accordingly  *
+ * load      -> specifies if the address is being loaded from or stored to                                  */
+PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t alignment, bool load) {
+    memory.address_accessed = *address; // used for debugging
 
-PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t alignment, bool load) {
     if (*address % alignment != 0) {
         if (load) cpu_exception(ADEL);
         else      cpu_exception(ADES);
@@ -142,7 +157,25 @@ PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t alignmen
     }
     else if (region >= 0X1F000000 && region < 0X1F800000) {*address = region - 0X1F000000; *segment = memory.EXPANSION_1.mem;}
     else if (region >= 0X1F800000 && region < 0X1F801000) {*address = region - 0X1F800000; *segment = memory.SCRATCH_PAD.mem;}
-    else if (region >= 0X1F801000 && region < 0X1F802000) {*address = region - 0X1F801000; *segment = memory.IO_PORTS.mem;}   
+    else if (region >= 0X1F801000 && region < 0X1F802000) {
+        if (!load && region >= 0X1F801080 && region <= 0X1f801084) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F801088 && region <= 0X1f80108C) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F801090 && region <= 0X1f801094) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F801098 && region <= 0X1f80109C) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F8010A0 && region <= 0X1f8010A4) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F8010A8 && region <= 0X1f8010AC) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F8010B0 && region <= 0X1f8010B4) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F8010B8 && region <= 0X1f8010BC) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F8010C0 && region <= 0X1f8010C4) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F8010C8 && region <= 0X1f8010CC) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F8010D0 && region <= 0X1f8010D4) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F8010D8 && region <= 0X1f8010DC) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F8010E0 && region <= 0X1f8010E4) {*mask = 0b00000000111111111111111111111111;}
+        if (!load && region >= 0X1F8010E8 && region <= 0X1f8010EC) {*mask = 0b01110001011101110000011100000011;}
+        if (!load && region >= 0X1F8010F0 && region <= 0X1F8010F4) {*mask = 0b00000000000000000011111111000000;}
+
+        *address = region - 0X1F801000; *segment = memory.IO_PORTS.mem;
+    }   
     else if (region >= 0X1F802000 && region < 0X1FA00000) {*address = region - 0X1F802000; *segment = memory.EXPANSION_2.mem;}
     else if (region >= 0X1F8A0000 && region < 0X1FC00000) {*address = region - 0X1F8A0000; *segment = memory.EXPANSION_3.mem;}
     else if (region >= 0X1FC00000 && region < 0X1FC80000) {*address = region - 0X1FC00000; *segment = memory.BIOS.mem;}       

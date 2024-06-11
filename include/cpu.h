@@ -32,6 +32,40 @@
 
 #define reg(r) cpu.R[r]
 
+#define FOREACH_REGISTER(CMD) \
+                     CMD(zr) \
+                     CMD(at) \
+                     CMD(v0) \
+                     CMD(v1) \
+                     CMD(a0) \
+                     CMD(a1) \
+                     CMD(a2) \
+                     CMD(a3) \
+                     CMD(t0) \
+                     CMD(t1) \
+                     CMD(t2) \
+                     CMD(t3) \
+                     CMD(t4) \
+                     CMD(t5) \
+                     CMD(t6) \
+                     CMD(t7) \
+                     CMD(s0) \
+                     CMD(s1) \
+                     CMD(s2) \
+                     CMD(s3) \
+                     CMD(s4) \
+                     CMD(s5) \
+                     CMD(s6) \
+                     CMD(s7) \
+                     CMD(t8) \
+                     CMD(t9) \
+                     CMD(k0) \
+                     CMD(k1) \
+                     CMD(gp) \
+                     CMD(sp) \
+                     CMD(fp) \
+                     CMD(ra) \
+
 struct delay {
     uint32_t value;
     enum {UNUSED, TRANSFER, DELAY} stage;

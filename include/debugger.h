@@ -10,11 +10,8 @@
 #include "gpu.h"
 #include "dma.h"
 #include "psx.h"
+#include "instruction.h"
 
-
-#define BP_COMP(bp1, bp2) (bp1.type == BP_INS) ? (bp1.opcode == bp2.opcode) : (bp1.address == bp2.address)
-#define WP_COMP(wp1, wp2) (wp1.type == wp2.type && wp1.location == wp2.location && wp1.value == wp2.value)
-                            
 #define MAX_BREAK 100
 #define MAX_WATCH 100
 #define MAX_MEMORY_VIEW 512

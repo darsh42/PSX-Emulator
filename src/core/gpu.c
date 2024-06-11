@@ -17,16 +17,16 @@ static void DISPLAY_CONTROL(void);
 struct GPU *get_gpu(void) { return &gpu; }
 
 void gpu_reset(void) {
-    gpu.gp0     = (union GP0 *) memory_pointer(0X1F801810);
+    gpu.gp0     = (union GP0 *)     memory_pointer(0X1F801810);
     gpu.gpuread = (union GPUREAD *) memory_pointer(0X1F801810);
-    gpu.gp1     = (union GP1 *) memory_pointer(0X1F801814);
+    gpu.gp1     = (union GP1 *)     memory_pointer(0X1F801814);
     gpu.gpustat = (union GPUSTAT *) memory_pointer(0X1F801814);
 
     gpu.gpustat->value = 0;
-    gpu.gpustat->display_enable = ENABLE;
-    gpu.gpustat->ready_recieve_cmd_word = READY;
+    // gpu.gpustat->display_enable = ENABLE;
+    // gpu.gpustat->ready_recieve_cmd_word = READY;
     gpu.gpustat->ready_recieve_dma_block = READY;
-    gpu.gpustat->drawing_even_odd_interlace = ODD;
+    // gpu.gpustat->drawing_even_odd_interlace = ODD;
 }
 
 void gpu_execute_op(void) {

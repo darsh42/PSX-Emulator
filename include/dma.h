@@ -42,25 +42,32 @@ union DPRC {
 union DIRC {
     uint32_t value;
     struct {
-        uint32_t : 15;
-        enum PSX_ENABLE forced_irq: 1;
-        enum PSX_ENABLE irq_enable_dma0: 1;
-        enum PSX_ENABLE irq_enable_dma1: 1;
-        enum PSX_ENABLE irq_enable_dma2: 1;
-        enum PSX_ENABLE irq_enable_dma3: 1;
-        enum PSX_ENABLE irq_enable_dma4: 1;
-        enum PSX_ENABLE irq_enable_dma5: 1;
-        enum PSX_ENABLE irq_enable_dma6: 1;
-        enum PSX_ENABLE irq_enable_master: 1;
-        enum PSX_ENABLE irq_flag_dma0: 1;
-        enum PSX_ENABLE irq_flag_dma1: 1;
-        enum PSX_ENABLE irq_flag_dma2: 1;
-        enum PSX_ENABLE irq_flag_dma3: 1;
-        enum PSX_ENABLE irq_flag_dma4: 1;
-        enum PSX_ENABLE irq_flag_dma5: 1;
-        enum PSX_ENABLE irq_flag_dma6: 1;
-        enum PSX_ENABLE irq_signal: 1;
+        uint32_t : 16;
+        uint32_t irq_enable_sum: 7;
+        uint32_t :  1;
+        uint32_t irq_flag_sum: 7;
+        uint32_t :  1;
     };
+    struct {
+        uint32_t : 15;
+        enum PSX_ENABLE forced_irq: 1;         // bit 15
+        enum PSX_ENABLE irq_enable_dma0: 1;    // bit 16
+        enum PSX_ENABLE irq_enable_dma1: 1;    // bit 17
+        enum PSX_ENABLE irq_enable_dma2: 1;    // bit 18
+        enum PSX_ENABLE irq_enable_dma3: 1;    // bit 19
+        enum PSX_ENABLE irq_enable_dma4: 1;    // bit 20
+        enum PSX_ENABLE irq_enable_dma5: 1;    // bit 21
+        enum PSX_ENABLE irq_enable_dma6: 1;    // bit 22
+        enum PSX_ENABLE irq_enable_master: 1;  // bit 23
+        enum PSX_ENABLE irq_flag_dma0: 1;      // bit 24
+        enum PSX_ENABLE irq_flag_dma1: 1;      // bit 25
+        enum PSX_ENABLE irq_flag_dma2: 1;      // bit 26
+        enum PSX_ENABLE irq_flag_dma3: 1;      // bit 27
+        enum PSX_ENABLE irq_flag_dma4: 1;      // bit 28
+        enum PSX_ENABLE irq_flag_dma5: 1;      // bit 29
+        enum PSX_ENABLE irq_flag_dma6: 1;      // bit 30
+        enum PSX_ENABLE irq_signal: 1;         // bit 31
+    };                                                
 };
 
 union D_MADR{
@@ -117,6 +124,9 @@ struct DMA {
     
     union DPRC *DPRC;
     union DIRC *DIRC;
+
+    bool accessing_memory;
+    bool interrupt_request;
 };
 
 // memory function

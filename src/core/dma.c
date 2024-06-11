@@ -4,6 +4,9 @@ static struct DMA dma;
 
 struct DMA *get_dma(void) { return &dma; }
 
+bool dma_accessing_memory(void) { return dma.accessing_memory; }
+bool dma_requesting_interrupt(void) { return dma.interrupt_request; }
+
 PSX_ERROR dma_reset(void) {
     dma.DMA0_MDEC_IN.MADR = (union D_MADR*) memory_pointer(0X1F801080);
     dma.DMA0_MDEC_IN.BRC  = (union D_BRC*)  memory_pointer(0X1F801084);
@@ -37,5 +40,23 @@ PSX_ERROR dma_reset(void) {
 
     dma.DIRC = (union DIRC*) memory_pointer(0X1F8010F4);
 
+    // reset value from no$psx docs
+    dma.DPRC->mdec_in_priority  = 1;
+    dma.DPRC->mdec_out_priority = 2;
+    dma.DPRC->gpu_priority      = 3;
+    dma.DPRC->cdrom_priority    = 4;
+    dma.DPRC->spu_priority      = 5;
+    dma.DPRC->pio_priority      = 6;
+    dma.DPRC->otc_priority      = 7;
+
     return set_PSX_error(NO_ERROR);
+}
+
+void dma_process_interrupts(void) {
+    bool forced = dma.DIRC->forced_irq;
+    bool master = dma.DIRC->irq_enable_master;
+    
+    uint32_t irq_sum = dma.DIRC->irq_flag_sum & dma.DIRC->irq_enable_sum;
+
+    dma.interrupt_request = forced || master && (irq_sum> 0);
 }

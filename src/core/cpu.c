@@ -111,6 +111,7 @@ PSX_ERROR cpu_step(void) {
     cpu_load_delay();
     cpu_execute_op();
     cpu.PC += 4;
+    reg(0) = 0;
     return set_PSX_error(NO_ERROR);
 }
 

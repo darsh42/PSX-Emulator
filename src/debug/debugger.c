@@ -53,8 +53,50 @@ void debugger_input(void);
 struct DEBUGGER debugger;
 
 /* BREAKPOINTS */
+static const char *opcode_str[] = {
+    FOREACH_MNEUMONIC(GENERATE_STRING)
+    NULL
+};
 
-bool
+static const int   opcode_int[] = {
+    FOREACH_OPCODE(GENERATE_OPCODES)
+    -1
+};
+
+static const char *register_names[] = {
+    FOREACH_REGISTER(GENERATE_STRING)
+    NULL
+};
+    
+
+static uint32_t 
+strtoopcode(char *s) {
+    const char *op;
+    for (int i = 0, len = strlen(s); (op = opcode_str[i]); i++)
+        if (len == strlen(op) && !strncmp(s, op, len)) 
+            return (uint32_t) opcode_int[i];
+    return -1;
+}
+
+static const char *
+opcodetostr(uint32_t opcode) {
+    uint32_t cur;
+    for (int i = 0; (cur = opcode_int[i]) != -1; i++) 
+        if (cur == opcode)
+            return opcode_str[i];
+    return NULL;
+}
+
+static const uint32_t 
+strtoreg(char *s) {
+    const char *reg;
+    for (int i = 0, len = strlen(s); (reg = register_names[i]); i++) 
+        if (len == strlen(reg) && !strncmp(s, reg, len)) 
+            return i;
+    return -1;
+}
+
+static bool
 hit_bp(void) {
     int i;
     bp cp;
@@ -63,11 +105,32 @@ hit_bp(void) {
         cp = debugger.bps[i];
         
         switch (cp.type) {
-            case BP_INS:
-                break;
-            case BP_CON:
-                if (cp.address == debugger.psx->cpu->PC)
+            case BP_INS: {
+                union INSTRUCTION breakpoint = (union INSTRUCTION) cp.opcode;
+                union INSTRUCTION current    = (union INSTRUCTION) debugger.psx->cpu->instruction;
+
+                if (breakpoint.op == 0 && current.op == 0 && breakpoint.funct == current.funct) {
+                    fprintf(stdout, "breakpoint %d, INSTRUCTION: %s\n", cp.number, opcodetostr(cp.opcode));
                     return true;
+                }
+                
+                if (breakpoint.op == 1 && current.op == 1 && breakpoint.rt == current.rt) {
+                    fprintf(stdout, "breakpoint %d, INSTRUCTION: %s\n", cp.number, opcodetostr(cp.opcode));
+                    return true;
+                }
+
+                if (breakpoint.op > 1 && current.op > 1 && breakpoint.op == current.op) {
+                    fprintf(stdout, "breakpoint %d, INSTRUCTION: %s\n", cp.number, opcodetostr(cp.opcode));
+                    return true;
+                }
+                break;
+            }
+            case BP_CON:
+                if (cp.address == debugger.psx->cpu->PC) {
+                    fprintf(stdout, "breakpoint %d, CONDITIONAL: %08X\n", cp.number, cp.address);
+                    return true;
+                }
+                break;
             case BP_EMPTY: break;
         }
     }
@@ -75,19 +138,19 @@ hit_bp(void) {
     return false;
 }
 
-void
+static void
 print_bp(void) {
     bp cur;
     for (int i = 0; i < MAX_BREAK; i++) {
         switch ((cur = debugger.bps[i]).type) {
-            case BP_INS: fprintf(stdout, "breakpoint %d, INSTRUCTION: %08X\n", cur.number, cur.opcode); break;
+            case BP_INS: fprintf(stdout, "breakpoint %d, INSTRUCTION: %s\n", cur.number, opcodetostr(cur.opcode)); break;
             case BP_CON: fprintf(stdout, "breakpoint %d, CONDITIONAL: %08X\n", cur.number, cur.address); break;
             case BP_EMPTY: break;
         }
     }
 }
 
-bp *
+static bp *
 find_bp(int number) {
     for (int i = 0; i < MAX_BREAK; i++) 
         if (debugger.bps[i].number == number)
@@ -96,7 +159,7 @@ find_bp(int number) {
     return NULL;
 }
 
-bp *
+static bp *
 empty_bp(void) {
     for (int i = 0; i < MAX_WATCH; i++) {
         if (debugger.bps[i].type == BP_EMPTY)
@@ -106,7 +169,7 @@ empty_bp(void) {
     return NULL;
 }
 
-int
+static int
 add_bp(bp_t type, uint32_t opcode, uint32_t address) {
     bp *create = empty_bp();
     
@@ -121,7 +184,7 @@ add_bp(bp_t type, uint32_t opcode, uint32_t address) {
     return 0;
 }
 
-int
+static int
 remove_bp(int number) {
     bp *remove = find_bp(number);
     
@@ -133,7 +196,7 @@ remove_bp(int number) {
 }
 
 /* WATCHPOINTS */
-bool
+static bool
 hit_wp(void) {
     int i;
     wp cp;
@@ -143,10 +206,7 @@ hit_wp(void) {
 
         switch (cp.type) {
             case WP_MEM: {
-                uint32_t current;
-                memory_cpu_load_32bit(cp.location, &current);
-
-                if (cp.value != current)
+                if (cp.location == debugger.psx->memory->address_accessed)
                     return true;
                 break;
             }
@@ -161,7 +221,7 @@ hit_wp(void) {
     return false;
 }
 
-void
+static void
 print_wp(void) {
     wp cur;
     for (int i = 0; i < MAX_BREAK; i++) {
@@ -173,7 +233,7 @@ print_wp(void) {
     }
 }
 
-wp *
+static wp *
 find_wp(int number) {
     for (int i = 0; i < MAX_BREAK; i++) 
         if (debugger.wps[i].number == number)
@@ -182,7 +242,7 @@ find_wp(int number) {
     return NULL;
 }
 
-wp *
+static wp *
 empty_wp(void) {
     for (int i = 0; i < MAX_WATCH; i++) {
         if (debugger.wps[i].type == WP_EMPTY)
@@ -192,7 +252,7 @@ empty_wp(void) {
     return NULL;
 }
 
-int
+static int
 add_wp(wp_t type, uint32_t value, uint32_t location) {
     wp *watchpoint = empty_wp();
     
@@ -207,7 +267,7 @@ add_wp(wp_t type, uint32_t value, uint32_t location) {
     return 0;
 }
 
-int
+static int
 remove_wp(int number) {
     wp *remove = find_wp(number);
 
@@ -225,16 +285,18 @@ char *strdup(const char *src) {
     return dst;                            // Return the new string
 }
 
-int debugger_previous PARAMS((char *args));
-int debugger_help PARAMS((char *args));
-int debugger_quit PARAMS((char *args));
-int debugger_step PARAMS((char *args));
-int debugger_continue PARAMS((char *args));
-int debugger_breakpoint PARAMS((char *args));
-int debugger_watchpoint PARAMS((char *args));
-int debugger_memory PARAMS((char *args));
-int debugger_registers PARAMS((char *args));
-int debugger_logging PARAMS((char *args));
+static int debugger_previous PARAMS((char *args));
+static int debugger_help PARAMS((char *args));
+static int debugger_quit PARAMS((char *args));
+static int debugger_step PARAMS((char *args));
+static int debugger_continue PARAMS((char *args));
+static int debugger_breakpoint PARAMS((char *args));
+static int debugger_watchpoint PARAMS((char *args));
+static int debugger_memory PARAMS((char *args));
+static int debugger_cpu PARAMS((char *args));
+static int debugger_gpu PARAMS((char *args));
+static int debugger_dma PARAMS((char *args));
+static int debugger_logging PARAMS((char *args));
 
 
 static COMMAND commands[] = {
@@ -246,7 +308,9 @@ static COMMAND commands[] = {
     {"breakpoint", "create, delete and inspect breakpoints", debugger_breakpoint},
     {"watchpoint", "create, delete and inspect watchpoints", debugger_watchpoint},
     {"memory",     "search memory",                          debugger_memory},
-    {"register",   "seach registers",                        debugger_registers},
+    {"cpu",        "see cpu state",                          debugger_cpu},
+    {"gpu",        "see gpu state",                          debugger_gpu},
+    {"dma",        "see dma state",                          debugger_dma},
     {"logging",    "toggle logging",                         debugger_logging},
     {(char *) NULL, (char *) NULL,                           (rl_icpfunc_t *) NULL}
 };
@@ -500,10 +564,11 @@ debugger_breakpoint PARAMS((char *args)) {
 
             if (!(tok = strtok(NULL, " ")))
                 return 1;
+            
+            if ((opcode = strtoopcode(tok)) == -1)
+                return 1;
 
-            // BUG: need to compare with cpu instructions, possibly add command completion?
-            if (sscanf(tok, "%x", (int *) &opcode) == 1) 
-                add_bp(BP_INS, opcode, 0);
+            add_bp(BP_INS, opcode, 0);
 
             print_bp();
         } else if (!strncmp(spec->name, "conditional", strlen(spec->name))) {
@@ -572,10 +637,13 @@ debugger_watchpoint PARAMS((char *args)) {
             if (!(tok = strtok(NULL, " ")))
                 return 1;
             
-            uint32_t reg_num;
-            if (sscanf(tok, "%x", (int *) &reg_num)) {
-                add_wp(WP_REG, 0, reg_num);
+            uint32_t reg_num = strtoreg(tok);
+            if (reg_num == -1) {
+                return 1;
             }
+
+            uint32_t reg_val = debugger.psx->cpu->R[reg_num];
+            add_wp(WP_REG, reg_val, reg_num);
         } else {
             fprintf(stdout, "Usage: watchpoint add <arg>\n" \
                             "Arg:\n");
@@ -634,25 +702,157 @@ debugger_memory PARAMS((char *args)) {
 }
 
 int 
-debugger_registers PARAMS((char *args)) {
-    static const char *register_names[32] = {
-        "$zr", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", 
-        "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", 
-        "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", "$s6", "$s7", 
-        "$t8", "$t9", "$k0", "$k1", "$gp", "$sp", "$fp", "$ra"
-    };
-    
+debugger_cpu PARAMS((char *args)) {
     for (int reg = 0; reg < 32; reg++) {
-        printf("[DEBUG]: CPU REGISTER: %s = %08X\n", register_names[reg], debugger.psx->cpu->R[reg]);
+        printf("[CPU]: REGISTER: %s = %08X\n", register_names[reg], debugger.psx->cpu->R[reg]);
     }
 
-    printf("[DEBUG]: CPU REGISTER: $hi = %08X\n", debugger.psx->cpu->HI);
-    printf("[DEBUG]: CPU REGISTER: $lo = %08X\n", debugger.psx->cpu->LO);
+    printf("[CPU]: REGISTER: $hi = %08X\n", debugger.psx->cpu->HI);
+    printf("[CPU]: REGISTER: $lo = %08X\n", debugger.psx->cpu->LO);
 
-    printf("[DEBUG]: CPU REGISTER: $pc = %08X\n", debugger.psx->cpu->PC);
+    printf("[CPU]: REGISTER: $pc = %08X\n", debugger.psx->cpu->PC);
     
+    return 0;
+}
+
+int
+debugger_coprocessor PARAMS((char *args)) {
     for (int reg = 0; reg < 16; reg++) 
-        printf("[DEBUG]: COP0 REGISTER: %d = %08X\n", reg, *debugger.psx->cpu->cop0.R[reg]);
+        printf("[COP0]: REGISTER: %d = %08X\n", reg, *debugger.psx->cpu->cop0.R[reg]);
+    return 0;
+}
+
+int
+debugger_gpu PARAMS((char *args)) {
+    const char *str;
+    union GPUSTAT stat = *debugger.psx->gpu->gpustat;
+    
+    printf("[GPU]:              GPUSTAT = %08X\n", stat.value);
+    printf("[GPU]: GPUSTAT: texture_page_x_base         = %d\n", stat.texture_page_x_base * 64);
+    printf("[GPU]: GPUSTAT: texture_page_y_base         = %d\n", stat.texture_page_y_base *256);
+    switch (stat.semi_transparency) {
+        case 0: str = "B/2 + F/2"; break;
+        case 1: str = "B+F"; break;
+        case 2: str = "B-F"; break;
+        case 3: str = "B+F/4"; break;
+    }
+    printf("[GPU]: GPUSTAT: semi_transparency           = %s\n", str);
+    switch (stat.texture_page_colors) {
+        case 0: str = "4bit"; break;
+        case 1: str = "8bit"; break;
+        case 2: str = "16bit"; break;
+        case 3: str = "reserved"; break;
+    }
+    printf("[GPU]: GPUSTAT: texture_page_colors         = %s\n", str);
+    printf("[GPU]: GPUSTAT: dither                      = %s\n", (stat.dither) ? "enabled": "disabled");
+    printf("[GPU]: GPUSTAT: draw_to_display_area        = %s\n", (stat.draw_to_display_area) ? "enabled": "disabled");
+    printf("[GPU]: GPUSTAT: set_mask_when_drawing       = %s\n", (stat.set_mask_when_drawing) ? "enabled": "disabled");
+    printf("[GPU]: GPUSTAT: draw_pixels                 = %s\n", (stat.draw_pixels) ? "not to masked": "always");
+    printf("[GPU]: GPUSTAT: interlace_field             = %d\n", stat.interlace_field);
+    printf("[GPU]: GPUSTAT: reverse_flag                = %s\n", (stat.reverse_flag) ? "distorted": "undistorted");
+    printf("[GPU]: GPUSTAT: texture_disable             = %s\n", (stat.texture_disable) ? "disabled": "enabled");
+    printf("[GPU]: GPUSTAT: horizontal_resolution_2     = %s\n", (stat.horizontal_resolution_2) ? "256/320/512/640": "328");
+    switch (stat.horizontal_resolution_1) {
+        case 0: str = "256"; break;
+        case 1: str = "320"; break;
+        case 2: str = "512"; break;
+        case 3: str = "640"; break;
+    }
+    printf("[GPU]: GPUSTAT: horizontal_resolution_1     = %s\n", str);
+    printf("[GPU]: GPUSTAT: vertical_resolution         = %d\n", (stat.vertical_resolution + 1) * 240);
+    printf("[GPU]: GPUSTAT: video_mode                  = %s\n", (stat.video_mode) ? "NTSC/60Hz": "PAL/50Hz");
+    printf("[GPU]: GPUSTAT: display_area_color_depth    = %s\n", (stat.display_area_color_depth) ? "24bit": "15bit");
+    printf("[GPU]: GPUSTAT: vertical_interlace          = %s\n", (stat.vertical_interlace) ? "enabled": "disabled");
+    printf("[GPU]: GPUSTAT: display_enable              = %s\n", (stat.display_enable) ? "enabled": "disabled");
+    printf("[GPU]: GPUSTAT: interrupt_request           = %s\n", (stat.interrupt_request) ? "enabled": "disabled");
+    printf("[GPU]: GPUSTAT: DMA_data_request            = %d\n", stat.DMA_data_request);
+    printf("[GPU]: GPUSTAT: ready_recieve_cmd_word      = %s\n", (stat.ready_recieve_cmd_word) ? "ready": "not ready");
+    printf("[GPU]: GPUSTAT: ready_send_vram_cpu         = %s\n", (stat.ready_send_vram_cpu) ? "ready": "not ready");
+    printf("[GPU]: GPUSTAT: ready_recieve_dma_block     = %s\n", (stat.ready_recieve_dma_block) ? "ready": "not ready");
+    switch (stat.horizontal_resolution_1) {
+        case 0: str = "off"; break;
+        case 1: str = "unknown"; break;
+        case 2: str = "cpu_to_gp0"; break;
+        case 3: str = "gpuread_to_cpu"; break;
+    }
+    printf("[GPU]: GPUSTAT: dma_direction               = %s\n", str);
+    printf("[GPU]: GPUSTAT: drawing_even_odd_interlace  = %s\n", (stat.drawing_even_odd_interlace) ? "odd": "even or vblank");
+    return 0;
+}
+
+int 
+debugger_dma PARAMS((char *args)) {
+    const char *names[] = {
+        "mdec in",
+        "mdec out",
+        "gpu",
+        "cdrom",
+        "spu",
+        "pio",
+        "otc"
+    };
+
+    struct DMAn dmas[] = {
+        debugger.psx->dma->DMA0_MDEC_IN,
+        debugger.psx->dma->DMA1_MDEC_OUT,
+        debugger.psx->dma->DMA2_GPU,
+        debugger.psx->dma->DMA3_CDROM,
+        debugger.psx->dma->DMA4_SPU,
+        debugger.psx->dma->DMA5_PIO,
+        debugger.psx->dma->DMA6_OTC
+    };
+
+    char *str;
+        
+    for (int i = 0; i < 7; i++) {
+        struct DMAn d = dmas[i];
+        printf("                        DMA%d - %s\n", i, names[i]);
+        printf("[DMA%d] MADR: %10s base address             = %08X\n", i, names[i], d.MADR->base_address);
+
+        printf("[DMA%d] BRC:  %10s block                    = %08X\n", i, names[i], d.BRC->value);
+        
+        printf("[DMA%d] CHCR: %10s transfer direction       = %s\n", i, names[i], (d.CHCR->transfer_direction) ? "ram to device": "device to ram");
+        printf("[DMA%d] CHCR: %10s address step             = %s\n", i, names[i], (d.CHCR->address_step) ? "-4": "+4");
+        printf("[DMA%d] CHCR: %10s chopping enable          = %s\n", i, names[i], (d.CHCR->chopping_enable) ? "enabled": "disabled");
+        switch(d.CHCR->sync_mode) {
+            case 0: str = "manual"; break;
+            case 1: str = "request"; break;
+            case 2: str = "linked list"; break;
+        }
+        printf("[DMA%d] CHCR: %10s sync mode                = %s\n", i, names[i], str);
+        printf("[DMA%d] CHCR: %10s chopping dma window size = %08X\n", i, names[i], d.CHCR->chopping_dma_window_size);
+        printf("[DMA%d] CHCR: %10s chopping cpu window size = %08X\n", i, names[i], d.CHCR->chopping_cpu_window_size);
+        printf("[DMA%d] CHCR: %10s start busy               = %s\n", i, names[i], (d.CHCR->start_busy) ? "enabled": "disabled");
+        printf("[DMA%d] CHCR: %10s start trigger            = %s\n", i, names[i], (d.CHCR->start_trigger) ? "enabled": "disabled");
+        printf("\n");
+    }
+    printf("                         DMA DPRC = %08X\n", debugger.psx->dma->DPRC->value);
+    for (int i = 0; i < 7; i++) {
+        uint32_t priority = ((debugger.psx->dma->DPRC->value >> i*4)) & 0b0111;
+        uint32_t enable   = ((debugger.psx->dma->DPRC->value >> i*4)) & 0b1000;
+        
+        printf("[DMA]  DPRC: %10s priority                 = %d\n", names[i], priority);
+        printf("[DMA]  DPRC: %10s enable                   = %s\n", names[i], (enable) ? "enabled": "disabled");
+    }
+    printf("\n");
+
+    printf("                        DMA DIRC = %08X\n", debugger.psx->dma->DIRC->value);
+    printf("[DMA]  DIRC:     forced irq                      = %s\n", (debugger.psx->dma->DIRC->forced_irq) ? "enabled": "disabled");
+
+    for (int i = 0; i < 7; i++) {
+        uint32_t enabled = (debugger.psx->dma->DIRC->irq_enable_sum >> i) & 0b1;
+        printf("[DMA]  DIRC: %10s irq enable               = %s\n", names[i], (enabled) ? "enabled": "disabled");
+    }
+
+    printf("[DMA]  DIRC:     master irq enable               = %s\n", (debugger.psx->dma->DIRC->irq_enable_master) ? "enabled": "disabled");
+
+    for (int i = 0; i < 7; i++) {
+        uint32_t flag = (debugger.psx->dma->DIRC->irq_flag_sum >> i) & 0b1;
+        printf("[DMA]  DIRC: %10s irq flag                 = %s\n", names[i], (flag) ? "enabled": "disabled");
+    }
+
+    printf("[DMA]  DIRC:            irq signal               = %s\n", (debugger.psx->dma->DIRC->irq_signal) ? "enabled": "disabled");
+
     return 0;
 }
 
@@ -700,15 +900,14 @@ debugger_exec(void) {
     if (hit_wp())
         debugger.paused = true;
 
-    if (debugger.paused)
-        debugger_input();
-
     if (debugger.stepping) {
         debugger.paused = true;
         debugger.stepping = false;
         debugger_input();
     }
 
+    if (debugger.paused)
+        debugger_input();
     peek_cpu_instruction();
 
 }
