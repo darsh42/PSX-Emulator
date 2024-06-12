@@ -158,21 +158,20 @@ PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, u
     else if (region >= 0X1F000000 && region < 0X1F800000) {*address = region - 0X1F000000; *segment = memory.EXPANSION_1.mem;}
     else if (region >= 0X1F800000 && region < 0X1F801000) {*address = region - 0X1F800000; *segment = memory.SCRATCH_PAD.mem;}
     else if (region >= 0X1F801000 && region < 0X1F802000) {
-        if (!load && region >= 0X1F801080 && region <= 0X1f801084) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F801088 && region <= 0X1f80108C) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F801090 && region <= 0X1f801094) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F801098 && region <= 0X1f80109C) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F8010A0 && region <= 0X1f8010A4) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F8010A8 && region <= 0X1f8010AC) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F8010B0 && region <= 0X1f8010B4) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F8010B8 && region <= 0X1f8010BC) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F8010C0 && region <= 0X1f8010C4) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F8010C8 && region <= 0X1f8010CC) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F8010D0 && region <= 0X1f8010D4) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F8010D8 && region <= 0X1f8010DC) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F8010E0 && region <= 0X1f8010E4) {*mask = 0b00000000111111111111111111111111;}
-        if (!load && region >= 0X1F8010E8 && region <= 0X1f8010EC) {*mask = 0b01110001011101110000011100000011;}
-        if (!load && region >= 0X1F8010F0 && region <= 0X1F8010F4) {*mask = 0b00000000000000000011111111000000;}
+        // if (!load && region >= 0X1F801080 && region <= 0X1f801084) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F801088 && region <= 0X1f80108C) {*mask = 0b01110001011101110000011100000011;}
+        // if (!load && region >= 0X1F801090 && region <= 0X1f801094) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F801098 && region <= 0X1f80109C) {*mask = 0b01110001011101110000011100000011;}
+        // if (!load && region >= 0X1F8010A0 && region <= 0X1f8010A4) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F8010A8 && region <= 0X1f8010AC) {*mask = 0b01110001011101110000011100000011;}
+        // if (!load && region >= 0X1F8010B0 && region <= 0X1f8010B4) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F8010B8 && region <= 0X1f8010BC) {*mask = 0b01110001011101110000011100000011;}
+        // if (!load && region >= 0X1F8010C0 && region <= 0X1f8010C4) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F8010C8 && region <= 0X1f8010CC) {*mask = 0b01110001011101110000011100000011;}
+        // if (!load && region >= 0X1F8010D0 && region <= 0X1f8010D4) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F8010D8 && region <= 0X1f8010DC) {*mask = 0b01110001011101110000011100000011;}
+        // if (!load && region >= 0X1F8010E0 && region <= 0X1f8010E4) {*mask = 0b00000000111111111111111111111111;}
+        // if (!load && region >= 0X1F8010E8 && region <= 0X1f8010EC) {*mask = 0b01110001011101110000011100000011;}
 
         *address = region - 0X1F801000; *segment = memory.IO_PORTS.mem;
     }   

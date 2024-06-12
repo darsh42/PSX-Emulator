@@ -261,14 +261,14 @@ void cpu_execute_op(void) {
         case 0X11: COP1();   break;
         case 0X12: COP2();   break;
         case 0X13: COP3();   break;
-        case 0X30: LWC0();   break;
-        case 0X31: LWC1();   break;
-        case 0X32: LWC2();   break;
-        case 0X33: LWC3();   break;
-        case 0X38: SWC0();   break;
-        case 0X39: SWC1();   break;
-        case 0X3A: SWC2();   break;
-        case 0X3B: SWC3();   break;
+        case 0X30: LWCn(0);   break;
+        case 0X31: LWCn(1);   break;
+        case 0X32: LWCn(2);   break;
+        case 0X33: LWCn(3);   break;
+        case 0X38: SWCn(0);   break;
+        case 0X39: SWCn(1);   break;
+        case 0X3A: SWCn(2);   break;
+        case 0X3B: SWCn(3);   break;
     }
 }
 
@@ -341,7 +341,7 @@ void SLTI(void)    {
 }   
 void SLTIU(void)   {
     // Set if Less Than Immediate Unsigned
-    reg(RT) = reg(RS) < sign16(IMM16);
+    reg(RT) = reg(RS) < (uint32_t) sign16(IMM16);
 }  
 void ANDI(void)    {
     // AND Immediate

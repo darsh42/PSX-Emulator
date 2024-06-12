@@ -41,6 +41,7 @@ struct PSX {
     struct GPU *gpu;
     struct DMA *dma;
     struct MEMORY *memory;
+    struct TIMERS *timers;
 };
 
 

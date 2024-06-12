@@ -2,6 +2,7 @@
 #define DMA_H_INCLUDED
 
 #include "common.h"
+#include "cpu.h"
 
 enum DMA_Direction {
     DEV_TO_RAM = false,
@@ -19,22 +20,32 @@ enum DMA_Sync {
     LINKED_LIST = 2
 };
 
+enum DMA_Devices {
+    MDEC_IN  = 0,
+    MDEC_OUT = 1,
+    GPU      = 2,
+    CDROM    = 3,
+    SPU      = 4,
+    PIO      = 5,
+    OTC      = 6
+};
+
 union DPRC {
     uint32_t value;
     struct {
-        uint32_t mdec_in_priority: 3;
+        uint32_t        mdec_in_priority: 3;
         enum PSX_ENABLE mdec_in_enable: 1;
-        uint32_t mdec_out_priority: 3;
+        uint32_t        mdec_out_priority: 3;
         enum PSX_ENABLE mdec_out_enable: 1;
-        uint32_t gpu_priority: 3;
+        uint32_t        gpu_priority: 3;
         enum PSX_ENABLE gpu_enable: 1;
-        uint32_t cdrom_priority: 3;
+        uint32_t        cdrom_priority: 3;
         enum PSX_ENABLE cdrom_enable: 1;
-        uint32_t spu_priority: 3;
+        uint32_t        spu_priority: 3;
         enum PSX_ENABLE spu_enable: 1;
-        uint32_t pio_priority: 3;
+        uint32_t        pio_priority: 3;
         enum PSX_ENABLE pio_enable: 1;
-        uint32_t otc_priority: 3;
+        uint32_t        otc_priority: 3;
         enum PSX_ENABLE otc_enable: 1;
     };
 };
@@ -131,5 +142,6 @@ struct DMA {
 
 // memory function
 extern uint8_t *memory_pointer(uint32_t address);
+extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
 
 #endif // DMA_H_INCLUDED

@@ -10,6 +10,7 @@
 #include "gpu.h"
 #include "dma.h"
 #include "memory.h"
+#include "timers.h"
 
 // macros
 #define print_psx_error(func, format, ...) print_error("psx.c", func, format, __VA_ARGS__)
@@ -20,9 +21,14 @@ extern struct CPU *get_cpu(void);
 extern struct GPU *get_gpu(void);
 extern struct DMA *get_dma(void);
 extern struct MEMORY *get_memory(void);
+extern struct TIMERS *get_timers(void);
 
 // memory
 extern PSX_ERROR memory_load_bios(const char *filebios);
+
+// timers
+extern PSX_ERROR timers_create(void);
+extern PSX_ERROR timers_step(void);
 
 // cpu
 extern PSX_ERROR cpu_reset(void);
@@ -34,6 +40,7 @@ extern void gpu_reset(void);
 
 // dma
 extern PSX_ERROR dma_reset(void);
+extern PSX_ERROR dma_step(void);
 
 // gui and sdl
 void debugger_reset(void);
