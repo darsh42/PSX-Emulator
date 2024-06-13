@@ -31,6 +31,7 @@ enum COMMAND_PACKET_PRIMATIVE_SIZE {
 };
 
 union GPUSTAT {
+    uint8_t  memory[4];
     uint32_t value;
     struct {
         uint32_t texture_page_x_base: 4;
@@ -62,6 +63,7 @@ union GPUSTAT {
 };
 
 union GPUREAD {
+    uint8_t  memory[4];
     uint32_t value;
     struct {
         uint32_t read;
@@ -86,10 +88,12 @@ union COMMAND_PACKET {
 };
 
 union GP0 {
+    uint8_t  memory[4];
     uint32_t value;
 };
 
 union GP1 {
+    uint8_t  memory[4];
     uint32_t value;
     struct {
         uint32_t command: 16;
@@ -102,10 +106,10 @@ struct GPU {
     
     union COMMAND_PACKET cmd_pkt;
 
-    union GP0 *gp0;
-    union GP1 *gp1;
-    union GPUREAD *gpuread;
-    union GPUSTAT *gpustat;
+    union GP0 gp0;
+    union GP1 gp1;
+    union GPUREAD gpuread;
+    union GPUSTAT gpustat;
 
     uint32_t CMD_FIFO_GP0[16];
     uint32_t CMD_FIFO_GP1[16];

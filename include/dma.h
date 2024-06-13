@@ -142,6 +142,7 @@ struct DMA {
 
 // memory function
 extern uint8_t *memory_pointer(uint32_t address);
+extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
 extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
 
 #endif // DMA_H_INCLUDED

@@ -206,13 +206,17 @@ hit_wp(void) {
 
         switch (cp.type) {
             case WP_MEM: {
-                if (cp.location == debugger.psx->memory->address_accessed)
+                if (cp.location == debugger.psx->memory->address_accessed) {
+                    printf("watchpoint %d, MEMORY: %08X\n", cp.number, cp.location);
                     return true;
+                }
                 break;
             }
             case WP_REG: 
-                if (cp.value != debugger.psx->cpu->R[cp.location])
+                if (cp.value != debugger.psx->cpu->R[cp.location]) {
+                    printf("watchpoint %d, REGISTER: %08X\n", cp.number, cp.location);
                     return true;
+                }
                 break;
             case WP_EMPTY: break;
         }
@@ -634,6 +638,7 @@ debugger_watchpoint PARAMS((char *args)) {
             if (sscanf(tok, "%x", (int *) &address)) {
                 memory_cpu_load_32bit(address, &value);
                 add_wp(WP_MEM, value, address);
+                print_wp();
             }
         } else if (!strncmp(spec->name, "register", strlen(spec->name))) {
             if (!(tok = strtok(NULL, " ")))
@@ -646,6 +651,7 @@ debugger_watchpoint PARAMS((char *args)) {
 
             uint32_t reg_val = debugger.psx->cpu->R[reg_num];
             add_wp(WP_REG, reg_val, reg_num);
+            print_wp();
         } else {
             fprintf(stdout, "Usage: watchpoint add <arg>\n" \
                             "Arg:\n");
@@ -727,7 +733,7 @@ debugger_coprocessor PARAMS((char *args)) {
 int
 debugger_gpu PARAMS((char *args)) {
     const char *str;
-    union GPUSTAT stat = *debugger.psx->gpu->gpustat;
+    union GPUSTAT stat = debugger.psx->gpu->gpustat;
     
     printf("[GPU]:              GPUSTAT = %08X\n", stat.value);
     printf("[GPU]: GPUSTAT: texture_page_x_base         = %d\n", stat.texture_page_x_base * 64);

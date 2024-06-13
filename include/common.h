@@ -11,7 +11,7 @@
 
 #include "error.h"
 
-#define DEBUG
+// #define DEBUG
 
 enum PSX_ENABLE {
     DISABLE = false,

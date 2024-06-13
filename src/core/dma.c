@@ -1,5 +1,4 @@
 #include "../../include/dma.h"
-#include <error.h>
 
 static struct DMA dma;
 
@@ -92,6 +91,46 @@ void dma_process_interrupts(void) {
     dma.interrupt_request = forced || (master && (irq_sum> 0));
 }
 
+void dma_gpu(void) {
+    union D_MADR madr = *dma.DMA2_GPU.MADR;
+    union D_CHCR chcr = *dma.DMA2_GPU.CHCR;
+    
+    static  int32_t step;
+    static uint32_t base, address, header, size = 0;
+
+    switch (chcr.sync_mode) {
+        case MANUAL:  set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
+        case REQUEST: set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
+        case LINKED_LIST: {
+            if (!chcr.start_busy && !dma.accessing_memory)
+                return;
+
+
+            if (!dma.accessing_memory) {
+                base    = madr.base_address;
+                address = madr.base_address;
+            }
+
+            if (abs(address - base) >= size) {
+                memory_cpu_load_32bit(address, &header);
+                
+                // size of current packet
+                size    = header >>  8;
+                // address of next packet
+                address = header >> 24;
+            }
+            
+            if (address == 0XFFFFFF) {
+                dma.DMA2_GPU.CHCR->start_busy = 0;
+                dma.accessing_memory = false;
+            }
+            break;
+        }
+    }
+
+}
+
+
 void dma_otc(void) {
     union D_MADR madr = *dma.DMA6_OTC.MADR;
     union D_BRC  brc  = *dma.DMA6_OTC.BRC;
@@ -126,7 +165,7 @@ void dma_otc(void) {
             switch(chcr.transfer_direction) {
                 case RAM_TO_DEV: set_PSX_error(UNSUPPORTED_DMA_TRANSFER_DIRECTION); break;
                 case DEV_TO_RAM: 
-                    if (abs(address - base) < size - 4) {
+                    if (abs((int) address - base) < size - 4) {
                         // zero out order table 
                         memory_cpu_store_32bit(address, 0);
                     } else {
@@ -145,4 +184,5 @@ void dma_otc(void) {
         case LINKED_LIST: set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
     }
 }
+
 
