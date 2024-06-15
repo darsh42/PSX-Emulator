@@ -3,6 +3,8 @@
 static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t aligned, bool load);
 
 static struct MEMORY memory;
+
+/* CPU and MAIN BUS memory map */
 static uint32_t segment_lookup[] = {
     (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF, // KUSEG
     (uint32_t) 0X7FFFFFFF,                                     // KSEG0
@@ -176,4 +178,46 @@ PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, u
     else                           {return set_PSX_error(MEMORY_CPU_UNMAPPED_ADDRESS);}
 
     return set_PSX_error(NO_ERROR);
+}
+
+/* GPU and VRAM memory map */
+
+void memory_gpu_load_4bit(uint32_t address, uint8_t *data) {
+    *data  = memory.VRAM.mem[address];
+    *data &= 0X0000000F;
+}
+
+void memory_gpu_load_8bit(uint32_t address, uint32_t *data) {
+    *data  = memory.VRAM.mem[address];
+    *data &= 0X000000FF;
+}
+
+void memory_gpu_load_16bit(uint32_t address, uint32_t *data) {
+    *data  = memory.VRAM.mem[address];
+    *data &= 0X0000FFFF;
+}
+
+void memory_gpu_load_24bit(uint32_t address, uint32_t *data) {
+    *data  = memory.VRAM.mem[address];
+    *data &= 0X00FFFFFF;
+}
+
+void memory_gpu_store_4bit(uint32_t address, uint8_t data) {
+    data &= 0X0000000F;
+    memory.VRAM.mem[address] = data;
+}
+
+void memory_gpu_store_8bit(uint32_t address, uint32_t data) {
+    data &= 0X000000FF;
+    memory.VRAM.mem[address] = data;
+}
+
+void memory_gpu_store_16bit(uint32_t address, uint32_t data) {
+    data &= 0X0000FFFF;
+    memory.VRAM.mem[address] = data;
+}
+
+void memory_gpu_store_24bit(uint32_t address, uint32_t data) {
+    data &= 0X00FFFFFF;
+    memory.VRAM.mem[address] = data;
 }

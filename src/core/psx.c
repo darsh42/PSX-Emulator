@@ -49,12 +49,10 @@ int main(int argc, char **argv) {
 #endif
         timers_step();
 
-        if (!psx.dma->accessing_memory) {
+        if (!psx.dma->accessing_memory)
             cpu_step();
-        } else {
-            printf("dma has bus");
-        }
 
+        gpu_step();
         dma_step();
     }
 

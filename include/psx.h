@@ -37,6 +37,7 @@ extern PSX_ERROR coprocessor_initialize(void);
 
 // gpu
 extern void gpu_reset(void);
+extern void gpu_step(void);
 
 // dma
 extern PSX_ERROR dma_reset(void);

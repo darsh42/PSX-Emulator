@@ -10,6 +10,16 @@ enum GPUSTAT_TEXTURE_DISABLE          { ENABLED  = false,       DISABLED = true 
 enum GPUSTAT_VIDEO_MODE               { NTSC60HZ = false,       PAL50HZ  = true };
 enum GPUSTAT_DISPLAY_AREA_COLOR_DEPTH { _15BIT = false,         _24BIT = true };
 enum GPUSTAT_EVEN_ODD_INTERLACE       { EVEN_OR_VBLANK = false, ODD = true };
+enum GPUSTAT_TEXTURE_DEPTH {
+    DEPTH_4BIT, 
+    DEPTH_8BIT, 
+    DEPTH_15BIT, 
+    DEPTH_RESERVED
+};
+enum GPUSTAT_DMA_OR_DATA_REQUEST {
+    FIFO_FULL = false, 
+    FIFO_NOT_FULL = true,
+};
 enum GPUSTAT_DMA_DIRECTION {
     OFF = 0,
     UNKNOWN = 1,
@@ -30,14 +40,44 @@ enum COMMAND_PACKET_PRIMATIVE_SIZE {
     _16X16 = 3
 };
 
+// possible issues due to incorrect enum packing
+union COMMAND_PACKET {
+    uint32_t value;
+    struct {
+        uint32_t parameters: 24;
+        uint32_t number: 8;
+    };
+};
+
+// 64 byte fifos' and can queue upto 3 commands
+#define FIFO_SIZE 8
+#define MAX_COMMANDS 3
+
+struct COMMAND_FIFO {
+    union COMMAND_PACKET commands[FIFO_SIZE];
+
+    int head, tail, count;
+    bool isfull, isempty;
+    bool waiting_arguments;
+};
+
+union VERTEX {
+    uint32_t value;
+    struct {
+        uint32_t x: 10;
+        uint32_t  :  6;
+        uint32_t y: 10;
+        uint32_t  :  6;
+    };
+};
+
 union GPUSTAT {
-    uint8_t  memory[4];
     uint32_t value;
     struct {
         uint32_t texture_page_x_base: 4;
         uint32_t texture_page_y_base: 1;
         uint32_t semi_transparency: 2;
-        uint32_t texture_page_colors: 2;
+        enum GPUSTAT_TEXTURE_DEPTH texture_page_colors: 2;
         enum PSX_ENABLE dither: 1;
         enum PSX_ENABLE draw_to_display_area: 1;
         enum PSX_ENABLE set_mask_when_drawing: 1;
@@ -53,7 +93,7 @@ union GPUSTAT {
         enum PSX_ENABLE vertical_interlace: 1;
         enum PSX_ENABLE display_enable: 1;
         enum PSX_ENABLE interrupt_request: 1;
-        uint32_t DMA_data_request: 1;
+        uint32_t dma_data_request: 1;
         enum GPUSTAT_READY ready_recieve_cmd_word: 1;
         enum GPUSTAT_READY ready_send_vram_cpu: 1;
         enum GPUSTAT_READY ready_recieve_dma_block: 1;
@@ -63,59 +103,69 @@ union GPUSTAT {
 };
 
 union GPUREAD {
-    uint8_t  memory[4];
     uint32_t value;
     struct {
         uint32_t read;
     };
 };
 
-// possible issues due to incorrect enum packing
-union COMMAND_PACKET {
-    uint8_t value;
-    struct {
-        enum COMMAND_PACKET_PRIMATIVE_TGE tge: 1;
-        enum COMMAND_PACKET_PRIMATIVE_ABE abe: 1;
-        enum COMMAND_PACKET_PRIMATIVE_TME tme: 1;
-        enum COMMAND_PACKET_PRIMATIVE_VTX vtx: 1;
-        enum COMMAND_PACKET_PRIMATIVE_IIP iip: 1;
-        uint8_t type: 3;
-    };
-    struct {
-        uint8_t : 3;
-        enum COMMAND_PACKET_PRIMATIVE_SIZE size: 2;
-    };
+struct GP0 { 
+    bool write_occured;
+    struct COMMAND_FIFO fifo; 
 };
 
-union GP0 {
-    uint8_t  memory[4];
-    uint32_t value;
-};
-
-union GP1 {
-    uint8_t  memory[4];
-    uint32_t value;
-    struct {
-        uint32_t command: 16;
-        uint32_t parameter: 16;
-    };
+struct GP1 { 
+    bool write_occured;
+    union COMMAND_PACKET command; 
 };
 
 struct GPU {
-    uint32_t tmp;
-    
-    union COMMAND_PACKET cmd_pkt;
-
-    union GP0 gp0;
-    union GP1 gp1;
+    struct GP0 gp0;
+    struct GP1 gp1;
     union GPUREAD gpuread;
     union GPUSTAT gpustat;
 
-    uint32_t CMD_FIFO_GP0[16];
-    uint32_t CMD_FIFO_GP1[16];
+    // vram direct access variables
+    bool iscopying; 
+    bool cpu_to_vram;
+    bool vram_to_cpu;
+    bool vram_to_vram;
+    uint32_t copy_address;  
+    uint32_t copy_size;     
+
+    uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
+    uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
+    uint8_t texture_window_offset_x; // texture window x offset (8 bit steps)
+    uint8_t texture_window_offset_y; // texture window y offset (8 bit steps)
+    
+    uint16_t drawing_area_top;    // drawing area top most line
+    uint16_t drawing_area_left;   // drawing area left most column
+    uint16_t drawing_area_right;  // drawing area right most column
+    uint16_t drawing_area_bottom; // drawing area bottom most line
+
+    int16_t drawing_offset_x; // horizontal offset applied too all verticies
+    int16_t drawing_offset_y; // vertical offset applied too all verticies
+    
+    uint16_t display_vram_x_start;     // first column of the display in vram
+    uint16_t display_vram_y_start;     // first line of the display in vram
+    uint16_t display_horizontal_start; // display output start relative to hsync
+    uint16_t display_horizontal_end;   // display output end relative to hsync
+    uint16_t display_vertical_start;   // display output start relative to vsync
+    uint16_t display_vertical_end;     // display output end relative to vsync
+
+    bool texture_rectangle_x_flip; // if texture is flipped in x direction
+    bool texture_rectangle_y_flip; // if texture is flipped in y direction 
 };
 
 // memory functions
 uint8_t *memory_pointer(uint32_t address);
+extern void memory_gpu_load_4bit(uint32_t address, uint8_t *data);
+extern void memory_gpu_load_8bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_load_16bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_load_24bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_store_4bit(uint32_t address, uint8_t data);
+extern void memory_gpu_store_8bit(uint32_t address, uint32_t data);
+extern void memory_gpu_store_16bit(uint32_t address, uint32_t data);
+extern void memory_gpu_store_24bit(uint32_t address, uint32_t data);
 
 #endif // GPU_H_INCLUDED

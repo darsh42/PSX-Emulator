@@ -75,8 +75,6 @@ struct CPU {
     // PROGRAM COUNTER
     uint32_t PC;
     
-    struct delay branch;
-
     // GENERAL REGISTERS
     // NAME   | ALIAS | DESCRIPTION
     // R0       zero    Constant always 0 (not real register)
@@ -94,8 +92,9 @@ struct CPU {
     uint32_t R[32]; 
     // MULTIPLY/DIVIDE REGISTERS 
     uint32_t HI, LO; 
-    // LOAD DELAY
+    // DELAY
     struct delay load[32];
+    struct delay branch;
      
     // INSTRUCTIONS
     union INSTRUCTION instruction;

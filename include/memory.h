@@ -206,7 +206,7 @@ struct MEMORY {
     MEM_KSEG2 KSEG2;
 
     // NON-CPU BUS
-    MEM_VRAM VRAM;
+    MEM_VRAM  VRAM;
     MEM_SOUND SOUND;
     MEM_CDROM_CONTROLLER_RAM CDROM_CONTROLLER_RAM;
     MEM_CDROM_CONTROLLER_RAM CDROM_CONTROLLER_ROM;
@@ -214,14 +214,6 @@ struct MEMORY {
     MEM_EXTERNAL_MEMORY_CARDS EXTERNAL_MEMORY_CARDS;
 
     uint32_t address_accessed; // used for debugging
-};
-
-union VIRTUAL_ADDRESS {
-    struct {
-        uint32_t address: 29;
-        uint32_t segment: 3;
-    };
-    uint32_t value;
 };
 
 // cpu functions

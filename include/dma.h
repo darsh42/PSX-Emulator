@@ -93,8 +93,8 @@ union D_BRC {
         uint32_t BC: 16;
     };
     struct {
-        uint32_t BA: 16;
         uint32_t BS: 16;
+        uint32_t BA: 16;
     };
 };
 union D_CHCR {
@@ -113,8 +113,7 @@ union D_CHCR {
         enum PSX_ENABLE start_busy: 1;
         uint32_t : 3;
         enum PSX_ENABLE start_trigger: 1;
-        uint32_t : 3;
-    };
+        uint32_t : 3; };
 };
 
 struct DMAn {
@@ -136,6 +135,7 @@ struct DMA {
     union DPRC *DPRC;
     union DIRC *DIRC;
 
+    bool device_ready;
     bool accessing_memory;
     bool interrupt_request;
 };

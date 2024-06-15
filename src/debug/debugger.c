@@ -734,10 +734,28 @@ int
 debugger_gpu PARAMS((char *args)) {
     const char *str;
     union GPUSTAT stat = debugger.psx->gpu->gpustat;
+
+    printf("[GPU]  texture_window_mask_x                = %04X\n", debugger.psx->gpu->texture_window_mask_x);
+    printf("[GPU]  texture_window_mask_y                = %04X\n", debugger.psx->gpu->texture_window_mask_y);
+    printf("[GPU]  texture_window_offset_x              = %04X\n", debugger.psx->gpu->texture_window_offset_x);
+    printf("[GPU]  texture_window_offset_y              = %04X\n", debugger.psx->gpu->texture_window_offset_y);
+    printf("[GPU]  drawing_area_top                     = %04X\n", debugger.psx->gpu->drawing_area_top);
+    printf("[GPU]  drawing_area_left                    = %04X\n", debugger.psx->gpu->drawing_area_left);
+    printf("[GPU]  drawing_area_right                   = %04X\n", debugger.psx->gpu->drawing_area_right);
+    printf("[GPU]  drawing_area_bottom                  = %04X\n", debugger.psx->gpu->drawing_area_bottom);
+    printf("[GPU]  drawing_offset_x                     = %04X\n", debugger.psx->gpu->drawing_offset_x);
+    printf("[GPU]  drawing_offset_y                     = %04X\n", debugger.psx->gpu->drawing_offset_y);
+    printf("[GPU]  display_vram_x_start                 = %04X\n", debugger.psx->gpu->display_vram_x_start);
+    printf("[GPU]  display_vram_y_start                 = %04X\n", debugger.psx->gpu->display_vram_y_start);
+    printf("[GPU]  display_horizontal_start             = %04X\n", debugger.psx->gpu->display_horizontal_start);
+    printf("[GPU]  display_horizontal_end               = %04X\n", debugger.psx->gpu->display_horizontal_end);
+    printf("[GPU]  display_vertical_start               = %04X\n", debugger.psx->gpu->display_vertical_start);
+    printf("[GPU]  display_vertical_end                 = %04X\n", debugger.psx->gpu->display_vertical_end);
+
     
-    printf("[GPU]:              GPUSTAT = %08X\n", stat.value);
-    printf("[GPU]: GPUSTAT: texture_page_x_base         = %d\n", stat.texture_page_x_base * 64);
-    printf("[GPU]: GPUSTAT: texture_page_y_base         = %d\n", stat.texture_page_y_base *256);
+    printf("[GPU]               GPUSTAT = %08X\n", stat.value);
+    printf("[GPU]  GPUSTAT: texture_page_x_base         = %d\n", stat.texture_page_x_base * 64);
+    printf("[GPU]  GPUSTAT: texture_page_y_base         = %d\n", stat.texture_page_y_base *256);
     switch (stat.semi_transparency) {
         case 0: str = "B/2 + F/2"; break;
         case 1: str = "B+F"; break;
@@ -751,40 +769,61 @@ debugger_gpu PARAMS((char *args)) {
         case 2: str = "16bit"; break;
         case 3: str = "reserved"; break;
     }
-    printf("[GPU]: GPUSTAT: texture_page_colors         = %s\n", str);
-    printf("[GPU]: GPUSTAT: dither                      = %s\n", (stat.dither) ? "enabled": "disabled");
-    printf("[GPU]: GPUSTAT: draw_to_display_area        = %s\n", (stat.draw_to_display_area) ? "enabled": "disabled");
-    printf("[GPU]: GPUSTAT: set_mask_when_drawing       = %s\n", (stat.set_mask_when_drawing) ? "enabled": "disabled");
-    printf("[GPU]: GPUSTAT: draw_pixels                 = %s\n", (stat.draw_pixels) ? "not to masked": "always");
-    printf("[GPU]: GPUSTAT: interlace_field             = %d\n", stat.interlace_field);
-    printf("[GPU]: GPUSTAT: reverse_flag                = %s\n", (stat.reverse_flag) ? "distorted": "undistorted");
-    printf("[GPU]: GPUSTAT: texture_disable             = %s\n", (stat.texture_disable) ? "disabled": "enabled");
-    printf("[GPU]: GPUSTAT: horizontal_resolution_2     = %s\n", (stat.horizontal_resolution_2) ? "256/320/512/640": "328");
+    printf("[GPU]  GPUSTAT: texture_page_colors         = %s\n", str);
+    printf("[GPU]  GPUSTAT: dither                      = %s\n", (stat.dither) ? "enabled": "disabled");
+    printf("[GPU]  GPUSTAT: draw_to_display_area        = %s\n", (stat.draw_to_display_area) ? "enabled": "disabled");
+    printf("[GPU]  GPUSTAT: set_mask_when_drawing       = %s\n", (stat.set_mask_when_drawing) ? "enabled": "disabled");
+    printf("[GPU]  GPUSTAT: draw_pixels                 = %s\n", (stat.draw_pixels) ? "not to masked": "always");
+    printf("[GPU]  GPUSTAT: interlace_field             = %d\n", stat.interlace_field);
+    printf("[GPU]  GPUSTAT: reverse_flag                = %s\n", (stat.reverse_flag) ? "distorted": "undistorted");
+    printf("[GPU]  GPUSTAT: texture_disable             = %s\n", (stat.texture_disable) ? "disabled": "enabled");
+    printf("[GPU]  GPUSTAT: horizontal_resolution_2     = %s\n", (stat.horizontal_resolution_2) ? "256/320/512/640": "328");
     switch (stat.horizontal_resolution_1) {
         case 0: str = "256"; break;
         case 1: str = "320"; break;
         case 2: str = "512"; break;
         case 3: str = "640"; break;
     }
-    printf("[GPU]: GPUSTAT: horizontal_resolution_1     = %s\n", str);
-    printf("[GPU]: GPUSTAT: vertical_resolution         = %d\n", (stat.vertical_resolution + 1) * 240);
-    printf("[GPU]: GPUSTAT: video_mode                  = %s\n", (stat.video_mode) ? "NTSC/60Hz": "PAL/50Hz");
-    printf("[GPU]: GPUSTAT: display_area_color_depth    = %s\n", (stat.display_area_color_depth) ? "24bit": "15bit");
-    printf("[GPU]: GPUSTAT: vertical_interlace          = %s\n", (stat.vertical_interlace) ? "enabled": "disabled");
-    printf("[GPU]: GPUSTAT: display_enable              = %s\n", (stat.display_enable) ? "enabled": "disabled");
-    printf("[GPU]: GPUSTAT: interrupt_request           = %s\n", (stat.interrupt_request) ? "enabled": "disabled");
-    printf("[GPU]: GPUSTAT: DMA_data_request            = %d\n", stat.DMA_data_request);
-    printf("[GPU]: GPUSTAT: ready_recieve_cmd_word      = %s\n", (stat.ready_recieve_cmd_word) ? "ready": "not ready");
-    printf("[GPU]: GPUSTAT: ready_send_vram_cpu         = %s\n", (stat.ready_send_vram_cpu) ? "ready": "not ready");
-    printf("[GPU]: GPUSTAT: ready_recieve_dma_block     = %s\n", (stat.ready_recieve_dma_block) ? "ready": "not ready");
-    switch (stat.horizontal_resolution_1) {
+    printf("[GPU]  GPUSTAT: horizontal_resolution_1     = %s\n", str);
+    printf("[GPU]  GPUSTAT: vertical_resolution         = %d\n", (stat.vertical_resolution + 1) * 240);
+    printf("[GPU]  GPUSTAT: video_mode                  = %s\n", (stat.video_mode) ? "NTSC/60Hz": "PAL/50Hz");
+    printf("[GPU]  GPUSTAT: display_area_color_depth    = %s\n", (stat.display_area_color_depth) ? "24bit": "15bit");
+    printf("[GPU]  GPUSTAT: vertical_interlace          = %s\n", (stat.vertical_interlace) ? "enabled": "disabled");
+    printf("[GPU]  GPUSTAT: display_enable              = %s\n", (stat.display_enable) ? "enabled": "disabled");
+    printf("[GPU]  GPUSTAT: interrupt_request           = %s\n", (stat.interrupt_request) ? "enabled": "disabled");
+    printf("[GPU]  GPUSTAT: DMA_data_request            = %d\n",  stat.dma_data_request);
+    printf("[GPU]  GPUSTAT: ready_recieve_cmd_word      = %s\n", (stat.ready_recieve_cmd_word) ? "ready": "not ready");
+    printf("[GPU]  GPUSTAT: ready_send_vram_cpu         = %s\n", (stat.ready_send_vram_cpu) ? "ready": "not ready");
+    printf("[GPU]  GPUSTAT: ready_recieve_dma_block     = %s\n", (stat.ready_recieve_dma_block) ? "ready": "not ready");
+    switch (stat.dma_direction) {
         case 0: str = "off"; break;
         case 1: str = "unknown"; break;
         case 2: str = "cpu_to_gp0"; break;
         case 3: str = "gpuread_to_cpu"; break;
     }
-    printf("[GPU]: GPUSTAT: dma_direction               = %s\n", str);
-    printf("[GPU]: GPUSTAT: drawing_even_odd_interlace  = %s\n", (stat.drawing_even_odd_interlace) ? "odd": "even or vblank");
+    printf("[GPU]  GPUSTAT: dma_direction               = %s\n", str);
+    printf("[GPU]  GPUSTAT: drawing_even_odd_interlace  = %s\n", (stat.drawing_even_odd_interlace) ? "odd": "even or vblank");
+
+    printf("\n");
+
+    union GPUREAD read = debugger.psx->gpu->gpuread;
+    printf("[GPU]               GPUREAD = %08X\n", read.value);
+
+    printf("\n");
+
+    struct GP0 gp0 = debugger.psx->gpu->gp0;
+    printf("[GPU]                GP0\n");
+    printf("[GPU]  GP0: write occured = %s\n", (gp0.write_occured) ? "true": "false");
+    for (int i = gp0.fifo.head; i != gp0.fifo.tail; i++, i %= 8) {
+        union COMMAND_PACKET cmd = gp0.fifo.commands[i];
+        printf("[GPU]  GP0: FIFO: command number = %02X: parameters = %06X\n", cmd.number, cmd.parameters);
+    }
+
+    struct GP1 gp1 = debugger.psx->gpu->gp1;
+    printf("[GPU]                GP1\n");
+    printf("[GPU]  GP1: write occured = %s\n", (gp1.write_occured) ? "true": "false");
+    printf("[GPU]  GP1: command number = %02X: parameters = %06X\n", gp1.command.number, gp1.command.parameters);
+
     return 0;
 }
 
