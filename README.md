@@ -1,7 +1,7 @@
 # PSX-Emulartor
 An inprogress psx emulator
 
-DISCLAIMER: documentation is taken from no$psx docs and Lionel Flanderins' psx emulation guide.
+DISCLAIMER: documentation is taken from no$psx docs and Lionel Flandrins' psx emulation guide.
             This readme is just used to keep the information I am gathering in check, making it
             clear to myself, how and why I have implemented each part of the system. 
 
@@ -116,20 +116,20 @@ by the CPU. The cpu experiences branch, jump and load delays.
 since the cpu loads the next instruction in too be decoded before the current instruction has 
 executed, the instruction right after any branch or jump will still be executed. e.g.
 
-$pc = 0XBFC00200: J    0XBFC002A4   < jump to new PC
-$pc = 0XBFC00204: ADD $t0 $a0 $a1   < instruction right after still executed
-$pc = 0XBFC002A4: <new instruction> < jump registered
+    $pc = 0XBFC00200: J    0XBFC002A4   < jump to new PC
+    $pc = 0XBFC00204: ADD $t0 $a0 $a1   < instruction right after still executed
+    $pc = 0XBFC002A4: <new instruction> < jump registered
 
 **load delay**
 loading a value from memory takes longer than 1 cycle, since the cpu is not halted until
 the value is loaded, the cpu continues to execute. As a result of this the next instruction 
 will execute with the same register values as the previous instruction.
 
-$pc = 0xbfc01204: lw $t0, 0x1f801814  < load word from 0x1f801814
-$pc = 0xbfc01208: add $t1, $a0, $t0   < add $a0 and $t0 then store in $t1
-$pc = 0xbfc0120c: add $t2, $a0, $t0   < add $a0 and $t0 then store in $t1
+    $pc = 0xbfc01204: lw $t0, 0x1f801814  < load word from 0x1f801814
+    $pc = 0xbfc01208: add $t1, $a0, $t0   < add $a0 and $t0 then store in $t1
+    $pc = 0xbfc0120c: add $t2, $a0, $t0   < add $a0 and $t0 then store in $t1
 
-$t1 != $t2 given memory\[0x1f801814\] != $t0
+    $t1 != $t2 given memory\[0x1f801814\] != $t0
 
 #### IMPLEMENTATION
 
@@ -155,21 +155,21 @@ $t1 != $t2 given memory\[0x1f801814\] != $t0
 
 These are functions that can be used by the wider system to interact with the cpu.
 
-**PSX_ERROR cpu_reset(void)**
+    PSX_ERROR cpu_reset(void)
 
     - Function resets the cpu, the $pc points to the first BIOS instruction and all coprocessor 
       register pointers are refreshed
 
-**PSX_ERROR cpu_step(void)**
+    PSX_ERROR cpu_step(void)
     
     - Main CPU execution function, it will run through an iteration of the fetch, decode and execute
       cycle.
 
-**void cpu_exception(enum EXCEPTION_CAUSE cause)**
+    void cpu_exception(enum EXCEPTION_CAUSE cause)
     
     - Used to set coprocessor 0 exception handling
 
-**bool cop0_SR_<STATUSBIT>(void)**
+    bool cop0_SR_<STATUSBIT>(void)
 
     - <STATUSBIT>:
       IEc, KUc, IEp, KUp, IEo, KUo, Im, Isc, Swc, PZ, CM, PE, TS, BEV, RE, CU0, CU1, CU2, CU3
@@ -182,23 +182,25 @@ These are functions that can be used by the wider system to interact with the cp
 
 These are structures and functions used to emulate the CPU
 
-**static void cpu_execute_op(void)**
+    static void cpu_execute_op(void)
 
     - Contains the main switch case statement directing the cpu to execute the correct instructions
 
-**static void cpu_branch_delay(void)**
+    static void cpu_branch_delay(void)
     
     - Handles the branch delays of the cpu
 
-**static void cpu_load_delay(void)**
+    static void cpu_load_delay(void)
 
     - Handles the load delays of the cpu
 
-**static void <MNEUMONIC>(void)**
-    
+    static void <MNEUMONIC>(void)
+
     - These are the main instructions that are executed by the cpu, all instructions have the same primitive
       simply replace the "<MNEUMONIC>" with any instruction detailed previously
     - These instructions directly effect the cpu struct, changing register values and modifying state.
+
+    
 
 ## MEMORY
 
@@ -255,8 +257,8 @@ The cpu memory mapping function has the following primetive:
 
 **PSX_ERROR memory_cpu_map(uint8_t \*\*segment, uint32_t \*address, uint32_t \*mask, uint32_t alignment, bool load);**
 
-    -- uint8_t \*\*SEGMENT   -> function will store the address of the memory component being accessed
-    -- uint32_t \*ADDRESS   -> function will augment the address accessed such that the address begins in the component
+    -- uint8_t **SEGMENT   -> function will store the address of the memory component being accessed
+    -- uint32_t *ADDRESS   -> function will augment the address accessed such that the address begins in the component
     -- uint32_t  ALIGNMENT -> function will check the alignment of the address passed, this aligment changes based on 
                               if the calling function is reading an 8, 16, or 32 bit function.
     -- bool      LOAD      -> some memory addresses have different behavior based on if they are being read or written from,
@@ -266,8 +268,11 @@ The cpu memory mapping function has the following primetive:
 The cpu and gpu loading and storing primitives for 8, 16, 32, and 4, 8, 16, 24 bit data support respectivly:
 
 **void memory_cpu_load_nbit(uint32_t address, uint32_t \*data)**
+
 **void memory_cpu_store_nbit(uint32_t address, uint32_t data)**
+
 **void memory_gpu_load_nbit(uint32_t address, uint32_t \*data)**
+
 **void memory_gpu_store_nbit(uint32_t address, uint32_t data)**
     
     -- uint32_t address -> vitual address being accessed
@@ -278,7 +283,7 @@ BIOS loading function (directly loads it into the memory structure)
 
 **PSX_ERROR memory_load_bios(const char \*filebios)**
     
-    -- const char \*filebios -> path and filename to BIOS
+    -- const char *filebios -> path and filename to BIOS
 
 System internal function, this helps as some components need to refrence memory directly, e.g. IO PORTS like DMA.
 
