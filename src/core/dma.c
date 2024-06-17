@@ -5,6 +5,7 @@ static struct DMA dma;
 struct DMA *get_dma(void) { return &dma; }
 
 // helpers
+static int dma_get_channel_to_service(void);
 static void dma_process_interrupts(void);
 static void dma_gpu(void);
 static void dma_otc(void);
@@ -60,17 +61,7 @@ PSX_ERROR dma_reset(void) {
 }
 
 PSX_ERROR dma_step(void) {
-    int dev = -1, dev_priority = 10;
-
-    for (int i = 6, priority, enable; i >= 0; i--) {
-        priority = (dma.DPRC->value >> i*4) & 0b0111;
-        enable = (dma.DPRC->value >> i*4) & 0b1000;
-
-        if (enable && priority < dev_priority) {
-            dev_priority = priority;
-            dev = i;
-        }
-    }
+    int dev = dma_get_channel_to_service();
 
     switch (dev) {
         case MDEC_IN: break;
@@ -94,7 +85,120 @@ void dma_process_interrupts(void) {
     dma.interrupt_request = forced || (master && (irq_sum> 0));
 }
 
+int dma_get_channel_to_service(void) {
+    // reverse iterate over all dma channels
+    // until a channel has the following:
+    //  - enabled in DPRC
+    //  - enabled in its own CHCR
+    //  - highest priority
+    int dev = -1, dev_priority = 10;
+    union D_CHCR chcr;
+    uint32_t address = ADDR_DMA6_OTC + 8;
+    
+    for (int i = 6, priority, enabled; i >= 0; i--, address -= 0X10) {
+        priority = (dma.DPRC->value >> i*4) & 0b0111;
+        enabled  = (dma.DPRC->value >> i*4) & 0b1000;
+        memory_cpu_load_32bit(address, &chcr.value);
+        
+        if (enabled && chcr.start_busy && priority < dev_priority) {
+            dev_priority = priority;
+            dev = i;
+        }
+    }
+
+    return dev;
+}
+
 // BUG: DMA2 does not work
+void dma_gpu_request(union D_MADR madr, union D_BRC brc, union D_CHCR chcr) {
+    switch (chcr.transfer_direction) {
+        case DEV_TO_RAM: break;
+        case RAM_TO_DEV: {
+            uint32_t gpu_ready;
+            static uint32_t address;
+            static  int32_t step, block_count, block_size; 
+
+            memory_cpu_load_32bit(ADDR_GPUSTAT, &gpu_ready);
+            gpu_ready = (gpu_ready >> 28) & 0b1;
+
+            if (!gpu_ready)
+                return;
+
+            // if dma starting
+            if (!dma.accessing_memory) {
+                dma.accessing_memory = true;
+
+                block_count = brc.BA;
+                block_size  = brc.BS;
+
+                address = madr.base_address;
+
+                step = (chcr.address_step) ? -4: +4;
+            }
+            
+            // reached end of dma transfer
+            if (block_count == -1) {
+                dma.DMA2_GPU.CHCR->start_busy = false;
+                dma.accessing_memory = false;
+                return;
+            }
+
+            // get the next block
+            if (block_size == 0) {
+                block_size = brc.BS;
+                block_count--;
+            }
+
+            uint32_t data;
+
+            memory_cpu_load_32bit(address, &data);
+            memory_cpu_store_32bit(ADDR_GP0, data);
+            
+            address += step;
+            block_size--;
+            break;
+        }
+    }
+}
+
+void dma_gpu_linked_list(union D_MADR madr, union D_BRC brc, union D_CHCR chcr) {
+    static  int32_t size = 0;
+    static uint32_t header, next, address;
+
+    if (!dma.accessing_memory) {
+        dma.accessing_memory = true;
+        next    = madr.base_address;
+    }
+    
+    if (size == 0) {
+        // move to next packet
+        address = next;
+
+        // check for terminator
+        if (address == 0XFFFFFF) {
+            dma.DMA2_GPU.CHCR->start_busy = 0;
+            dma.accessing_memory = false;
+            return;
+        }
+
+        // get packet header
+        memory_cpu_load_32bit(address, &header);
+        next = (header >>  0) & 0X00FFFFFF;
+        size = (header >> 24) & 0X000000FF;
+
+        // skip packet header
+        address += 4;
+    } else {
+        uint32_t command;
+
+        memory_cpu_load_32bit(address, &command);  // read ram bytes
+        memory_cpu_store_32bit(ADDR_GP0, command); // send to gpu 
+
+        address += 4;
+        size    -= 1;
+    }
+}
+
 void dma_gpu(void) {
     union D_MADR madr = *dma.DMA2_GPU.MADR;
     union D_BRC  brc  = *dma.DMA2_GPU.BRC;
@@ -104,163 +208,67 @@ void dma_gpu(void) {
         return;
     
     switch (chcr.sync_mode) {
-        case MANUAL:  set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
-        case REQUEST: {
-            static  int32_t step;
-            static uint32_t address, data;
-            static uint32_t block_count, block_size;
-            
-            // start of request transfer
-            if (!dma.accessing_memory) {
-                dma.accessing_memory = true;
-                dma.device_ready = true;
+        case MANUAL:      set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
+        case REQUEST:     dma_gpu_request(madr, brc, chcr); break;
+        case LINKED_LIST: dma_gpu_linked_list(madr, brc, chcr); break;
 
-                address = madr.base_address;
-                block_count = brc.BA;
-                block_size  = brc.BS;
-
-                switch (chcr.address_step) {
-                    case INCREMENT: step = +4; break;
-                    case DECREMENT: step = -4; break;
-                }
-
-            }
-
-            // process transfer
-            switch (chcr.transfer_direction) {
-                case DEV_TO_RAM: break;
-                case RAM_TO_DEV: {
-                    if (!dma.device_ready) {
-                        memory_cpu_load_32bit(ADDR_GPUSTAT, &data);
-                        dma.device_ready = (data >> 28) & 0b1;
-                        return;
-                    }
-
-                    memory_cpu_load_32bit(address, &data);
-                    memory_cpu_store_32bit(ADDR_GPUREAD, data);
-                    address += step;
-                    block_size--;
-
-                    // if block transfered, request more
-                    if (block_size <= 0) {
-                        dma.device_ready = false;
-                        block_size = brc.BS;
-                        block_count--;
-                    }
-
-                    // if all blocks have been transferred transfer complete
-                    if (block_count == -1) {
-                        dma.DMA2_GPU.CHCR->start_busy = 0;
-                        dma.DPRC->gpu_enable = DISABLE;
-                        dma.accessing_memory = false;
-                        return;
-                    }
-
-                    break;
-                }
-            }
-            break;
-        }
-        case LINKED_LIST: {
-            static  int32_t size = 0;
-            static uint32_t next, address, header;
-
-            if (!dma.accessing_memory) {
-                dma.accessing_memory = true;
-                next    = madr.base_address;
-            }
-            
-            // if new packet
-            if (size <= 0) {
-                // move to next packet
-                address = next;
-
-                // check for terminator
-                if (address == 0XFFFFFF) {
-                    dma.DMA2_GPU.CHCR->start_busy = 0;
-                    dma.DPRC->gpu_enable = DISABLE;
-                    dma.accessing_memory = false;
-                    return;
-                }
-
-                // get packet header
-                memory_cpu_load_32bit(address, &header);
-                // size of new packet (top 8bits)
-                size    = (header >> 24) & 0b000000000000000011111111;
-                // address of next packet (first 24bits)
-                next    = (header >>  0) & 0b111111111111111111111111;
-                // skip packet header
-                address += 4;
-            } else {
-                uint32_t command;
-
-                memory_cpu_load_32bit(address, &command);  // read ram bytes
-                memory_cpu_store_32bit(ADDR_GP0, command); // send to gpu 
-
-                address += 4;
-                size    -= 1;
-            }
-            break;
-        }
     }
-
 }
 
+void dma_otc_manual(union D_MADR madr, union D_BRC brc, union D_CHCR chcr) {
+    static  int32_t step, size;
+    static uint32_t address;
+    // if dma has just started, load all new values 
+    // for further clock cycles 
+    if (!chcr.start_trigger && !dma.accessing_memory)
+        return;
+
+    if (!dma.accessing_memory) {
+        dma.accessing_memory = true;
+
+        switch (chcr.address_step) {
+            case INCREMENT: step = +4; break;
+            case DECREMENT: step = -4; break;
+        }
+
+        size    = brc.BC;
+        address = madr.base_address;
+        
+        // no$psx docs "automatically cleared on beginning of transfer"
+        dma.DMA6_OTC.CHCR->start_trigger = 0;
+    }
+    
+    switch(chcr.transfer_direction) {
+        case RAM_TO_DEV: set_PSX_error(UNSUPPORTED_DMA_TRANSFER_DIRECTION); break;
+        case DEV_TO_RAM: 
+            if (size <= 1) {
+                // set last double word as the terminator
+                memory_cpu_store_32bit(address, 0XFFFFFF);
+                
+                // let system know dma transfer completed
+                dma.DMA6_OTC.MADR->base_address = 0XFFFFFF;
+                dma.DMA6_OTC.CHCR->start_busy = 0;
+
+                // dma.DPRC->otc_enable = DISABLE;
+                // free bus for cpu
+                dma.accessing_memory = 0;
+            } else {
+                memory_cpu_store_32bit(address, address - 4);
+                address += step;
+                size -= 1;
+            }
+            break;
+    }
+}
 
 void dma_otc(void) {
     union D_MADR madr = *dma.DMA6_OTC.MADR;
     union D_BRC  brc  = *dma.DMA6_OTC.BRC;
     union D_CHCR chcr = *dma.DMA6_OTC.CHCR;
 
-    static  int32_t step, size;
-    static uint32_t address;
-
     switch (chcr.sync_mode) {
-        case MANUAL:      
-            // if dma has just started, load all new values 
-            // for further clock cycles 
-            if (!chcr.start_trigger && !dma.accessing_memory)
-                return;
-
-            if (!dma.accessing_memory) {
-                dma.accessing_memory = true;
-
-                switch (chcr.address_step) {
-                    case INCREMENT: step = +4; break;
-                    case DECREMENT: step = -4; break;
-                }
-
-                size    = brc.BC;
-                address = madr.base_address;
-                
-                // no$psx docs "automatically cleared on beginning of transfer"
-                dma.DMA6_OTC.CHCR->start_trigger = 0;
-            }
-            
-            switch(chcr.transfer_direction) {
-                case RAM_TO_DEV: set_PSX_error(UNSUPPORTED_DMA_TRANSFER_DIRECTION); break;
-                case DEV_TO_RAM: 
-                    if (size <= 1) {
-                        // set last double word as the terminator
-                        memory_cpu_store_32bit(address, 0XFFFFFF);
-                        
-                        // let system know dma transfer completed
-                        dma.DMA6_OTC.MADR->base_address = 0XFFFFFF;
-                        dma.DMA6_OTC.CHCR->start_busy = 0;
-                        dma.DPRC->otc_enable = DISABLE;
-                        // free bus for cpu
-                        dma.accessing_memory = 0;
-                    } else {
-                        memory_cpu_store_32bit(address, address - 4);
-                        address += step;
-                        size -= 1;
-                    }
-                    break;
-            }
-            break;
+        case MANUAL:      dma_otc_manual(madr, brc, chcr); break;
         case REQUEST:     set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
         case LINKED_LIST: set_PSX_error(UNSUPPORTED_DMA_SYNC_MODE); break;
     }
 }
-
-

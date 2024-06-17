@@ -75,6 +75,7 @@ struct DEBUGGER {
     wp wps[MAX_WATCH];
 
     bool stepping;
+    bool logging;
     volatile sig_atomic_t paused;
 };
 

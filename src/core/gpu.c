@@ -7,10 +7,11 @@ static void gpu_execute_op(void);
 // helpers
 static void gpu_handle_gp0(void);
 static void gpu_handle_gp1(void);
-static void reset_command_fifo(struct COMMAND_FIFO *fifo);
-static union COMMAND_PACKET *push_command_fifo(struct COMMAND_FIFO *fifo);
-static union COMMAND_PACKET  peek_command_fifo(struct COMMAND_FIFO *fifo);
-static union COMMAND_PACKET  pop_command_fifo(struct COMMAND_FIFO *fifo);
+static void gpu_handle_memory_access(void);
+static void reset_command_fifo(void);
+static union COMMAND_PACKET *push_command_fifo(void);
+static union COMMAND_PACKET  peek_command_fifo(void);
+static union COMMAND_PACKET  pop_command_fifo(void);
 
 // gp0 instructions
 static void GP0_NOP(union COMMAND_PACKET packet);
@@ -38,10 +39,19 @@ static void GP1_DISPLAY_INFO(union COMMAND_PACKET packet);
 
 // external interface
 struct GPU *get_gpu(void) { return &gpu; }
-uint8_t *GP0(void) { gpu.gp0.write_occured = true; return (uint8_t *) push_command_fifo(&gpu.gp0.fifo); }
+uint8_t *GP0(void) { gpu.gp0.write_occured = true; return (uint8_t *) push_command_fifo(); }
 uint8_t *GP1(void) { gpu.gp1.write_occured = true; return (uint8_t *) &gpu.gp1.command.value; }
 uint8_t *GPUSTAT(void) { return (uint8_t *) &gpu.gpustat.value; }
 uint8_t *GPUREAD(void) { return (uint8_t *) &gpu.gpustat.value; }
+
+
+
+bool gpustat_display_enable(void)             { return gpu.gpustat.display_enable; }
+bool gpustat_interrupt_request(void)          { return gpu.gpustat.interrupt_request; }
+bool gpustat_dma_data_request(void)           { return gpu.gpustat.dma_data_request; }
+bool gpustat_ready_recieve_cmd_word(void)     { return gpu.gpustat.ready_recieve_cmd_word; }
+bool gpustat_ready_send_vram_cpu(void)        { return gpu.gpustat.ready_send_vram_cpu; }
+
 
 void gpu_reset(void) {
     // set gpustat starting values
@@ -52,41 +62,31 @@ void gpu_reset(void) {
     gpu.gpustat.drawing_even_odd_interlace = ODD;
 
     // set gp0 and gp1 starting values
-    reset_command_fifo(&gpu.gp0.fifo);
+    reset_command_fifo();
 }
 
 void gpu_step(void) {
-    // handle all direct access to and from vram
-    if (gpu.iscopying) {
-        if (gpu.vram_to_vram) {
-        } else if (gpu.vram_to_cpu) {
-        } else if (gpu.cpu_to_vram) {
-            uint32_t data = pop_command_fifo(&gpu.gp0.fifo).value;
-            memory_gpu_store_16bit(gpu.copy_address++, (data >>  0) & 0XFFFF);
-            memory_gpu_store_16bit(gpu.copy_address++, (data >> 16) & 0XFFFF);
-            gpu.copy_size--;
-            gpu.copy_size--;
-        }
-
-        if (gpu.copy_size <= 0) {
-            gpu.iscopying = false;
-        }
+    if (gpu.mode == DO_COPY) {
+        gpu_handle_memory_access();
+        return;
     }
 
     if (gpu.gp0.write_occured) {
         gpu.gp0.write_occured = false;
         gpu_handle_gp0();
     }
-    
+
     if (gpu.gp1.write_occured) {
         gpu.gp1.write_occured = false;
         gpu_handle_gp1();
     }
+
 }
 
 void gpu_handle_gp0(void) {
     // GP0
-    union COMMAND_PACKET command = peek_command_fifo(&gpu.gp0.fifo);
+    gpu.mode = IDLE;
+    union COMMAND_PACKET command = peek_command_fifo();
 
     switch (command.number) {
         case 0X00: GP0_NOP(command); break;
@@ -111,6 +111,7 @@ void gpu_handle_gp0(void) {
 }
 
 void gpu_handle_gp1(void) {
+    gpu.mode = IDLE;
     union COMMAND_PACKET command = gpu.gp1.command;
 
     switch (command.number) {
@@ -132,56 +133,111 @@ void gpu_handle_gp1(void) {
     }
 }
 
-// command fifo helpers
-void reset_command_fifo(struct COMMAND_FIFO *fifo) {
-    fifo->isempty = true;
-    fifo->isfull  = false;
-    fifo->head    = 0;
-    fifo->tail    = 0;
-    fifo->count   = 0;
+void gpu_handle_memory_access(void) {
+    if (gpu.gp0.fifo.isempty) 
+        return;
+
+    switch (gpu.copy.direction) {
+        case VRAM_TO_VRAM: exit(-1);
+        case VRAM_TO_CPU:  exit(-1);
+        case CPU_TO_VRAM: {
+            static uint32_t x, y;
+            static uint32_t min_x, max_x;
+            static uint32_t min_y, max_y;
+            
+            if (!gpu.copy.copying) {
+                min_x = gpu.copy.d_x; 
+                max_x = gpu.copy.d_x + gpu.copy.d_w;
+                min_y = gpu.copy.d_y;
+                max_y = gpu.copy.d_y + gpu.copy.d_h;
+
+                x = min_x;
+                y = min_y;
+
+                gpu.copy.copying = true;
+            }
+
+            uint32_t data = pop_command_fifo().value;
+
+            if (y > max_y) {
+                gpu.mode = IDLE;
+                gpu.copy.copying = false;
+                return;
+            }
+
+            uint16_t bot = (data >>  0) & 0XFFFF;
+            uint16_t top = (data >> 16) & 0XFFFF;
+
+            uint32_t bot_address = VRAM_ADDRESS(x, y);
+
+            y = (x > max_x) ? y+1: y;
+            x = (x > max_x) ? min_x: x+1;
+
+            uint32_t top_address = VRAM_ADDRESS(x, y);
+
+            y = (x > max_x) ? y+1: y;
+            x = (x > max_x) ? min_x: x+1;
+
+            memory_gpu_store_16bit(bot_address, bot);
+            memory_gpu_store_16bit(top_address, top);
+            break;
+        }
+    }
 }
 
-union COMMAND_PACKET *push_command_fifo(struct COMMAND_FIFO *fifo) {
+// command fifo helpers
+void reset_command_fifo(void) {
+    gpu.gp0.fifo.isempty = true;
+    gpu.gp0.fifo.isfull  = false;
+    gpu.gp0.fifo.head    = 0;
+    gpu.gp0.fifo.tail    = 0;
+    gpu.gp0.fifo.count   = 0;
+}
+
+union COMMAND_PACKET *push_command_fifo(void) {
+    assert(gpu.gp0.fifo.count >= 0);
+    assert(gpu.gp0.fifo.count <= FIFO_SIZE);
     // get current free command
-    union COMMAND_PACKET *refrence = &fifo->commands[fifo->tail];
+    union COMMAND_PACKET *refrence = &gpu.gp0.fifo.commands[gpu.gp0.fifo.tail];
     
     // reserve the next command space 
     // by incrementing the tail of fifo
-    fifo->tail++;
-    fifo->tail %= FIFO_SIZE;
-    fifo->count++;
+    gpu.gp0.fifo.tail++;
+    gpu.gp0.fifo.tail %= FIFO_SIZE;
+    gpu.gp0.fifo.count++;
     
-    if (fifo->isempty) {
-        fifo->isempty = false;
+    if (gpu.gp0.fifo.isempty) {
+        gpu.gp0.fifo.isempty = false;
     }
     
-    if (fifo->count >= FIFO_SIZE && fifo->head == fifo->tail) {
-        fifo->isfull = true;
-        // 
+    if (gpu.gp0.fifo.count >= FIFO_SIZE && gpu.gp0.fifo.head == gpu.gp0.fifo.tail) {
+        gpu.gp0.fifo.isfull = true;
         gpu.gpustat.dma_data_request = FIFO_FULL;
     }
 
     return refrence;
 }
 
-union COMMAND_PACKET peek_command_fifo(struct COMMAND_FIFO *fifo) {
+union COMMAND_PACKET peek_command_fifo(void) {
     // get current command
-    return fifo->commands[fifo->head];
+    return gpu.gp0.fifo.commands[gpu.gp0.fifo.head];
 }
 
-union COMMAND_PACKET pop_command_fifo(struct COMMAND_FIFO *fifo) {
-    union COMMAND_PACKET command = fifo->commands[fifo->head];
+union COMMAND_PACKET pop_command_fifo(void) {
+    assert(gpu.gp0.fifo.count >= 0);
+    assert(gpu.gp0.fifo.count <= FIFO_SIZE);
+    union COMMAND_PACKET command = gpu.gp0.fifo.commands[gpu.gp0.fifo.head];
 
-    fifo->head++;
-    fifo->head %= FIFO_SIZE;
-    fifo->count--;
+    gpu.gp0.fifo.head++;
+    gpu.gp0.fifo.head %= FIFO_SIZE;
+    gpu.gp0.fifo.count--;
     
-    if (fifo->isfull) {
-        fifo->isfull = false;
+    if (gpu.gp0.fifo.isfull) {
+        gpu.gp0.fifo.isfull = false;
     }
 
-    if (fifo->count == 0) {
-        fifo->isempty = true;
+    if (gpu.gp0.fifo.count == 0) {
+        gpu.gp0.fifo.isempty = true;
     }
     
     return command;
@@ -206,7 +262,10 @@ static void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, boo
 
 // gp0 functions
 void GP0_NOP(union COMMAND_PACKET packet) {
-    pop_command_fifo(&gpu.gp0.fifo);
+    if (gpu.gp0.fifo.count == 0) 
+        return;
+
+    pop_command_fifo();
 }
 void GP0_DIRECT_VRAM_ACCESS(union COMMAND_PACKET packet) {
     switch(packet.number) {
@@ -249,7 +308,7 @@ void GP0_RENDER_LINES(union COMMAND_PACKET packet) {}
 void GP0_RENDER_RECTANGLES(union COMMAND_PACKET packet) {}
 void GP0_RENDERING_ATTRIBUTES(union COMMAND_PACKET packet) {
     // pop current command as it doesnt need more arguments
-    pop_command_fifo(&gpu.gp0.fifo);
+    pop_command_fifo();
     switch (packet.number & 0b1111) {
         case 0X01: {
             /* DRAWMODE SETTING */
@@ -352,7 +411,7 @@ void GP1_RESET(union COMMAND_PACKET packet) {
     // Note that GP1(09h) is NOT affected by the reset command.
     
     // clear the fifo
-    reset_command_fifo(&gpu.gp0.fifo);
+    reset_command_fifo();
 
     gpu.gpustat.value = 0X00000000;
     gpu.gpustat.interlace_field = true;
@@ -443,10 +502,39 @@ void GP1_DISPLAY_INFO(union COMMAND_PACKET packet) {}
 
 void VRAM_CLEAR_CACHE(void) {
     // clear texture cache
-    
+    pop_command_fifo();
 }
 void VRAM_FILL_RECTANGLE(void) {}
-void VRAM_TO_VRAM_COPY_RECTANGLE(void) {}
+void VRAM_TO_VRAM_COPY_RECTANGLE(void) {
+    if (gpu.gp0.fifo.count < 3) {
+        return;
+    }
+
+    union COMMAND_PACKET command;
+    uint32_t source, destination, dimensions;
+
+    command     = pop_command_fifo();
+    destination = (uint32_t) pop_command_fifo().value;
+    destination = (uint32_t) pop_command_fifo().value;
+    dimensions  = (uint32_t) pop_command_fifo().value;
+
+    uint32_t x, y, w, h;
+    x = (destination >>  0) & 0XFFFF;
+    y = (destination >> 16) & 0XFFFF;
+    w = (dimensions  >>  0) & 0XFFFF;
+    h = (dimensions  >> 16) & 0XFFFF;
+
+    x = (x % 2 == 1) ? x + 1: x; // if odd halfwords make even
+    w = (w % 2 == 1) ? w + 1: w; // if odd halfwords make even
+    
+    // base address, multiplied by 2 as they are halfwords
+    gpu.copy.d_x = x;
+    gpu.copy.d_y = y;
+    gpu.copy.d_w = w;
+    gpu.copy.d_h = h;
+    gpu.mode = DO_COPY;
+    gpu.copy.direction = VRAM_TO_CPU;
+}
 void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     //  1st  Command           (Cc000000h)
     //  2nd  Destination Coord (YyyyXxxxh)  ;Xpos counted in halfwords
@@ -461,9 +549,9 @@ void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     union COMMAND_PACKET command;
     uint32_t destination, dimensions;
 
-    command     = pop_command_fifo(&gpu.gp0.fifo);
-    destination = (uint32_t) pop_command_fifo(&gpu.gp0.fifo).value;
-    dimensions  = (uint32_t) pop_command_fifo(&gpu.gp0.fifo).value;
+    command     = pop_command_fifo();
+    destination = (uint32_t) pop_command_fifo().value;
+    dimensions  = (uint32_t) pop_command_fifo().value;
 
     uint32_t x, y, w, h;
     x = (destination >>  0) & 0XFFFF;
@@ -475,9 +563,15 @@ void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     w = (w % 2 == 1) ? w + 1: w; // if odd halfwords make even
 
     // base address, multiplied by 2 as they are halfwords
-    gpu.copy_address = y * 1024 + 2 * x; // y * vram_width + x
-    gpu.copy_size    = 2 * h * w;
-    gpu.iscopying = true;
+    gpu.copy.d_x = x;
+    gpu.copy.d_y = y;
+    gpu.copy.d_w = w;
+    gpu.copy.d_h = h;
+
+    gpu.copy.d_cur_x = x;
+    gpu.copy.d_cur_y = y;
+    gpu.mode = DO_COPY;
+    gpu.copy.direction = CPU_TO_VRAM;
 }
 void VRAM_TO_CPU_COPY_RECTANGLE(void) {}
 
@@ -491,13 +585,11 @@ void RENDER_FOUR_POINT_POLYGON_MONOCHROME(bool semi_transparent) {
     uint32_t color;
     union VERTEX v1, v2, v3, v4;
 
-    color = pop_command_fifo(&gpu.gp0.fifo).value;
-    v1.value = pop_command_fifo(&gpu.gp0.fifo).value;
-    v2.value = pop_command_fifo(&gpu.gp0.fifo).value;
-    v3.value = pop_command_fifo(&gpu.gp0.fifo).value;
-    v4.value = pop_command_fifo(&gpu.gp0.fifo).value;
-    
-    printf("Rendering quad");
+    color = pop_command_fifo().value;
+    v1.value = pop_command_fifo().value;
+    v2.value = pop_command_fifo().value;
+    v3.value = pop_command_fifo().value;
+    v4.value = pop_command_fifo().value;
 }
 void RENDER_THREE_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) {}
 void RENDER_FOUR_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) {}

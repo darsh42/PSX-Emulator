@@ -3,6 +3,22 @@
 
 #include "common.h"
 
+#define VRAM_WIDTH 1024
+#define VRAM_ADDRESS(x, y) y * VRAM_WIDTH + x
+
+enum GPU_COPY_DIRECTION {
+    VRAM_TO_VRAM = 0,
+    CPU_TO_VRAM  = 1,
+    VRAM_TO_CPU  = 2
+};
+
+enum GPU_MODE {
+    IDLE    = 0,
+    DO_GP0  = 1,
+    DO_GP1  = 2,
+    DO_COPY = 3
+};
+
 enum GPUSTAT_READY                    { NOT_READY = false,      READY = true };
 enum GPUSTAT_DRAW_PIXEL               { ALWAYS = false,         NOT_TO_MASKED = true };
 enum GPUSTAT_REVERSEFIELD             { UNDISTORTED = false,    DISTORTED = true };
@@ -50,7 +66,7 @@ union COMMAND_PACKET {
 };
 
 // 64 byte fifos' and can queue upto 3 commands
-#define FIFO_SIZE 8
+#define FIFO_SIZE 12
 #define MAX_COMMANDS 3
 
 struct COMMAND_FIFO {
@@ -110,13 +126,24 @@ union GPUREAD {
 };
 
 struct GP0 { 
-    bool write_occured;
     struct COMMAND_FIFO fifo; 
+    bool write_occured;
 };
 
 struct GP1 { 
-    bool write_occured;
     union COMMAND_PACKET command; 
+    bool write_occured;
+};
+
+struct GPU_COPY {
+    uint32_t d_x, d_y, d_w, d_h; // destination 
+    uint32_t s_x, s_y, s_w, s_h; // source
+    uint32_t d_cur_x, d_cur_y;
+    uint32_t s_cur_x, s_cur_y;
+    
+    bool copying;
+
+    enum GPU_COPY_DIRECTION direction;
 };
 
 struct GPU {
@@ -125,13 +152,9 @@ struct GPU {
     union GPUREAD gpuread;
     union GPUSTAT gpustat;
 
-    // vram direct access variables
-    bool iscopying; 
-    bool cpu_to_vram;
-    bool vram_to_cpu;
-    bool vram_to_vram;
-    uint32_t copy_address;  
-    uint32_t copy_size;     
+    struct GPU_COPY copy;
+
+    enum GPU_MODE mode;
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
@@ -158,7 +181,7 @@ struct GPU {
 };
 
 // memory functions
-uint8_t *memory_pointer(uint32_t address);
+extern uint8_t *memory_pointer(uint32_t address);
 extern void memory_gpu_load_4bit(uint32_t address, uint8_t *data);
 extern void memory_gpu_load_8bit(uint32_t address, uint32_t *data);
 extern void memory_gpu_load_16bit(uint32_t address, uint32_t *data);

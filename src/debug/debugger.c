@@ -734,7 +734,14 @@ int
 debugger_gpu PARAMS((char *args)) {
     const char *str;
     union GPUSTAT stat = debugger.psx->gpu->gpustat;
-
+    
+    switch (debugger.psx->gpu->mode) {
+        case IDLE: str = "IDLE"; break;
+        case DO_GP0: str = "DO_GP0"; break;
+        case DO_GP1: str = "DO_GP1"; break;
+        case DO_COPY: str = "DO_COPY"; break;
+    }
+    printf("[GPU]  gpu mode: %s\n", str);
     printf("[GPU]  texture_window_mask_x                = %04X\n", debugger.psx->gpu->texture_window_mask_x);
     printf("[GPU]  texture_window_mask_y                = %04X\n", debugger.psx->gpu->texture_window_mask_y);
     printf("[GPU]  texture_window_offset_x              = %04X\n", debugger.psx->gpu->texture_window_offset_x);
@@ -813,7 +820,6 @@ debugger_gpu PARAMS((char *args)) {
 
     struct GP0 gp0 = debugger.psx->gpu->gp0;
     printf("[GPU]                GP0\n");
-    printf("[GPU]  GP0: write occured = %s\n", (gp0.write_occured) ? "true": "false");
     for (int i = gp0.fifo.head; i != gp0.fifo.tail; i++, i %= 8) {
         union COMMAND_PACKET cmd = gp0.fifo.commands[i];
         printf("[GPU]  GP0: FIFO: command number = %02X: parameters = %06X\n", cmd.number, cmd.parameters);
@@ -821,7 +827,6 @@ debugger_gpu PARAMS((char *args)) {
 
     struct GP1 gp1 = debugger.psx->gpu->gp1;
     printf("[GPU]                GP1\n");
-    printf("[GPU]  GP1: write occured = %s\n", (gp1.write_occured) ? "true": "false");
     printf("[GPU]  GP1: command number = %02X: parameters = %06X\n", gp1.command.number, gp1.command.parameters);
 
     return 0;
@@ -933,6 +938,7 @@ debugger_timers PARAMS((char *args)) {
 }
 
 int debugger_logging PARAMS((char *args)) {
+    debugger.logging = !debugger.logging;
     return 0;
 }
 
@@ -1021,6 +1027,17 @@ int debugger_disassemble_instruction(void) {
     return 0;
 }
 
+void log_gpu_instructions(void) {
+    if (debugger.psx->gpu->gp0.write_occured) {
+
+    }
+
+    if (debugger.psx->gpu->gp1.write_occured) {
+
+    }
+}
+
+
 /* debugger routines */
 void 
 debugger_interrupt(int signal) {
@@ -1034,6 +1051,7 @@ debugger_reset(void) {
 
     debugger.paused = true;
     debugger.stepping = false;
+    debugger.logging = true;
 
     debugger.bp_count = 0;
     debugger.wp_count = 0;
@@ -1069,7 +1087,9 @@ debugger_exec(void) {
 
     if (debugger.paused)
         debugger_input();
-    debugger_disassemble_instruction();
+
+    if (debugger.logging)
+        debugger_disassemble_instruction();
 }
 
 void 

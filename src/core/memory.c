@@ -183,22 +183,29 @@ PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, u
 /* GPU and VRAM memory map */
 
 void memory_gpu_load_4bit(uint32_t address, uint8_t *data) {
-    *data  = memory.VRAM.mem[address];
+    *data  = 0;
+    *data |= memory.VRAM.mem[address];
     *data &= 0X0000000F;
 }
 
 void memory_gpu_load_8bit(uint32_t address, uint32_t *data) {
-    *data  = memory.VRAM.mem[address];
+    *data  = 0;
+    *data |= memory.VRAM.mem[address];
     *data &= 0X000000FF;
 }
 
 void memory_gpu_load_16bit(uint32_t address, uint32_t *data) {
-    *data  = memory.VRAM.mem[address];
+    *data  = 0;
+    *data |= (memory.VRAM.mem[address + 0] << 0);
+    *data |= (memory.VRAM.mem[address + 1] << 8);
     *data &= 0X0000FFFF;
 }
 
 void memory_gpu_load_24bit(uint32_t address, uint32_t *data) {
-    *data  = memory.VRAM.mem[address];
+    *data  = 0;
+    *data |= (memory.VRAM.mem[address + 0] <<  0);
+    *data |= (memory.VRAM.mem[address + 1] <<  8);
+    *data |= (memory.VRAM.mem[address + 2] << 16);
     *data &= 0X00FFFFFF;
 }
 
@@ -214,10 +221,13 @@ void memory_gpu_store_8bit(uint32_t address, uint32_t data) {
 
 void memory_gpu_store_16bit(uint32_t address, uint32_t data) {
     data &= 0X0000FFFF;
-    memory.VRAM.mem[address] = data;
+    memory.VRAM.mem[address + 0] = (data >> 0);
+    memory.VRAM.mem[address + 1] = (data >> 8);
 }
 
 void memory_gpu_store_24bit(uint32_t address, uint32_t data) {
     data &= 0X00FFFFFF;
-    memory.VRAM.mem[address] = data;
+    memory.VRAM.mem[address + 0] = (data >>  0);
+    memory.VRAM.mem[address + 1] = (data >>  8);
+    memory.VRAM.mem[address + 2] = (data >> 16);
 }
