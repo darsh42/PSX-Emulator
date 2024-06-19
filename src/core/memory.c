@@ -161,10 +161,10 @@ PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, u
     else if (region >= 0X1F800000 && region < 0X1F801000) {*address = region - 0X1F800000; *segment = memory.SCRATCH_PAD.mem;}
     else if (region >= 0X1F801000 && region < 0X1F802000) {
         // GPU read and write registers
-        if      ( load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = GPUREAD(); }
-        else if (!load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = GP0(); }
-        else if ( load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = GPUSTAT(); }
-        else if (!load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = GP1(); }
+        if      ( load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = read_GPUREAD(); }
+        else if (!load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = write_GP0(); }
+        else if ( load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = read_GPUSTAT(); }
+        else if (!load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = write_GP1(); }
         else {
             *address = region - 0X1F801000; *segment = memory.IO_PORTS.mem;
         }

@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#define print_gpu_error(func, format, ...) print_error("gpu.c", func, format, __VA_ARGS__)
+
 #define VRAM_WIDTH 1024
 #define VRAM_ADDRESS(x, y) y * VRAM_WIDTH + x
 
@@ -14,9 +16,9 @@ enum GPU_COPY_DIRECTION {
 
 enum GPU_MODE {
     IDLE    = 0,
-    DO_GP0  = 1,
-    DO_GP1  = 2,
-    DO_COPY = 3
+    GP0  = 1,
+    GP1  = 2,
+    COPY = 3
 };
 
 enum GPUSTAT_READY                    { NOT_READY = false,      READY = true };
@@ -69,12 +71,12 @@ union COMMAND_PACKET {
 #define FIFO_SIZE 12
 #define MAX_COMMANDS 3
 
+typedef struct FIFO fifo_t;
+
 struct COMMAND_FIFO {
     union COMMAND_PACKET commands[FIFO_SIZE];
 
-    int head, tail, count;
-    bool isfull, isempty;
-    bool waiting_arguments;
+    int head, tail, size, len;
 };
 
 union VERTEX {
@@ -138,8 +140,6 @@ struct GP1 {
 struct GPU_COPY {
     uint32_t d_x, d_y, d_w, d_h; // destination 
     uint32_t s_x, s_y, s_w, s_h; // source
-    uint32_t d_cur_x, d_cur_y;
-    uint32_t s_cur_x, s_cur_y;
     
     bool copying;
 
@@ -154,7 +154,12 @@ struct GPU {
 
     struct GPU_COPY copy;
 
-    enum GPU_MODE mode;
+    enum GPU_MODE current_mode;
+    enum GPU_MODE previous_mode;
+    bool vram_write;
+
+    uint32_t dots;
+    uint32_t scanlines;
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
@@ -179,6 +184,11 @@ struct GPU {
     bool texture_rectangle_x_flip; // if texture is flipped in x direction
     bool texture_rectangle_y_flip; // if texture is flipped in y direction 
 };
+
+
+extern PSX_ERROR sdl_render_clear(void);
+extern PSX_ERROR sdl_update(void);
+extern PSX_ERROR sdl_render_present(void);
 
 // memory functions
 extern uint8_t *memory_pointer(uint32_t address);

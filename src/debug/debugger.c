@@ -735,11 +735,11 @@ debugger_gpu PARAMS((char *args)) {
     const char *str;
     union GPUSTAT stat = debugger.psx->gpu->gpustat;
     
-    switch (debugger.psx->gpu->mode) {
+    switch (debugger.psx->gpu->current_mode) {
         case IDLE: str = "IDLE"; break;
-        case DO_GP0: str = "DO_GP0"; break;
-        case DO_GP1: str = "DO_GP1"; break;
-        case DO_COPY: str = "DO_COPY"; break;
+        case GP0:  str = "GP0"; break;
+        case GP1:  str = "GP1"; break;
+        case COPY: str = "COPY"; break;
     }
     printf("[GPU]  gpu mode: %s\n", str);
     printf("[GPU]  texture_window_mask_x                = %04X\n", debugger.psx->gpu->texture_window_mask_x);
@@ -793,7 +793,7 @@ debugger_gpu PARAMS((char *args)) {
     }
     printf("[GPU]  GPUSTAT: horizontal_resolution_1     = %s\n", str);
     printf("[GPU]  GPUSTAT: vertical_resolution         = %d\n", (stat.vertical_resolution + 1) * 240);
-    printf("[GPU]  GPUSTAT: video_mode                  = %s\n", (stat.video_mode) ? "NTSC/60Hz": "PAL/50Hz");
+    printf("[GPU]  GPUSTAT: video_mode                  = %s\n", (stat.video_mode) ? "PAL/50Hz": "NTSC/60Hz");
     printf("[GPU]  GPUSTAT: display_area_color_depth    = %s\n", (stat.display_area_color_depth) ? "24bit": "15bit");
     printf("[GPU]  GPUSTAT: vertical_interlace          = %s\n", (stat.vertical_interlace) ? "enabled": "disabled");
     printf("[GPU]  GPUSTAT: display_enable              = %s\n", (stat.display_enable) ? "enabled": "disabled");

@@ -30,7 +30,7 @@ PSX_ERROR sdl_initialize(void) {
         return set_PSX_error(SDL_RENDERER_CREATION);
     }
     handler.native_display = SDL_CreateTexture(handler.renderer,
-                                               SDL_PIXELFORMAT_RGB24,
+                                               SDL_PIXELFORMAT_BGR555,
                                                SDL_TEXTUREACCESS_STREAMING,
                                                NATIVE_DISPLAY_WIDTH,
                                                NATIVE_DISPLAY_HEIGHT);
@@ -61,9 +61,9 @@ PSX_ERROR sdl_render_clear(void) {
     return set_PSX_error(NO_ERROR);
 }
 
-PSX_ERROR sdl_update_psx_screen(void) {
+PSX_ERROR sdl_update(void) {
     // TODO: create a display retriever
-    if (SDL_UpdateTexture(handler.native_display, NULL, (uint32_t *) memory_VRAM_pointer(), NATIVE_DISPLAY_WIDTH*3) != 0) {
+    if (SDL_UpdateTexture(handler.native_display, NULL, (uint16_t *) memory_VRAM_pointer(), NATIVE_DISPLAY_WIDTH*3) != 0) {
         print_sdl_error("sdl_render_screen", "SDL could not update native display, SDL error %s", SDL_GetError());
         return set_PSX_error(SDL_RENDER_SCREEN);
     }

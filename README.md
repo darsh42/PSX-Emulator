@@ -295,6 +295,59 @@ System internal function, this helps as some components need to refrence memory 
 
 ## GPU
 
+#### GPUSTAT REGISTER
+
+1F801814h - GPUSTAT - GPU Status Register (R)
+
+  0-3   Texture page X Base   (N*64)                              ;GP0(E1h).0-3
+  4     Texture page Y Base   (N*256) (ie. 0 or 256)              ;GP0(E1h).4
+  5-6   Semi Transparency     (0=B/2+F/2, 1=B+F, 2=B-F, 3=B+F/4)  ;GP0(E1h).5-6
+  7-8   Texture page colors   (0=4bit, 1=8bit, 2=15bit, 3=Reserved)GP0(E1h).7-8
+  9     Dither 24bit to 15bit (0=Off/strip LSBs, 1=Dither Enabled);GP0(E1h).9
+  10    Drawing to display area (0=Prohibited, 1=Allowed)         ;GP0(E1h).10
+  11    Set Mask-bit when drawing pixels (0=No, 1=Yes/Mask)       ;GP0(E6h).0
+  12    Draw Pixels           (0=Always, 1=Not to Masked areas)   ;GP0(E6h).1
+  13    Interlace Field       (or, always 1 when GP1(08h).5=0)
+  14    "Reverseflag"         (0=Normal, 1=Distorted)             ;GP1(08h).7
+  15    Texture Disable       (0=Normal, 1=Disable Textures)      ;GP0(E1h).11
+  16    Horizontal Resolution 2     (0=256/320/512/640, 1=368)    ;GP1(08h).6
+  17-18 Horizontal Resolution 1     (0=256, 1=320, 2=512, 3=640)  ;GP1(08h).0-1
+  19    Vertical Resolution         (0=240, 1=480, when Bit22=1)  ;GP1(08h).2
+  20    Video Mode                  (0=NTSC/60Hz, 1=PAL/50Hz)     ;GP1(08h).3
+  21    Display Area Color Depth    (0=15bit, 1=24bit)            ;GP1(08h).4
+  22    Vertical Interlace          (0=Off, 1=On)                 ;GP1(08h).5
+  23    Display Enable              (0=Enabled, 1=Disabled)       ;GP1(03h).0
+  24    Interrupt Request (IRQ1)    (0=Off, 1=IRQ)       ;GP0(1Fh)/GP1(02h)
+  25    DMA / Data Request, meaning depends on GP1(04h) DMA Direction:
+          When GP1(04h)=0 ---> Always zero (0)
+          When GP1(04h)=1 ---> FIFO State  (0=Full, 1=Not Full)
+          When GP1(04h)=2 ---> Same as GPUSTAT.28
+          When GP1(04h)=3 ---> Same as GPUSTAT.27
+  26    Ready to receive Cmd Word   (0=No, 1=Ready)  ;GP0(...) ;via GP0
+  27    Ready to send VRAM to CPU   (0=No, 1=Ready)  ;GP0(C0h) ;via GPUREAD
+  28    Ready to receive DMA Block  (0=No, 1=Ready)  ;GP0(...) ;via GP0
+  29-30 DMA Direction (0=Off, 1=?, 2=CPUtoGP0, 3=GPUREADtoCPU)    ;GP1(04h).0-1
+  31    Drawing even/odd lines in interlace mode (0=Even or Vblank, 1=Odd)
+
+In 480-lines mode, bit31 changes per frame. And in 240-lines model, the bit changes per scanline. The bit is always zero during Vblank (vertical retrace and upper/lower screen border).
+
+Note
+Further GPU status information can be retrieved via GP1(10h) and GP0(C0h).
+
+Ready Bits
+Bit28: Normally, this bit gets cleared when the command execution is busy (ie. once when the command and all of its parameters are received), however, for Polygon and Line Rendering commands, the bit gets cleared immediately after receiving the command word (ie. before receiving the vertex parameters). The bit is used as DMA request in DMA Mode 2, accordingly, the DMA would probably hang if the Polygon/Line parameters are transferred in a separate DMA block (ie. the DMA probably starts ONLY on command words).
+       - Do I need to clear this bit?, The Rendering commands can be processed instantly. I will not clear.
+
+Bit27: Gets set after sending GP0(C0h) and its parameters, and stays set until all data words are received; used as DMA request in DMA Mode 3.
+       - What is DMA mode 3? DMA sync mode 3 is "reserved" what does this mean?
+
+Bit26: Gets set when the GPU wants to receive a command. If the bit is cleared, then the GPU does either want to receive data, or it is busy with a command execution (and doesn't want to receive anything).
+       - Do i need to clear/toggle this bit, it is only used during command execution. Maybe needed when doing gpu timing
+
+Bit25: This is the DMA Request bit, however, the bit is also useful for non-DMA transfers, especially in the FIFO State mode.
+    GP1(04h) -> toggles this bit depending on the parameter values
+
+
 ## DMA
 
 

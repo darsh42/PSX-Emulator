@@ -1,9 +1,12 @@
-#include "datastructures.h"
+#include "../../include/common.h"
 
+typedef struct FIFO fifo_t;
 struct FIFO {
-    int *array, size, len;
+    uint32_t *array, size, len;
     
     int head, tail;
+
+    uint32_t dump;
 };
 
 bool fifo_full(fifo_t fifo) {
@@ -26,21 +29,21 @@ void fifo_destroy(fifo_t *fifo) {
     free(fifo->array);
 }
 
-int fifo_push(fifo_t *fifo, int elem) {
+uint32_t *fifo_push(fifo_t *fifo, int elem) {
     if (fifo_full(*fifo)) 
-        return -1;
-
-    fifo->array[fifo->tail] = elem;
+        return &fifo->dump;
+    
+    uint32_t *refrence = &fifo->array[fifo->tail];
 
     fifo->tail++;
     fifo->tail %= fifo->size;
 
     fifo->len++;
 
-    return 0;
+    return refrence;
 }
 
-int fifo_peek(fifo_t fifo) {
+uint32_t fifo_peek(fifo_t fifo) {
     return (fifo_empty(fifo)) ? -1: fifo.array[fifo.head];
 }
 

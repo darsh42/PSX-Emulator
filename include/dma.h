@@ -140,6 +140,14 @@ struct DMA {
     bool interrupt_request;
 };
 
+// gpu functions
+extern bool gpustat_display_enable(void);
+extern bool gpustat_interrupt_request(void);
+extern bool gpustat_dma_data_request(void);
+extern bool gpustat_ready_recieve_cmd_word(void);
+extern bool gpustat_ready_send_vram_cpu(void);
+extern bool gpustat_ready_recieve_dma_block(void);
+
 // memory function
 extern uint8_t *memory_pointer(uint32_t address);
 extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);

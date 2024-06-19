@@ -31,7 +31,7 @@ void psx_create(char **argv) {
 }
 
 void psx_destroy(void) {
-    // sdl_destroy();
+    sdl_destroy();
 }
 
 int main(int argc, char **argv) {

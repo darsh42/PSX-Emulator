@@ -8,10 +8,18 @@ static void gpu_execute_op(void);
 static void gpu_handle_gp0(void);
 static void gpu_handle_gp1(void);
 static void gpu_handle_memory_access(void);
-static void reset_command_fifo(void);
-static union COMMAND_PACKET *push_command_fifo(void);
-static union COMMAND_PACKET  peek_command_fifo(void);
-static union COMMAND_PACKET  pop_command_fifo(void);
+static void gpu_set_mode(enum GPU_MODE mode);
+static int fifo_len(void);
+static bool fifo_full(void);
+static bool fifo_empty(void);
+static void reset_fifo(void);
+static union COMMAND_PACKET *push_fifo(void);
+static union COMMAND_PACKET  peek_fifo(void);
+static union COMMAND_PACKET  pop_fifo(void);
+
+// gpu copy helpers
+static void gpu_copy_cpu_to_vram(void);
+static void gpu_copy_vram_to_cpu(void);
 
 // gp0 instructions
 static void GP0_NOP(union COMMAND_PACKET packet);
@@ -39,11 +47,10 @@ static void GP1_DISPLAY_INFO(union COMMAND_PACKET packet);
 
 // external interface
 struct GPU *get_gpu(void) { return &gpu; }
-uint8_t *GP0(void) { gpu.gp0.write_occured = true; return (uint8_t *) push_command_fifo(); }
-uint8_t *GP1(void) { gpu.gp1.write_occured = true; return (uint8_t *) &gpu.gp1.command.value; }
-uint8_t *GPUSTAT(void) { return (uint8_t *) &gpu.gpustat.value; }
-uint8_t *GPUREAD(void) { return (uint8_t *) &gpu.gpustat.value; }
-
+uint8_t *write_GP0(void) { gpu_set_mode(GP0); return (uint8_t *) push_fifo(); }
+uint8_t *write_GP1(void) { gpu_set_mode(GP1); return (uint8_t *) &gpu.gp1.command.value; }
+uint8_t *read_GPUSTAT(void) { return (uint8_t *) &gpu.gpustat.value; }
+uint8_t *read_GPUREAD(void) { return (uint8_t *) &gpu.gpustat.value; }
 
 
 bool gpustat_display_enable(void)             { return gpu.gpustat.display_enable; }
@@ -51,6 +58,7 @@ bool gpustat_interrupt_request(void)          { return gpu.gpustat.interrupt_req
 bool gpustat_dma_data_request(void)           { return gpu.gpustat.dma_data_request; }
 bool gpustat_ready_recieve_cmd_word(void)     { return gpu.gpustat.ready_recieve_cmd_word; }
 bool gpustat_ready_send_vram_cpu(void)        { return gpu.gpustat.ready_send_vram_cpu; }
+bool gpustat_ready_recieve_dma_block(void)    { return gpu.gpustat.ready_recieve_dma_block; }
 
 
 void gpu_reset(void) {
@@ -62,31 +70,22 @@ void gpu_reset(void) {
     gpu.gpustat.drawing_even_odd_interlace = ODD;
 
     // set gp0 and gp1 starting values
-    reset_command_fifo();
+    reset_fifo();
 }
 
 void gpu_step(void) {
-    if (gpu.mode == DO_COPY) {
-        gpu_handle_memory_access();
-        return;
+    gpu.vram_write = false;
+    switch (gpu.current_mode) {
+        case IDLE: break;
+        case GP0:  gpu_handle_gp0(); break;
+        case GP1:  gpu_handle_gp1(); break;
+        case COPY: gpu_handle_memory_access(); break;
     }
-
-    if (gpu.gp0.write_occured) {
-        gpu.gp0.write_occured = false;
-        gpu_handle_gp0();
-    }
-
-    if (gpu.gp1.write_occured) {
-        gpu.gp1.write_occured = false;
-        gpu_handle_gp1();
-    }
-
 }
 
 void gpu_handle_gp0(void) {
-    // GP0
-    gpu.mode = IDLE;
-    union COMMAND_PACKET command = peek_command_fifo();
+    gpu_set_mode(IDLE);
+    union COMMAND_PACKET command = peek_fifo();
 
     switch (command.number) {
         case 0X00: GP0_NOP(command); break;
@@ -111,7 +110,7 @@ void gpu_handle_gp0(void) {
 }
 
 void gpu_handle_gp1(void) {
-    gpu.mode = IDLE;
+    gpu_set_mode(IDLE);
     union COMMAND_PACKET command = gpu.gp1.command;
 
     switch (command.number) {
@@ -134,111 +133,186 @@ void gpu_handle_gp1(void) {
 }
 
 void gpu_handle_memory_access(void) {
-    if (gpu.gp0.fifo.isempty) 
-        return;
-
     switch (gpu.copy.direction) {
         case VRAM_TO_VRAM: exit(-1);
-        case VRAM_TO_CPU:  exit(-1);
-        case CPU_TO_VRAM: {
-            static uint32_t x, y;
-            static uint32_t min_x, max_x;
-            static uint32_t min_y, max_y;
-            
-            if (!gpu.copy.copying) {
-                min_x = gpu.copy.d_x; 
-                max_x = gpu.copy.d_x + gpu.copy.d_w;
-                min_y = gpu.copy.d_y;
-                max_y = gpu.copy.d_y + gpu.copy.d_h;
+        case VRAM_TO_CPU:  gpu_copy_vram_to_cpu(); break;
+        case CPU_TO_VRAM:  gpu_copy_cpu_to_vram(); break;
+    }
+    assert(fifo_empty());
+}
 
-                x = min_x;
-                y = min_y;
-
-                gpu.copy.copying = true;
-            }
-
-            uint32_t data = pop_command_fifo().value;
-
-            if (y > max_y) {
-                gpu.mode = IDLE;
-                gpu.copy.copying = false;
-                return;
-            }
-
-            uint16_t bot = (data >>  0) & 0XFFFF;
-            uint16_t top = (data >> 16) & 0XFFFF;
-
-            uint32_t bot_address = VRAM_ADDRESS(x, y);
-
-            y = (x > max_x) ? y+1: y;
-            x = (x > max_x) ? min_x: x+1;
-
-            uint32_t top_address = VRAM_ADDRESS(x, y);
-
-            y = (x > max_x) ? y+1: y;
-            x = (x > max_x) ? min_x: x+1;
-
-            memory_gpu_store_16bit(bot_address, bot);
-            memory_gpu_store_16bit(top_address, top);
+void gpu_set_mode(enum GPU_MODE mode) {
+    switch (mode) {
+        case IDLE:
+            // lowest priority, if the last mode was interrupted restart it
+            gpu.current_mode  = gpu.previous_mode;
+            gpu.previous_mode = mode;
             break;
-        }
+        case GP0:  
+            // only changed if current mode is not copy
+            gpu.current_mode  = (gpu.current_mode == COPY) ? COPY: mode;
+            break;
+        case GP1: 
+            // can interrupt any mode, highest priority
+            gpu.previous_mode = gpu.current_mode;
+            gpu.current_mode  = mode;
+            break;
+        case COPY: 
+            // overwrites GP0 mode, 
+            gpu.current_mode  = mode;
+            break;
     }
 }
 
-// command fifo helpers
-void reset_command_fifo(void) {
-    gpu.gp0.fifo.isempty = true;
-    gpu.gp0.fifo.isfull  = false;
-    gpu.gp0.fifo.head    = 0;
-    gpu.gp0.fifo.tail    = 0;
-    gpu.gp0.fifo.count   = 0;
+bool gpu_wait_parameters(int param_num) {
+    if (fifo_len() < param_num)
+        return false;
+    
+    // Normally, this bit gets cleared when the command execution is busy (ie. once when the command and all of its parameters are received), 
+    // however, for Polygon and Line Rendering commands, the bit gets cleared immediately after receiving the command word
+    return true;
 }
 
-union COMMAND_PACKET *push_command_fifo(void) {
-    assert(gpu.gp0.fifo.count >= 0);
-    assert(gpu.gp0.fifo.count <= FIFO_SIZE);
-    // get current free command
+void gpu_copy_vram_to_cpu(void) {
+    static uint32_t x, y;
+    static uint32_t min_x, max_x;
+    static uint32_t min_y, max_y;
+
+    if (!gpu.copy.copying) {
+        min_x = gpu.copy.s_x; 
+        max_x = gpu.copy.s_x + gpu.copy.s_w;
+        min_y = gpu.copy.s_y;
+        max_y = gpu.copy.s_y + gpu.copy.s_h;
+
+        x = min_x;
+        y = min_y;
+
+        gpu.copy.copying = true;
+    }
+
+    uint32_t top, bot;
+
+    if (y == max_y) {
+        gpu.gpustat.ready_recieve_dma_block = READY;
+        gpu.gpustat.ready_send_vram_cpu = NOT_READY;
+
+        gpu.copy.copying = false;
+        gpu_set_mode(IDLE);
+        return;
+    }
+
+
+    uint32_t bot_address = VRAM_ADDRESS(x++, y);
+    memory_gpu_load_16bit(bot_address, (uint32_t *) &bot);
+
+    if (x == max_x) {
+        x = min_x;
+        y++;
+    }
+
+    uint32_t top_address = VRAM_ADDRESS(x++, y);
+    memory_gpu_load_16bit(top_address, &top);
+
+    if (x == max_x) {
+        x = min_x;
+        y++;
+    }
+
+    gpu.gpuread.read = (top << 16) | bot;
+}
+
+void gpu_copy_cpu_to_vram(void) {
+    if (fifo_empty())
+        return;
+
+    static uint32_t x, y;
+    static uint32_t min_x, max_x;
+    static uint32_t min_y, max_y;
+
+    if (!gpu.copy.copying) {
+        min_x = gpu.copy.d_x; 
+        max_x = gpu.copy.d_x + gpu.copy.d_w;
+        min_y = gpu.copy.d_y;
+        max_y = gpu.copy.d_y + gpu.copy.d_h;
+
+        x = min_x;
+        y = min_y;
+
+        gpu.copy.copying = true;
+    }
+
+    uint32_t data = pop_fifo().value;
+
+    if (y == max_y) {
+        gpu.copy.copying = false;
+        gpu.vram_write = true;
+        gpu_set_mode(IDLE);
+        return;
+    }
+
+    uint16_t bot = (data >>  0) & 0XFFFF;
+    uint16_t top = (data >> 16) & 0XFFFF;
+
+    uint32_t bot_address = VRAM_ADDRESS(x++, y);
+
+    if (x == max_x) {
+        x = min_x;
+        y++;
+    }
+
+    uint32_t top_address = VRAM_ADDRESS(x++, y);
+
+    if (x == max_x) {
+        x = min_x;
+        y++;
+    }
+
+    memory_gpu_store_16bit(bot_address, bot);
+    memory_gpu_store_16bit(top_address, top);
+}
+
+// command fifo helpers
+void reset_fifo(void) {
+    gpu.gp0.fifo.head = 0;
+    gpu.gp0.fifo.tail = 0;
+    gpu.gp0.fifo.len  = 0;
+}
+
+int  fifo_len(void)   { return gpu.gp0.fifo.len; }
+bool fifo_full(void)  { return (gpu.gp0.fifo.len == FIFO_SIZE); }
+bool fifo_empty(void) { return (gpu.gp0.fifo.len == 0); }
+
+union COMMAND_PACKET *push_fifo(void) {
+    assert(!fifo_full()); 
     union COMMAND_PACKET *refrence = &gpu.gp0.fifo.commands[gpu.gp0.fifo.tail];
     
     // reserve the next command space 
     // by incrementing the tail of fifo
     gpu.gp0.fifo.tail++;
     gpu.gp0.fifo.tail %= FIFO_SIZE;
-    gpu.gp0.fifo.count++;
+    gpu.gp0.fifo.len++;
     
-    if (gpu.gp0.fifo.isempty) {
-        gpu.gp0.fifo.isempty = false;
-    }
-    
-    if (gpu.gp0.fifo.count >= FIFO_SIZE && gpu.gp0.fifo.head == gpu.gp0.fifo.tail) {
-        gpu.gp0.fifo.isfull = true;
+    if (fifo_full())
         gpu.gpustat.dma_data_request = FIFO_FULL;
-    }
 
     return refrence;
 }
 
-union COMMAND_PACKET peek_command_fifo(void) {
-    // get current command
+union COMMAND_PACKET peek_fifo(void) {
+    assert(!fifo_empty());
     return gpu.gp0.fifo.commands[gpu.gp0.fifo.head];
 }
 
-union COMMAND_PACKET pop_command_fifo(void) {
-    assert(gpu.gp0.fifo.count >= 0);
-    assert(gpu.gp0.fifo.count <= FIFO_SIZE);
+union COMMAND_PACKET pop_fifo(void) {
+    assert(!fifo_empty());
     union COMMAND_PACKET command = gpu.gp0.fifo.commands[gpu.gp0.fifo.head];
 
     gpu.gp0.fifo.head++;
     gpu.gp0.fifo.head %= FIFO_SIZE;
-    gpu.gp0.fifo.count--;
-    
-    if (gpu.gp0.fifo.isfull) {
-        gpu.gp0.fifo.isfull = false;
-    }
+    gpu.gp0.fifo.len--;
 
-    if (gpu.gp0.fifo.count == 0) {
-        gpu.gp0.fifo.isempty = true;
-    }
+    if (!fifo_full())
+        gpu.gpustat.dma_data_request = FIFO_NOT_FULL;
     
     return command;
 }
@@ -262,10 +336,10 @@ static void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, boo
 
 // gp0 functions
 void GP0_NOP(union COMMAND_PACKET packet) {
-    if (gpu.gp0.fifo.count == 0) 
+    if (!gpu_wait_parameters(1))
         return;
 
-    pop_command_fifo();
+    pop_fifo();
 }
 void GP0_DIRECT_VRAM_ACCESS(union COMMAND_PACKET packet) {
     switch(packet.number) {
@@ -276,7 +350,7 @@ void GP0_DIRECT_VRAM_ACCESS(union COMMAND_PACKET packet) {
         case 0XC0: VRAM_TO_CPU_COPY_RECTANGLE(); break;
     }
 }
-void GP0_INTERRUPT_REQUEST(union COMMAND_PACKET packet) {}
+void GP0_INTERRUPT_REQUEST(union COMMAND_PACKET packet) { print_gpu_error("GP0 INTERRUPT REQUEST", "Unimplemented function OP:%x\n", packet.number); }
 void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
     switch (packet.number) {
         case 0X20: RENDER_THREE_POINT_POLYGON_MONOCHROME(0); break;
@@ -304,11 +378,11 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
         case 0X3E: RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(1, 1); break;
     }
 }
-void GP0_RENDER_LINES(union COMMAND_PACKET packet) {}
-void GP0_RENDER_RECTANGLES(union COMMAND_PACKET packet) {}
+void GP0_RENDER_LINES(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); pop_fifo(); }
+void GP0_RENDER_RECTANGLES(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); }
 void GP0_RENDERING_ATTRIBUTES(union COMMAND_PACKET packet) {
     // pop current command as it doesnt need more arguments
-    pop_command_fifo();
+    pop_fifo();
     switch (packet.number & 0b1111) {
         case 0X01: {
             /* DRAWMODE SETTING */
@@ -324,15 +398,15 @@ void GP0_RENDERING_ATTRIBUTES(union COMMAND_PACKET packet) {
             //  13    Textured Rectangle Y-Flip   (BIOS does set it equal to GPUSTAT.13...?)
             //  14-23 Not used (should be 0)
             //  24-31 Command  (E1h)
-            gpu.gpustat.texture_page_x_base  = (packet.parameters >>  0) & 0b111;
-            gpu.gpustat.texture_page_y_base  = (packet.parameters >>  4) & 0b001;
-            gpu.gpustat.semi_transparency    = (packet.parameters >>  5) & 0b011;
-            gpu.gpustat.texture_page_colors  = (packet.parameters >>  7) & 0b011;
-            gpu.gpustat.dither               = (packet.parameters >>  9) & 0b001;
-            gpu.gpustat.draw_to_display_area = (packet.parameters >> 10) & 0b001;
-            gpu.gpustat.texture_disable      = (packet.parameters >> 11) & 0b001;
-            gpu.texture_rectangle_x_flip     = (packet.parameters >> 12) & 0b001;
-            gpu.texture_rectangle_y_flip     = (packet.parameters >> 13) & 0b001;
+            gpu.gpustat.texture_page_x_base  = (packet.parameters >>  0) & 0xf;
+            gpu.gpustat.texture_page_y_base  = (packet.parameters >>  4) & 0x1;
+            gpu.gpustat.semi_transparency    = (packet.parameters >>  5) & 0x3;
+            gpu.gpustat.texture_page_colors  = (packet.parameters >>  7) & 0x3;
+            gpu.gpustat.dither               = (packet.parameters >>  9) & 0x1;
+            gpu.gpustat.draw_to_display_area = (packet.parameters >> 10) & 0x1;
+            gpu.gpustat.texture_disable      = (packet.parameters >> 11) & 0x1;
+            gpu.texture_rectangle_x_flip     = (packet.parameters >> 12) & 0x1;
+            gpu.texture_rectangle_y_flip     = (packet.parameters >> 13) & 0x1;
             break;
         }
         case 0X02: {
@@ -343,24 +417,22 @@ void GP0_RENDERING_ATTRIBUTES(union COMMAND_PACKET packet) {
             //  15-19  Texture window Offset Y (in 8 pixel steps)
             //  20-23  Not used (zero)
             //   24-31  Command  (E2h)
-            gpu.texture_window_mask_x   = (packet.parameters >>  0) & 0b11111;
-            gpu.texture_window_mask_y   = (packet.parameters >>  5) & 0b11111;
-            gpu.texture_window_offset_x = (packet.parameters >> 10) & 0b11111;
-            gpu.texture_window_offset_y = (packet.parameters >> 15) & 0b11111;
+            gpu.texture_window_mask_x   = (packet.parameters >>  0) & 0x1f;
+            gpu.texture_window_mask_y   = (packet.parameters >>  5) & 0x1f;
+            gpu.texture_window_offset_x = (packet.parameters >> 10) & 0x1f;
+            gpu.texture_window_offset_y = (packet.parameters >> 15) & 0x1f;
             break;
         }
         case 0X03: { 
             /* SET DRAWING AREA TOP LEFT */
             //  0-9    X-coordinate (0..1023)
-            //  10-18  Y-coordinate (0..511)   ;\on Old 160pin GPU (max 1MB VRAM)
-            //  19-23  Not used (zero)         ;/
-            //  10-19  Y-coordinate (0..1023)  ;\on New 208pin GPU (max 2MB VRAM)
-            //  20-23  Not used (zero)         ;/(retail consoles have only 1MB though)
+            //  10-19  Y-coordinate (0..1023)  
+            //  20-23  Not used (zero)        
             //  24-31  Command  (Exh)
             //
             //  Sets the drawing area corners. The Render commands GP0(20h..7Fh) are automatically clipping any pixels that are outside of this region.
-            gpu.drawing_area_left = (packet.parameters >>  0) & 0b1111111111;
-            gpu.drawing_area_top  = (packet.parameters >> 10) & 0b1111111111;
+            gpu.drawing_area_left = (packet.parameters >>  0) & 0x3ff;
+            gpu.drawing_area_top  = (packet.parameters >> 10) & 0x3ff;
             break;
         }
         case 0X04: {
@@ -373,25 +445,36 @@ void GP0_RENDERING_ATTRIBUTES(union COMMAND_PACKET packet) {
             //  24-31  Command  (Exh)
             //
             //  Sets the drawing area corners. The Render commands GP0(20h..7Fh) are automatically clipping any pixels that are outside of this region.
-            gpu.drawing_area_right   = (packet.parameters >>  0) & 0b1111111111;
-            gpu.drawing_area_bottom  = (packet.parameters >> 10) & 0b1111111111;
+            gpu.drawing_area_right   = (packet.parameters >>  0) & 0x3ff;
+            gpu.drawing_area_bottom  = (packet.parameters >> 10) & 0x1ff;
             break;
         }
-        case 0X05: break;
+        case 0X05: {
+            // 0-10   X-offset (-1024..+1023) (usually within X1,X2 of Drawing Area)
+            // 11-21  Y-offset (-1024..+1023) (usually within Y1,Y2 of Drawing Area)
+            // 22-23  Not used (zero)
+            // 24-31  Command  (E5h)
+            int16_t x = ((packet.parameters >>  0) & 0x7ff) << 5; // forcing sign extension
+            int16_t y = ((packet.parameters >> 11) & 0x7ff) << 5; // forcing sign extension
+
+            gpu.drawing_offset_x = x >> 5;
+            gpu.drawing_offset_y = y >> 5;
+            break;
+        }
         case 0X06: {
             /* MASK BIT SETTING */
             // 0     Set mask while drawing (0=TextureBit15, 1=ForceBit15=1)   ;GPUSTAT.11
             // 1     Check mask before draw (0=Draw Always, 1=Draw if Bit15=0) ;GPUSTAT.12
             // 2-23  Not used (zero)
             // 24-31 Command  (E6h)
-            gpu.gpustat.set_mask_when_drawing = (packet.parameters >> 0) & 0b1;
-            gpu.gpustat.draw_pixels           = (packet.parameters >> 1) & 0b1;
+            gpu.gpustat.set_mask_when_drawing = (packet.parameters >> 0) & 0x1;
+            gpu.gpustat.draw_pixels           = (packet.parameters >> 1) & 0x1;
             break;
         }
     }
 
 }
-void GP0_DISPLAY_CONTROL(union COMMAND_PACKET packet) {}
+void GP0_DISPLAY_CONTROL(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); }
 
 // gp1 functions
 void GP1_RESET(union COMMAND_PACKET packet) {
@@ -411,13 +494,9 @@ void GP1_RESET(union COMMAND_PACKET packet) {
     // Note that GP1(09h) is NOT affected by the reset command.
     
     // clear the fifo
-    reset_command_fifo();
+    reset_fifo();
 
-    gpu.gpustat.value = 0X00000000;
-    gpu.gpustat.interlace_field = true;
-    gpu.gpustat.display_enable = ENABLE;
-    gpu.gpustat.ready_recieve_cmd_word  = READY;
-    gpu.gpustat.ready_recieve_dma_block = READY;
+    gpu.gpustat.value = 0X14002000;
     
     gpu.texture_window_mask_x = 0;
     gpu.texture_window_mask_y = 0;
@@ -447,13 +526,22 @@ void GP1_RESET_COMMAND_BUFFER(union COMMAND_PACKET packet) {
     // (eg. this may end up with an incompletely drawn triangle).
     
 }
-void GP1_ACKNOWLEDGE_INTERRUPT(union COMMAND_PACKET packet) {
+void GP1_ACKNOWLEDGE_INTERRUPT(union COMMAND_PACKET packet) { print_gpu_error("GP1 OP", "Unimplemented function OP: %x\n", packet.number); }
+void GP1_DISPLAY_ENABLE(union COMMAND_PACKET packet) { 
+    // 0     Display On/Off   (0=On, 1=Off)                         ;GPUSTAT.23
+    // 1-23  Not used (zero)
+    gpu.gpustat.display_enable = packet.parameters & 0x1;
 }
-void GP1_DISPLAY_ENABLE(union COMMAND_PACKET packet) {}
 void GP1_DMA_DIRECTION_OR_DATA_REQUEST(union COMMAND_PACKET packet) {
     // 0-1  DMA Direction (0=Off, 1=FIFO, 2=CPUtoGP0, 3=GPUREADtoCPU) ;GPUSTAT.29-30
     // 2-23 Not used (zero)
     gpu.gpustat.dma_direction = packet.parameters & 0b11;
+    switch (packet.parameters & 0b11) {
+        case 0: gpu.gpustat.dma_data_request = 0; break;
+        case 1: gpu.gpustat.dma_data_request = !fifo_full(); break;
+        case 2: gpu.gpustat.dma_data_request = gpu.gpustat.ready_recieve_dma_block; break;
+        case 3: gpu.gpustat.dma_data_request = gpu.gpustat.ready_send_vram_cpu; break;
+    }
 }
 void GP1_START_OF_DISPLAY_AREA_IN_VRAM(union COMMAND_PACKET packet) {
     // 0-9   X (0-1023)    (halfword address in VRAM)  (relative to begin of VRAM)
@@ -462,21 +550,21 @@ void GP1_START_OF_DISPLAY_AREA_IN_VRAM(union COMMAND_PACKET packet) {
     //
     // Upper/left Display source address in VRAM. The size and target position on 
     // screen is set via Display Range registers; target=X1,Y2; size=(X2-X1/cycles_per_pix), (Y2-Y1).
-    gpu.display_vram_x_start = (packet.parameters >>  0) & 0b1111111111;
-    gpu.display_vram_y_start = (packet.parameters >> 10) & 0b0111111111;
+    gpu.display_vram_x_start = (packet.parameters >>  0) & 0x3ff;
+    gpu.display_vram_y_start = (packet.parameters >> 10) & 0x1ff;
 }
 void GP1_HORIONTAL_DISPLAY_RANGE(union COMMAND_PACKET packet) {
     // 0-11   X1 (260h+0)       ;12bit       ;\counted in 53.222400MHz units,
     // 12-23  X2 (260h+320*8)   ;12bit       ;/relative to HSYNC
-    gpu.display_horizontal_start = (packet.parameters >>  0) & 0b111111111111;
-    gpu.display_horizontal_end   = (packet.parameters >> 12) & 0b111111111111;
+    gpu.display_horizontal_start = (packet.parameters >>  0) & 0xfff;
+    gpu.display_horizontal_end   = (packet.parameters >> 12) & 0xfff;
 }
 void GP1_VERTICAL_DISPLAY_RANGE(union COMMAND_PACKET packet) {
     // 0-9   Y1 (NTSC=88h-(224/2), (PAL=A3h-(264/2))  ;\scanline numbers on screen,
     // 10-19 Y2 (NTSC=88h+(224/2), (PAL=A3h+(264/2))  ;/relative to VSYNC
     // 20-23 Not used (zero)
-    gpu.display_vertical_start = (packet.parameters >>  0) * 0b111111111;
-    gpu.display_vertical_end   = (packet.parameters >>  0) * 0b111111111;
+    gpu.display_vertical_start = (packet.parameters >>  0) & 0x3ff;
+    gpu.display_vertical_end   = (packet.parameters >> 10) & 0x3ff;
 }
 void GP1_DISPLAY_MODE(union COMMAND_PACKET packet) {
     // 0-1   Horizontal Resolution 1     (0=256, 1=320, 2=512, 3=640) ;GPUSTAT.17-18
@@ -487,54 +575,25 @@ void GP1_DISPLAY_MODE(union COMMAND_PACKET packet) {
     // 6     Horizontal Resolution 2     (0=256/320/512/640, 1=368)   ;GPUSTAT.16
     // 7     "Reverseflag"               (0=Normal, 1=Distorted)      ;GPUSTAT.14
     // 8-23  Not used (zero)
-    gpu.gpustat.horizontal_resolution_1  = (packet.parameters >> 0) & 0b11;
-    gpu.gpustat.vertical_resolution      = (packet.parameters >> 2) & 0b01;
-    gpu.gpustat.video_mode               = (packet.parameters >> 3) & 0b01;
-    gpu.gpustat.display_area_color_depth = (packet.parameters >> 4) & 0b01;
-    gpu.gpustat.vertical_interlace       = (packet.parameters >> 5) & 0b01;
-    gpu.gpustat.horizontal_resolution_2  = (packet.parameters >> 6) & 0b11;
-    gpu.gpustat.reverse_flag             = (packet.parameters >> 7) & 0b01;
+    gpu.gpustat.horizontal_resolution_1  = (packet.parameters >> 0) & 0x3;
+    gpu.gpustat.vertical_resolution      = (packet.parameters >> 2) & 0x1;
+    gpu.gpustat.video_mode               = (packet.parameters >> 3) & 0x1;
+    gpu.gpustat.display_area_color_depth = (packet.parameters >> 4) & 0x1;
+    gpu.gpustat.vertical_interlace       = (packet.parameters >> 5) & 0x1;
+    gpu.gpustat.horizontal_resolution_2  = (packet.parameters >> 6) & 0x1;
+    gpu.gpustat.reverse_flag             = (packet.parameters >> 7) & 0x1;
 
 }
-void GP1_NEW_TEXTURE_DISABLE(union COMMAND_PACKET packet) {}
-void GP1_SPECIAL_OR_PROTOTYPE_TEXTURE_DISABLE(union COMMAND_PACKET packet) {}
-void GP1_DISPLAY_INFO(union COMMAND_PACKET packet) {}
+void GP1_NEW_TEXTURE_DISABLE(union COMMAND_PACKET packet) { print_gpu_error("GP1 OP", "Unimplemented function OP: %x\n", packet.number); }
+void GP1_SPECIAL_OR_PROTOTYPE_TEXTURE_DISABLE(union COMMAND_PACKET packet) { print_gpu_error("GP1 OP", "Unimplemented function OP: %x\n", packet.number); }
+void GP1_DISPLAY_INFO(union COMMAND_PACKET packet) { print_gpu_error("GP1 OP", "Unimplemented function OP: %x\n", packet.number); }
 
 void VRAM_CLEAR_CACHE(void) {
     // clear texture cache
-    pop_command_fifo();
+    pop_fifo();
 }
-void VRAM_FILL_RECTANGLE(void) {}
-void VRAM_TO_VRAM_COPY_RECTANGLE(void) {
-    if (gpu.gp0.fifo.count < 3) {
-        return;
-    }
-
-    union COMMAND_PACKET command;
-    uint32_t source, destination, dimensions;
-
-    command     = pop_command_fifo();
-    destination = (uint32_t) pop_command_fifo().value;
-    destination = (uint32_t) pop_command_fifo().value;
-    dimensions  = (uint32_t) pop_command_fifo().value;
-
-    uint32_t x, y, w, h;
-    x = (destination >>  0) & 0XFFFF;
-    y = (destination >> 16) & 0XFFFF;
-    w = (dimensions  >>  0) & 0XFFFF;
-    h = (dimensions  >> 16) & 0XFFFF;
-
-    x = (x % 2 == 1) ? x + 1: x; // if odd halfwords make even
-    w = (w % 2 == 1) ? w + 1: w; // if odd halfwords make even
-    
-    // base address, multiplied by 2 as they are halfwords
-    gpu.copy.d_x = x;
-    gpu.copy.d_y = y;
-    gpu.copy.d_w = w;
-    gpu.copy.d_h = h;
-    gpu.mode = DO_COPY;
-    gpu.copy.direction = VRAM_TO_CPU;
-}
+void VRAM_FILL_RECTANGLE(void) { print_gpu_error("COPY", "Unimplemented function", NULL); }
+void VRAM_TO_VRAM_COPY_RECTANGLE(void) {}
 void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     //  1st  Command           (Cc000000h)
     //  2nd  Destination Coord (YyyyXxxxh)  ;Xpos counted in halfwords
@@ -542,16 +601,15 @@ void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     //  ...  Data              (...)      <--- usually transferred via DMA
     //
     //  Transfers data from CPU to frame buffer. If the number of halfwords to be sent is odd, an extra halfword should be sent (packets consist of 32bit units). The transfer is affected by Mask setting.
-    if (gpu.gp0.fifo.count < 3) {
+    if (!gpu_wait_parameters(3))
         return;
-    }
 
     union COMMAND_PACKET command;
     uint32_t destination, dimensions;
 
-    command     = pop_command_fifo();
-    destination = (uint32_t) pop_command_fifo().value;
-    dimensions  = (uint32_t) pop_command_fifo().value;
+    command     = pop_fifo();
+    destination = (uint32_t) pop_fifo().value;
+    dimensions  = (uint32_t) pop_fifo().value;
 
     uint32_t x, y, w, h;
     x = (destination >>  0) & 0XFFFF;
@@ -568,32 +626,91 @@ void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     gpu.copy.d_w = w;
     gpu.copy.d_h = h;
 
-    gpu.copy.d_cur_x = x;
-    gpu.copy.d_cur_y = y;
-    gpu.mode = DO_COPY;
+    gpu_set_mode(COPY);
     gpu.copy.direction = CPU_TO_VRAM;
 }
-void VRAM_TO_CPU_COPY_RECTANGLE(void) {}
-
-void RENDER_THREE_POINT_POLYGON_MONOCHROME(bool semi_transparent) {}
-void RENDER_FOUR_POINT_POLYGON_MONOCHROME(bool semi_transparent) {
-    // render command needs atleast 1 + 4 words
-    // for command and parameters
-    if (gpu.gp0.fifo.count < 5) {
+void VRAM_TO_CPU_COPY_RECTANGLE(void) {
+    //  1st  Command           (Cc000000h) ;
+    //  2nd  Source Coord      (YyyyXxxxh) ; write to GP0 port (as usually)
+    //  3rd  Width+Height      (YsizXsizh) ;
+    //  ...  Data              (...)       ;<--- read from GPUREAD port (or via DMA)
+    if (!gpu_wait_parameters(3))
         return;
-    }
+
+    union COMMAND_PACKET command;
+    uint32_t source, dimensions;
+    
+    command    = pop_fifo();
+    source     = pop_fifo().value;
+    dimensions = pop_fifo().value;
+
+    uint32_t x, y, w, h;
+    x = (source >>  0) & 0XFFFF;
+    y = (source >> 16) & 0XFFFF;
+    w = (dimensions >>  0) & 0XFFFF;
+    h = (dimensions >> 16) & 0XFFFF;
+
+    gpu.copy.s_x = x;
+    gpu.copy.s_y = y;
+    gpu.copy.s_w = w;
+    gpu.copy.s_h = h;
+
+    gpu.gpustat.ready_send_vram_cpu = READY;
+    gpu.gpustat.ready_recieve_dma_block = NOT_READY;
+
+    gpu_set_mode(COPY);
+    gpu.copy.direction = VRAM_TO_CPU;
+}
+
+void RENDER_THREE_POINT_POLYGON_MONOCHROME(bool semi_transparent) { print_gpu_error("RENDER", "Unimplemented function", NULL); }
+void RENDER_FOUR_POINT_POLYGON_MONOCHROME(bool semi_transparent) {
+    // for command and parameters
+    if (!gpu_wait_parameters(5))
+        return;
+
     uint32_t color;
     union VERTEX v1, v2, v3, v4;
 
-    color = pop_command_fifo().value;
-    v1.value = pop_command_fifo().value;
-    v2.value = pop_command_fifo().value;
-    v3.value = pop_command_fifo().value;
-    v4.value = pop_command_fifo().value;
+    color = pop_fifo().value;
+    v1.value = pop_fifo().value;
+    v2.value = pop_fifo().value;
+    v3.value = pop_fifo().value;
+    v4.value = pop_fifo().value;
+    printf("four point monochrome ploygon!!\n");
 }
-void RENDER_THREE_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) {}
-void RENDER_FOUR_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) {}
-void RENDER_THREE_POINT_POLYGON_SHADED(bool semi_transparent) {}
-void RENDER_FOUR_POINT_POLYGON_SHADED(bool semi_transparent) {}
-void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending) {}
-void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending) {}
+void RENDER_THREE_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function", NULL); }
+void RENDER_FOUR_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function four point textured", NULL); }
+void RENDER_THREE_POINT_POLYGON_SHADED(bool semi_transparent) { 
+    if (!gpu_wait_parameters(6))
+        return;
+
+    uint32_t c1, c2, c3;
+    union VERTEX v1, v2, v3;
+
+    c1       = pop_fifo().value;
+    v1.value = pop_fifo().value;
+    c2       = pop_fifo().value;
+    v2.value = pop_fifo().value;
+    c3       = pop_fifo().value;
+    v3.value = pop_fifo().value;
+    printf("triangle point shaded ploygon!!\n");
+}
+void RENDER_FOUR_POINT_POLYGON_SHADED(bool semi_transparent) {
+    if (!gpu_wait_parameters(8))
+        return;
+
+    uint32_t c1, c2, c3, c4;
+    union VERTEX v1, v2, v3, v4;
+
+    c1       = pop_fifo().value;
+    v1.value = pop_fifo().value;
+    c2       = pop_fifo().value;
+    v2.value = pop_fifo().value;
+    c3       = pop_fifo().value;
+    v3.value = pop_fifo().value;
+    c4       = pop_fifo().value;
+    v4.value = pop_fifo().value;
+    printf("four point shaded ploygon!!\n");
+}
+void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function", NULL); }
+void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function", NULL); }

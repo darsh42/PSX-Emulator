@@ -219,9 +219,9 @@ struct MEMORY {
 // cpu functions
 extern void cpu_exception(enum EXCEPTION_CAUSE cause);
 extern bool cop0_SR_Isc(void);
-extern uint8_t *GPUSTAT(void);
-extern uint8_t *GPUREAD(void);
-extern uint8_t *GP0(void);
-extern uint8_t *GP1(void);
+extern uint8_t *read_GPUSTAT(void);
+extern uint8_t *read_GPUREAD(void);
+extern uint8_t *write_GP0(void);
+extern uint8_t *write_GP1(void);
 
 #endif
