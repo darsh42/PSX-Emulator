@@ -61,6 +61,8 @@ struct PSX {
     struct DMA *dma;
     struct MEMORY *memory;
     struct TIMERS *timers;
+
+    uint32_t system_clock;
 };
 
 

@@ -2,13 +2,7 @@
 
 static struct GPU gpu;
 
-static void gpu_execute_op(void);
-
 // helpers
-static void gpu_handle_gp0(void);
-static void gpu_handle_gp1(void);
-static void gpu_handle_memory_access(void);
-static void gpu_set_mode(enum GPU_MODE mode);
 static int fifo_len(void);
 static bool fifo_full(void);
 static bool fifo_empty(void);
@@ -16,6 +10,14 @@ static void reset_fifo(void);
 static union COMMAND_PACKET *push_fifo(void);
 static union COMMAND_PACKET  peek_fifo(void);
 static union COMMAND_PACKET  pop_fifo(void);
+
+static void gpu_tick(void);
+static void gpu_handle_gp0(void);
+static void gpu_handle_gp1(void);
+static void gpu_handle_memory_access(void);
+static void gpu_execute_op(void);
+static void gpu_set_mode(enum GPU_MODE mode);
+
 
 // gpu copy helpers
 static void gpu_copy_cpu_to_vram(void);
@@ -46,12 +48,13 @@ static void GP1_SPECIAL_OR_PROTOTYPE_TEXTURE_DISABLE(union COMMAND_PACKET packet
 static void GP1_DISPLAY_INFO(union COMMAND_PACKET packet);
 
 // external interface
-struct GPU *get_gpu(void) { return &gpu; }
-uint8_t *write_GP0(void) { gpu_set_mode(GP0); return (uint8_t *) push_fifo(); }
-uint8_t *write_GP1(void) { gpu_set_mode(GP1); return (uint8_t *) &gpu.gp1.command.value; }
+struct GPU *get_gpu(void)   { return &gpu; }
+uint8_t *write_GP0(void)    { gpu_set_mode(GP0); return (uint8_t *) push_fifo(); }
+uint8_t *write_GP1(void)    { gpu_set_mode(GP1); return (uint8_t *) &gpu.gp1.command.value; }
 uint8_t *read_GPUSTAT(void) { return (uint8_t *) &gpu.gpustat.value; }
 uint8_t *read_GPUREAD(void) { return (uint8_t *) &gpu.gpustat.value; }
 
+bool gpu_vram_write(void) { return gpu.vram_write; }
 
 bool gpustat_display_enable(void)             { return gpu.gpustat.display_enable; }
 bool gpustat_interrupt_request(void)          { return gpu.gpustat.interrupt_request; }
@@ -60,6 +63,8 @@ bool gpustat_ready_recieve_cmd_word(void)     { return gpu.gpustat.ready_recieve
 bool gpustat_ready_send_vram_cpu(void)        { return gpu.gpustat.ready_send_vram_cpu; }
 bool gpustat_ready_recieve_dma_block(void)    { return gpu.gpustat.ready_recieve_dma_block; }
 
+uint32_t gpu_display_vram_x_start(void)       { return gpu.display_vram_x_start; }
+uint32_t gpu_display_vram_y_start(void)       { return gpu.display_vram_y_start; }
 
 void gpu_reset(void) {
     // set gpustat starting values
@@ -74,7 +79,8 @@ void gpu_reset(void) {
 }
 
 void gpu_step(void) {
-    gpu.vram_write = false;
+    gpu_tick();
+
     switch (gpu.current_mode) {
         case IDLE: break;
         case GP0:  gpu_handle_gp0(); break;
@@ -141,6 +147,39 @@ void gpu_handle_memory_access(void) {
     assert(fifo_empty());
 }
 
+void gpu_tick(void) {
+    gpu.cycles++;
+
+    switch (gpu.gpustat.video_mode) {
+        case NTSC60HZ: 
+            if (gpu.cycles > 3413) {
+                gpu.scanlines++;
+                gpu.cycles       = 0;
+                gpu.render_phase = HBLANK;
+            }
+
+            if (gpu.scanlines > 263) {
+                gpu.scanlines    = 0;
+                gpu.cycles       = 0;
+                gpu.render_phase = VBLANK;
+            }
+            break;
+        case PAL50HZ: 
+            if (gpu.cycles > 3406) {
+                gpu.scanlines++;
+                gpu.cycles       = 0;
+                gpu.render_phase = HBLANK;
+            }
+
+            if (gpu.scanlines > 314) {
+                gpu.scanlines    = 0;
+                gpu.cycles       = 0;
+                gpu.render_phase = VBLANK;
+            }
+            break;
+    }
+}
+
 void gpu_set_mode(enum GPU_MODE mode) {
     switch (mode) {
         case IDLE:
@@ -165,12 +204,7 @@ void gpu_set_mode(enum GPU_MODE mode) {
 }
 
 bool gpu_wait_parameters(int param_num) {
-    if (fifo_len() < param_num)
-        return false;
-    
-    // Normally, this bit gets cleared when the command execution is busy (ie. once when the command and all of its parameters are received), 
-    // however, for Polygon and Line Rendering commands, the bit gets cleared immediately after receiving the command word
-    return true;
+    return !(fifo_len() < param_num);
 }
 
 void gpu_copy_vram_to_cpu(void) {
@@ -200,7 +234,6 @@ void gpu_copy_vram_to_cpu(void) {
         gpu_set_mode(IDLE);
         return;
     }
-
 
     uint32_t bot_address = VRAM_ADDRESS(x++, y);
     memory_gpu_load_16bit(bot_address, (uint32_t *) &bot);
@@ -325,15 +358,6 @@ static void CPU_TO_VRAM_COPY_RECTANGLE(void);
 static void VRAM_TO_CPU_COPY_RECTANGLE(void);
 
 // rendering helpers
-static void RENDER_THREE_POINT_POLYGON_MONOCHROME(bool semi_transparent);
-static void RENDER_FOUR_POINT_POLYGON_MONOCHROME(bool semi_transparent);
-static void RENDER_THREE_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending);
-static void RENDER_FOUR_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending);
-static void RENDER_THREE_POINT_POLYGON_SHADED(bool semi_transparent);
-static void RENDER_FOUR_POINT_POLYGON_SHADED(bool semi_transparent);
-static void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending);
-static void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending);
-
 // gp0 functions
 void GP0_NOP(union COMMAND_PACKET packet) {
     if (!gpu_wait_parameters(1))
@@ -353,29 +377,418 @@ void GP0_DIRECT_VRAM_ACCESS(union COMMAND_PACKET packet) {
 void GP0_INTERRUPT_REQUEST(union COMMAND_PACKET packet) { print_gpu_error("GP0 INTERRUPT REQUEST", "Unimplemented function OP:%x\n", packet.number); }
 void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
     switch (packet.number) {
-        case 0X20: RENDER_THREE_POINT_POLYGON_MONOCHROME(0); break;
-        case 0X22: RENDER_THREE_POINT_POLYGON_MONOCHROME(1); break;
-        case 0X28: RENDER_FOUR_POINT_POLYGON_MONOCHROME(0); break;
-        case 0X2A: RENDER_FOUR_POINT_POLYGON_MONOCHROME(1); break;
+        case 0X20: {
+            if (!gpu_wait_parameters(4))
+                return;
 
-        case 0X24: RENDER_THREE_POINT_POLYGON_TEXTURED(0, 1); break;
-        case 0X25: RENDER_THREE_POINT_POLYGON_TEXTURED(0, 0); break;
-        case 0X26: RENDER_THREE_POINT_POLYGON_TEXTURED(1, 1); break;
-        case 0X27: RENDER_THREE_POINT_POLYGON_TEXTURED(1, 0); break;
-        case 0X2C: RENDER_FOUR_POINT_POLYGON_TEXTURED(0, 1); break;
-        case 0X2D: RENDER_FOUR_POINT_POLYGON_TEXTURED(0, 0); break;
-        case 0X2E: RENDER_FOUR_POINT_POLYGON_TEXTURED(1, 1); break;
-        case 0X2F: RENDER_FOUR_POINT_POLYGON_TEXTURED(1, 0); break;
+            printf("RENDER_THREE_POINT_POLYGON_MONOCHROME\n");
 
-        case 0X30: RENDER_THREE_POINT_POLYGON_SHADED(0); break;
-        case 0X32: RENDER_THREE_POINT_POLYGON_SHADED(1); break;
-        case 0X38: RENDER_FOUR_POINT_POLYGON_SHADED(0); break;
-        case 0X3A: RENDER_FOUR_POINT_POLYGON_SHADED(1); break;
+            uint32_t c, v1, v2, v3, v4;
 
-        case 0X34: RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(0, 1); break;
-        case 0X36: RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(1, 1); break;
-        case 0X3C: RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(0, 1); break;
-        case 0X3E: RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(1, 1); break;
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            v2 = pop_fifo().value; 
+            v3 = pop_fifo().value; 
+
+            RENDER_THREE_POINT_POLYGON_MONOCHROME(c, v1, v2, v3, false);
+
+            break;
+        }
+        case 0X22: {
+            if (!gpu_wait_parameters(4))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_MONOCHROME\n");
+
+            uint32_t c, v1, v2, v3, v4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            v2 = pop_fifo().value; 
+            v3 = pop_fifo().value; 
+
+            RENDER_THREE_POINT_POLYGON_MONOCHROME(c, v1, v2, v3, true);
+
+            break;
+        }
+        case 0X28: {
+            if (!gpu_wait_parameters(5))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_MONOCHROME\n");
+
+            uint32_t c, v1, v2, v3, v4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            v2 = pop_fifo().value; 
+            v3 = pop_fifo().value; 
+            v4 = pop_fifo().value; 
+            
+            RENDER_FOUR_POINT_POLYGON_MONOCHROME(c, v1, v2, v3, v4, false);
+
+            break;
+        }
+        case 0X2A: {
+            if (!gpu_wait_parameters(5))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_MONOCHROME\n");
+
+            uint32_t c, v1, v2, v3, v4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            v2 = pop_fifo().value; 
+            v3 = pop_fifo().value; 
+            v4 = pop_fifo().value; 
+
+            RENDER_FOUR_POINT_POLYGON_MONOCHROME(c, v1, v2, v3, v4, true);
+
+            break;
+        }
+        case 0X24: {
+            if (!gpu_wait_parameters(7))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, t1, t2, t3;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+
+            RENDER_THREE_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, false, true);
+
+            break;
+        }
+        case 0X25: {
+            if (!gpu_wait_parameters(7))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, t1, t2, t3;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+
+            RENDER_THREE_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, false, false);
+
+            break;
+        }
+        case 0X26: {
+            if (!gpu_wait_parameters(7))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, t1, t2, t3;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+
+            RENDER_THREE_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, true, true);
+
+            break;
+        }
+        case 0X27: {
+            if (!gpu_wait_parameters(7))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, t1, t2, t3;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+
+            RENDER_THREE_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, true, false);
+
+            break;
+        }
+        case 0X2C: {
+            if (!gpu_wait_parameters(9))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+            v4 = pop_fifo().value;
+            t4 = pop_fifo().value;
+
+            RENDER_FOUR_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, v4, t4, false, true);
+
+            break;
+        }
+        case 0X2D: {
+            if (!gpu_wait_parameters(9))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+            v4 = pop_fifo().value;
+            t4 = pop_fifo().value;
+
+            RENDER_FOUR_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, v4, t4, false, false);
+
+            break;
+        }
+        case 0X2E: {
+            if (!gpu_wait_parameters(9))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+            v4 = pop_fifo().value;
+            t4 = pop_fifo().value;
+
+            RENDER_FOUR_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, v4, t4, true, true);
+
+            break;
+        }
+        case 0X2F: {
+            if (!gpu_wait_parameters(9))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            
+            uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
+
+            c  = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+            v4 = pop_fifo().value;
+            t4 = pop_fifo().value;
+
+            RENDER_FOUR_POINT_POLYGON_TEXTURED(c, v1, t1, v2, t2, v3, t3, v4, t4, true, false);
+
+            break;
+        }
+        case 0X30: {
+            if (!gpu_wait_parameters(6))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_SHADED\n");
+
+            uint32_t c1, v1, v2, c2, v3, c3;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value; 
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value; 
+
+            RENDER_THREE_POINT_POLYGON_SHADED(c1, v1, c2, v2, c3, v3, false);
+
+            break;
+        }
+        case 0X32: {
+            if (!gpu_wait_parameters(6))
+                return;
+
+            uint32_t c1, v1, v2, c2, v3, c3;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value; 
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value; 
+
+            RENDER_THREE_POINT_POLYGON_SHADED(c1, v1, c2, v2, c3, v3, true);
+
+            break;
+        }
+        case 0X38: {
+            if (!gpu_wait_parameters(8))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_SHADED\n");
+
+            uint32_t c1, c2, c3, c4, v1, v2, v3, v4;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            c4 = pop_fifo().value;
+            v4 = pop_fifo().value;
+
+            RENDER_FOUR_POINT_POLYGON_SHADED(c1, v1, c2, v2, c3, v3, c4, v4, false);
+
+            break;
+        }
+        case 0X3A: {
+            if (!gpu_wait_parameters(8))
+                return;
+
+            printf("RENDER_FOUR_POINT_POLYGON_SHADED\n");
+
+            uint32_t c1, c2, c3, c4, v1, v2, v3, v4;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            c4 = pop_fifo().value;
+            v4 = pop_fifo().value;
+
+            RENDER_FOUR_POINT_POLYGON_SHADED(c1, v1, c2, v2, c3, v3, c4, v4, true);
+
+            break;
+        }
+        case 0X34: {
+            if (!gpu_wait_parameters(9))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED\n");
+            
+            uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+
+            RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(c1, v1, t1, c2, v2, t2, c3, v3, t3, false, true);
+
+            break;
+        }
+        case 0X36: {
+            if (!gpu_wait_parameters(9))
+                return;
+
+            printf("RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED\n");
+            
+            uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+
+            RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(c1, v1, t1, c2, v2, t2, c3, v3, t3, true, true);
+
+            break;
+        }
+        case 0X3C: {
+            if (!gpu_wait_parameters(12))
+                return;
+            
+            printf("RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED\n");
+
+            uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3, c4, v4, t4;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+            c4 = pop_fifo().value;
+            v4 = pop_fifo().value;
+            t4 = pop_fifo().value;
+            
+
+            RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(c1, v1, t1, c2, v2, t2, c3, v3, t3, c4, v4, t4, false, true);
+
+            break;
+        }
+        case 0X3E: {
+            if (!gpu_wait_parameters(12))
+                return;
+            
+            printf("RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED\n");
+
+            uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3, c4, v4, t4;
+
+            c1 = pop_fifo().value;
+            v1 = pop_fifo().value;
+            t1 = pop_fifo().value;
+            c2 = pop_fifo().value;
+            v2 = pop_fifo().value;
+            t2 = pop_fifo().value;
+            c3 = pop_fifo().value;
+            v3 = pop_fifo().value;
+            t3 = pop_fifo().value;
+            c4 = pop_fifo().value;
+            v4 = pop_fifo().value;
+            t4 = pop_fifo().value;
+            
+
+            RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(c1, v1, t1, c2, v2, t2, c3, v3, t3, c4, v4, t4, true, true);
+
+            break;
+        }
     }
 }
 void GP0_RENDER_LINES(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); pop_fifo(); }
@@ -496,7 +909,7 @@ void GP1_RESET(union COMMAND_PACKET packet) {
     // clear the fifo
     reset_fifo();
 
-    gpu.gpustat.value = 0X14002000;
+    gpu.gpustat.value = 0X14802000;
     
     gpu.texture_window_mask_x = 0;
     gpu.texture_window_mask_y = 0;
@@ -661,56 +1074,3 @@ void VRAM_TO_CPU_COPY_RECTANGLE(void) {
     gpu_set_mode(COPY);
     gpu.copy.direction = VRAM_TO_CPU;
 }
-
-void RENDER_THREE_POINT_POLYGON_MONOCHROME(bool semi_transparent) { print_gpu_error("RENDER", "Unimplemented function", NULL); }
-void RENDER_FOUR_POINT_POLYGON_MONOCHROME(bool semi_transparent) {
-    // for command and parameters
-    if (!gpu_wait_parameters(5))
-        return;
-
-    uint32_t color;
-    union VERTEX v1, v2, v3, v4;
-
-    color = pop_fifo().value;
-    v1.value = pop_fifo().value;
-    v2.value = pop_fifo().value;
-    v3.value = pop_fifo().value;
-    v4.value = pop_fifo().value;
-    printf("four point monochrome ploygon!!\n");
-}
-void RENDER_THREE_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function", NULL); }
-void RENDER_FOUR_POINT_POLYGON_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function four point textured", NULL); }
-void RENDER_THREE_POINT_POLYGON_SHADED(bool semi_transparent) { 
-    if (!gpu_wait_parameters(6))
-        return;
-
-    uint32_t c1, c2, c3;
-    union VERTEX v1, v2, v3;
-
-    c1       = pop_fifo().value;
-    v1.value = pop_fifo().value;
-    c2       = pop_fifo().value;
-    v2.value = pop_fifo().value;
-    c3       = pop_fifo().value;
-    v3.value = pop_fifo().value;
-    printf("triangle point shaded ploygon!!\n");
-}
-void RENDER_FOUR_POINT_POLYGON_SHADED(bool semi_transparent) {
-    if (!gpu_wait_parameters(8))
-        return;
-
-    uint32_t c1, c2, c3, c4;
-    union VERTEX v1, v2, v3, v4;
-
-    c1       = pop_fifo().value;
-    v1.value = pop_fifo().value;
-    c2       = pop_fifo().value;
-    v2.value = pop_fifo().value;
-    c3       = pop_fifo().value;
-    v3.value = pop_fifo().value;
-    c4       = pop_fifo().value;
-    v4.value = pop_fifo().value;
-    printf("four point shaded ploygon!!\n");
-}
-void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function", NULL); }
-void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(bool semi_transparent, bool texture_blending) { print_gpu_error("RENDER", "Unimplemented function", NULL); }

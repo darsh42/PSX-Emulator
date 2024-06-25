@@ -8,6 +8,12 @@
 #define VRAM_WIDTH 1024
 #define VRAM_ADDRESS(x, y) y * VRAM_WIDTH + x
 
+enum GPU_RENDER_PHASE {
+    RENDER,     // main renderering mode
+    HBLANK,     // when dots > horizontal resolution
+    VBLANK      // when scanlines > vertical resolution
+};
+
 enum GPU_COPY_DIRECTION {
     VRAM_TO_VRAM = 0,
     CPU_TO_VRAM  = 1,
@@ -89,6 +95,33 @@ union VERTEX {
     };
 };
 
+union COLOR_24BIT {
+    uint32_t value;
+    struct {
+        uint32_t red:   8;
+        uint32_t green: 8;
+        uint32_t blue:  8;
+    };
+};
+
+union COLOR_15BIT {
+    uint32_t value;
+    struct {
+        uint32_t red:   5;
+        uint32_t green: 5;
+        uint32_t blue:  5;
+        uint32_t mask:  1;
+    };
+};
+
+#define VERTEX_AND_COLOR_TO_DATA(v, c)    \
+        ((float) (int) v.x / 512) - 1.0f, \
+        1.0f - ((float) (int) v.y / 256), \
+        0.0f,                             \
+        (c.red   / (float) 0X1f),         \
+        (c.green / (float) 0X1f),         \
+        (c.blue  / (float) 0X1f)
+
 union GPUSTAT {
     uint32_t value;
     struct {
@@ -158,8 +191,10 @@ struct GPU {
     enum GPU_MODE previous_mode;
     bool vram_write;
 
-    uint32_t dots;
+    uint32_t cycles;
     uint32_t scanlines;
+
+    enum GPU_RENDER_PHASE render_phase;
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
@@ -185,10 +220,60 @@ struct GPU {
     bool texture_rectangle_y_flip; // if texture is flipped in y direction 
 };
 
+// renderer functions
+extern void RENDER_THREE_POINT_POLYGON_MONOCHROME(
+    uint32_t c1, uint32_t v1, 
+                 uint32_t v2, 
+                 uint32_t v3, 
+    bool semi_transparent
+);
+extern void RENDER_FOUR_POINT_POLYGON_MONOCHROME(
+    uint32_t c1, uint32_t v1, 
+                 uint32_t v2, 
+                 uint32_t v3, 
+                 uint32_t v4,
+    bool semi_transparent
+);
+extern void RENDER_THREE_POINT_POLYGON_TEXTURED(
+    uint32_t c1, uint32_t v1, uint32_t t1_clut,
+                 uint32_t v2, uint32_t t2_page,
+                 uint32_t v3, uint32_t t3,
+    bool semi_transparent, bool texture_blending
+);
+extern void RENDER_FOUR_POINT_POLYGON_TEXTURED(
+    uint32_t c1, uint32_t v1, uint32_t t1_clut,
+                 uint32_t v2, uint32_t t2_page,
+                 uint32_t v3, uint32_t t3,
+                 uint32_t v4, uint32_t t4,
+    bool semi_transparent, bool texture_blending
+);
+extern void RENDER_THREE_POINT_POLYGON_SHADED(
+    uint32_t c1, uint32_t v1,
+    uint32_t c2, uint32_t v2,
+    uint32_t c3, uint32_t v3,
+    bool semi_transparent
+);
+extern void RENDER_FOUR_POINT_POLYGON_SHADED(
+    uint32_t c1, uint32_t v1,
+    uint32_t c2, uint32_t v2,
+    uint32_t c3, uint32_t v3,
+    uint32_t c4, uint32_t v4,
+    bool semi_transparent
+);
+extern void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(
+    uint32_t c1, uint32_t v1, uint32_t t1_clut,
+    uint32_t c2, uint32_t v2, uint32_t t2_page,
+    uint32_t c3, uint32_t v3, uint32_t t3,
+    bool semi_transparent, bool texture_blending
+);
+extern void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(
+    uint32_t c1, uint32_t v1, uint32_t t1_clut,
+    uint32_t c2, uint32_t v2, uint32_t t2_page,
+    uint32_t c3, uint32_t v3, uint32_t t3,
+    uint32_t c4, uint32_t v4, uint32_t t4,
+    bool semi_transparent, bool texture_blending
+);
 
-extern PSX_ERROR sdl_render_clear(void);
-extern PSX_ERROR sdl_update(void);
-extern PSX_ERROR sdl_render_present(void);
 
 // memory functions
 extern uint8_t *memory_pointer(uint32_t address);

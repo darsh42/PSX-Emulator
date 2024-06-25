@@ -51,9 +51,7 @@ PSX_ERROR debugger_destroy(void);
 
 void sdl_initialize(void);
 void sdl_destroy(void);
-PSX_ERROR sdl_render_clear(void);
 PSX_ERROR sdl_update(void);
-PSX_ERROR sdl_render_present(void);
 
 #ifdef DEBUG
 // disassembler

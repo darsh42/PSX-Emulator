@@ -792,7 +792,7 @@ debugger_gpu PARAMS((char *args)) {
         case 3: str = "640"; break;
     }
     printf("[GPU]  GPUSTAT: horizontal_resolution_1     = %s\n", str);
-    printf("[GPU]  GPUSTAT: vertical_resolution         = %d\n", (stat.vertical_resolution + 1) * 240);
+    printf("[GPU]  GPUSTAT: vertical_resolution         = %d\n", (stat.vertical_resolution ) ? 480: 240);
     printf("[GPU]  GPUSTAT: video_mode                  = %s\n", (stat.video_mode) ? "PAL/50Hz": "NTSC/60Hz");
     printf("[GPU]  GPUSTAT: display_area_color_depth    = %s\n", (stat.display_area_color_depth) ? "24bit": "15bit");
     printf("[GPU]  GPUSTAT: vertical_interlace          = %s\n", (stat.vertical_interlace) ? "enabled": "disabled");
