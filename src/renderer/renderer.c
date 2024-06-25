@@ -1,4 +1,5 @@
 #include "../../include/sdl.h"
+#include <time.h>
 
 static GLuint renderer_load_shader(const char *file) {
     // create file paths for vertex and fragment shaders
@@ -151,19 +152,18 @@ void renderer_init(struct SDL_HANDLER *r, const char *shader_file) {
     // create vertex arrays and set the attribute locations
     glGenVertexArrays(1, &r->vao);
     glBindVertexArray(r->vao);
-    glVertexAttribPointer(0, 2, GL_SHORT, GL_FALSE, sizeof(vertex_t), (void *)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, position));
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3,  GL_BYTE, GL_FALSE, sizeof(vertex_t), (void *)(sizeof(Position_t)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, color));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 2,  GL_BYTE, GL_FALSE, sizeof(vertex_t), (void *)(sizeof(Position_t) + sizeof(Color_t)));
+    glVertexAttribPointer(2, 2,  GL_BYTE, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, texpos));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(3, 2,  GL_BYTE, GL_FALSE, sizeof(vertex_t), (void *)(sizeof(Position_t) + sizeof(Color_t) + sizeof(Texpos_t)));
+    glVertexAttribPointer(3, 2, GL_SHORT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, texpage));
     glEnableVertexAttribArray(3);
-
 
     // load and compile shaders
     r->shader = renderer_load_shader(shader_file);
-    r->offset = glGetUniformLocation(r->shader, "offset");
+    // r->offset = glGetUniformLocation(r->shader, "offset");
 }
 
 void renderer_start_frame(struct SDL_HANDLER *r) {
@@ -177,7 +177,7 @@ void renderer_end_frame(struct SDL_HANDLER *r) {
 
     glUseProgram(r->shader);
     glBindVertexArray(r->vao);
-    glUniform2i(r->offset, gpu_display_vram_x_start(), gpu_display_vram_y_start());
+    // glUniform2ui(r->offset, gpu_display_vram_x_start(), gpu_display_vram_y_start());
     glDrawArrays(GL_TRIANGLES, 0, r->triangle_count * 3);
 }
 

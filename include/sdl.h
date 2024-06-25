@@ -17,18 +17,19 @@
 #define WIN_HEIGHT 480
 #define WIN_FLAGS SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
 
-#define PRINT_POS(p) printf("pos: %d, %d\n", p.x, p.y);
-#define PRINT_COL(c) printf("col: %d, %d, %d\n", c.r, c.g, c.b);
+// #define PRINT_POS(p) printf("pos: %f, %f\n", (float) p.x / 512.0f - 1.0, 1.0 - (float) p.y / 256.0f);
+#define PRINT_POS(p) printf("pos: %f, %f\n", p.x, p.y);
+#define PRINT_COL(c) printf("col: %f, %f, %f\n", c.r, c.g, c.b);
 
 typedef struct OPENGL_POSITION {
-    GLshort x;
-    GLshort y;
+    float x;
+    float y;
 } Position_t;
 
 typedef struct OPENGL_COLOR {
-    GLubyte r;
-    GLubyte g;
-    GLubyte b;
+    float r;
+    float g;
+    float b;
 } Color_t;
 
 typedef struct OPENGL_TEXPOS {

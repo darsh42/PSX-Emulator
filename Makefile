@@ -6,8 +6,8 @@ TARGET=target/psx
 WARNINGS=-Wall -Wextra 
 IGNORE_WARNINGS=-Wno-type-limits -Wno-unused-function -Wno-sign-compare -Wno-unused-parameter
 LIBRARIES=-lm -lSDL2 -lreadline
-FLAGS=$(WARNINGS) $(IGNORE_WARNINGS) -g
-# -g -pg -fsanitize=address 
+FLAGS=$(WARNINGS) $(IGNORE_WARNINGS)
+DEBUG=-g -pg -fsanitize=address 
 
 run-debug:
 	clear 
@@ -15,7 +15,7 @@ run-debug:
 	./target/psx misc/SCPH1001.BIN .
 
 debug:
-	$(CC) $(FILES) $(DEBUG) -o $(TARGET) $(FLAGS) $(LIBRARIES)
+	$(CC) $(FILES) $(DEBUG) -o $(TARGET) $(FLAGS) $(DEBUG) $(LIBRARIES)
 
 psx:
-	$(CC) $(FILES) -o $(TARGET) $(FLAGS) $(LIBRARIES)
+	$(CC) $(FILES) -o $(TARGET) $(FLAGS) $(LIBRARIES) -O3

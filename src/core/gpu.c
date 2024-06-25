@@ -381,7 +381,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(4))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_MONOCHROME\n");
+            #endif
 
             uint32_t c, v1, v2, v3, v4;
 
@@ -398,7 +400,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(4))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_MONOCHROME\n");
+            #endif
 
             uint32_t c, v1, v2, v3, v4;
 
@@ -414,8 +418,10 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
         case 0X28: {
             if (!gpu_wait_parameters(5))
                 return;
-
+            
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_MONOCHROME\n");
+            #endif
 
             uint32_t c, v1, v2, v3, v4;
 
@@ -433,7 +439,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(5))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_MONOCHROME\n");
+            #endif
 
             uint32_t c, v1, v2, v3, v4;
 
@@ -451,7 +459,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(7))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, t1, t2, t3;
 
@@ -471,7 +481,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(7))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, t1, t2, t3;
 
@@ -491,7 +503,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(7))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, t1, t2, t3;
 
@@ -511,7 +525,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(7))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, t1, t2, t3;
 
@@ -531,7 +547,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(9))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
 
@@ -553,7 +571,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(9))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
 
@@ -575,7 +595,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(9))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
 
@@ -596,8 +618,10 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
         case 0X2F: {
             if (!gpu_wait_parameters(9))
                 return;
-
+            
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_TEXTURED\n");
+            #endif
             
             uint32_t c, v1, v2, v3, v4, t1, t2, t3, t4;
 
@@ -619,7 +643,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(6))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_SHADED\n");
+            #endif
 
             uint32_t c1, v1, v2, c2, v3, c3;
 
@@ -638,6 +664,10 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(6))
                 return;
 
+            #ifdef DEBUG
+            printf("RENDER_THREE_POINT_POLYGON_SHADED\n");
+            #endif
+
             uint32_t c1, v1, v2, c2, v3, c3;
 
             c1 = pop_fifo().value;
@@ -655,7 +685,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(8))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_SHADED\n");
+            #endif
 
             uint32_t c1, c2, c3, c4, v1, v2, v3, v4;
 
@@ -676,7 +708,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(8))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_SHADED\n");
+            #endif
 
             uint32_t c1, c2, c3, c4, v1, v2, v3, v4;
 
@@ -697,7 +731,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(9))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED\n");
+            #endif
             
             uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3;
 
@@ -719,7 +755,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(9))
                 return;
 
+            #ifdef DEBUG
             printf("RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED\n");
+            #endif
             
             uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3;
 
@@ -741,7 +779,9 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             if (!gpu_wait_parameters(12))
                 return;
             
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED\n");
+            #endif
 
             uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3, c4, v4, t4;
 
@@ -766,8 +806,10 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
         case 0X3E: {
             if (!gpu_wait_parameters(12))
                 return;
-            
+
+            #ifdef DEBUG
             printf("RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED\n");
+            #endif
 
             uint32_t c1, c2, c3, v1, v2, v3, t1, t2, t3, c4, v4, t4;
 

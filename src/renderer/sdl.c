@@ -1,4 +1,5 @@
 #include "../../include/sdl.h"
+#include <SDL2/SDL_events.h>
 
 struct SDL_HANDLER handler;
 
@@ -27,7 +28,9 @@ PSX_ERROR sdl_initialize(void) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-    handler.context = SDL_GL_CreateContext(handler.window);
+    if ((handler.context = SDL_GL_CreateContext(handler.window)) == NULL) {
+        exit(-1);
+    }
     gladLoadGLLoader(SDL_GL_GetProcAddress);
 
     glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
@@ -42,10 +45,17 @@ PSX_ERROR sdl_destroy(void) {
 }
 
 PSX_ERROR sdl_update(void) {
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        if(e.type == SDL_QUIT) {
+            exit(0);
+        }
+    }
+
     renderer_end_frame(&handler);
     SDL_GL_SwapWindow(handler.window);
-    // glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    // renderer_start_frame(&handler);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    renderer_start_frame(&handler);
     return set_PSX_error(NO_ERROR);
 }
 
@@ -55,8 +65,10 @@ static Position_t pos_from_gp0(uint32_t p) {
     pos.x = (p >>  0) & 0xffff;
     pos.y = (p >> 16) & 0xffff;
 
-    // printf("pos: %x\n", p);
-    PRINT_POS(pos);
+    pos.x = (pos.x / 320.0f) - 1.0f;
+    pos.y = 1.0f - (pos.y / 240.0f);
+
+    // PRINT_POS(pos);
 
     return pos;
 }
@@ -68,8 +80,11 @@ static Color_t col_from_gp0(uint32_t c) {
     col.g = (c >>  8) & 0xff;
     col.b = (c >> 16) & 0xff;
 
-    // printf("col: %x\n", c);
-    PRINT_COL(col);
+    col.r = col.r / 255.0f;
+    col.g = col.g / 255.0f;
+    col.b = col.b / 255.0f;
+
+    // PRINT_COL(col);
 
     return col;
 }

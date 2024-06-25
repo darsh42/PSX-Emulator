@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-#define DEBUG
 
 typedef enum PSX_ERROR {
     NO_ERROR,
@@ -34,9 +33,5 @@ typedef enum PSX_ERROR {
     SDL_TEXTURE_CREATION,
     SDL_RENDER_SCREEN
 } PSX_ERROR;
-
-#ifdef DEBUG
-extern void peek_cpu_registers(void);
-#endif
 
 #endif//ERROR_H_INCLUDED
