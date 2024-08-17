@@ -1,4 +1,4 @@
-#include "../../include/psx.h"
+#include "psx.h"
 
 struct PSX psx;
 
@@ -32,13 +32,13 @@ void psx_create(int argc, char **argv) {
     sdl_initialize();
 
 #ifdef DEBUG
-    debugger_reset();
+    // debugger_reset();
 #endif
 }
 
 void psx_step(void) {
 #ifdef DEBUG
-    debugger_exec();
+    // debugger_exec();
 #endif
 
     timers_step();

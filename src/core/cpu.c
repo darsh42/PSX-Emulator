@@ -1,4 +1,4 @@
-#include "../../include/cpu.h"
+#include "cpu.h"
 
 // main cpu struct
 static struct CPU cpu;
@@ -167,8 +167,7 @@ void cpu_branch_delay(void) {
 void cpu_load_delay(void) {
     for (int i = 0; i < 32; i++) {
         switch (cpu.load[i].stage) {
-            case UNUSED:    
-                break;
+            case UNUSED: break;
             case TRANSFER: 
                 cpu.R[i] = cpu.load[i].value;
                 cpu.load[i].stage = UNUSED;

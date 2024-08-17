@@ -1,4 +1,4 @@
-#include "../../include/gpu.h"
+#include "gpu.h"
 
 static struct GPU gpu;
 
@@ -63,8 +63,8 @@ bool gpustat_ready_recieve_cmd_word(void)     { return gpu.gpustat.ready_recieve
 bool gpustat_ready_send_vram_cpu(void)        { return gpu.gpustat.ready_send_vram_cpu; }
 bool gpustat_ready_recieve_dma_block(void)    { return gpu.gpustat.ready_recieve_dma_block; }
 
-uint32_t gpu_display_vram_x_start(void)       { return gpu.display_vram_x_start; }
-uint32_t gpu_display_vram_y_start(void)       { return gpu.display_vram_y_start; }
+uint32_t gpu_display_vram_x_start(void)       { return gpu.drawing_offset_x; }
+uint32_t gpu_display_vram_y_start(void)       { return gpu.drawing_offset_y; }
 
 void gpu_reset(void) {
     // set gpustat starting values
@@ -385,7 +385,7 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             printf("RENDER_THREE_POINT_POLYGON_MONOCHROME\n");
             #endif
 
-            uint32_t c, v1, v2, v3, v4;
+            uint32_t c, v1, v2, v3;
 
             c  = pop_fifo().value;
             v1 = pop_fifo().value;
@@ -404,7 +404,7 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
             printf("RENDER_THREE_POINT_POLYGON_MONOCHROME\n");
             #endif
 
-            uint32_t c, v1, v2, v3, v4;
+            uint32_t c, v1, v2, v3;
 
             c  = pop_fifo().value;
             v1 = pop_fifo().value;
@@ -833,7 +833,7 @@ void GP0_RENDER_POLYGONS(union COMMAND_PACKET packet) {
         }
     }
 }
-void GP0_RENDER_LINES(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); pop_fifo(); }
+void GP0_RENDER_LINES(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); }
 void GP0_RENDER_RECTANGLES(union COMMAND_PACKET packet) { print_gpu_error("GP0 OP", "Unimplemented function OP: %x\n", packet.number); }
 void GP0_RENDERING_ATTRIBUTES(union COMMAND_PACKET packet) {
     // pop current command as it doesnt need more arguments
@@ -1059,10 +1059,10 @@ void CPU_TO_VRAM_COPY_RECTANGLE(void) {
     if (!gpu_wait_parameters(3))
         return;
 
-    union COMMAND_PACKET command;
+    pop_fifo(); // command
+
     uint32_t destination, dimensions;
 
-    command     = pop_fifo();
     destination = (uint32_t) pop_fifo().value;
     dimensions  = (uint32_t) pop_fifo().value;
 
@@ -1092,10 +1092,10 @@ void VRAM_TO_CPU_COPY_RECTANGLE(void) {
     if (!gpu_wait_parameters(3))
         return;
 
-    union COMMAND_PACKET command;
+    pop_fifo(); // command
+
     uint32_t source, dimensions;
     
-    command    = pop_fifo();
     source     = pop_fifo().value;
     dimensions = pop_fifo().value;
 

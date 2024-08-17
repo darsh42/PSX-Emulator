@@ -1,4 +1,4 @@
-#include "../../include/timers.h"
+#include "timers.h"
 
 static struct TIMERS timers;
 

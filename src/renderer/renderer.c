@@ -1,5 +1,120 @@
-#include "../../include/sdl.h"
-#include <time.h>
+#include "sdl.h"
+
+static GLuint renderer_load_shader(const char *file);
+
+void renderer_init(struct SDL_HANDLER *r, const char *shader_file) {
+    // create vertex buffers and allocate memory for verticies
+    glGenBuffers(1, &r->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
+    glBufferData(GL_ARRAY_BUFFER, MAX_VERTICIES * sizeof(vertex_t), NULL, GL_DYNAMIC_DRAW);
+
+    // create vertex arrays and set the attribute locations
+    glGenVertexArrays(1, &r->vao);
+    glBindVertexArray(r->vao);
+    glVertexAttribPointer(0, 2, GL_SHORT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, position));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, color));
+    glVertexAttribPointer(2, 2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, texpos));
+    glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, texpage));
+    glVertexAttribPointer(4, 2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, clutpos));
+    glVertexAttribPointer(5, 1, GL_UNSIGNED_INT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, blend));
+    glVertexAttribPointer(6, 1, GL_UNSIGNED_INT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, depth));
+    glVertexAttribPointer(7, 1, GL_UNSIGNED_INT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, draw_texture));
+    glVertexAttribPointer(8, 1, GL_UNSIGNED_INT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, semi_transparent));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glEnableVertexAttribArray(3);
+    glEnableVertexAttribArray(4);
+    glEnableVertexAttribArray(5);
+    glEnableVertexAttribArray(6);
+    glEnableVertexAttribArray(7);
+    glEnableVertexAttribArray(8);
+
+
+    // /* The Idea behind the three pixel buffers is to create an array that is linked cpu to gpu,  *
+    //  * such that when the pixle buffers are updated the textures exposed to the gpu will reflect *
+    //  * those changes                                                                             */
+    // GLuint tex16, tex8, tex4;
+    // GLuint pbo16, pbo8, pbo4;
+
+    // /* 16bit vram buffer */
+    // glGenBuffers(GL_PIXEL_UNPACK_BUFFER_BINDING, &pbo16);
+    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER_BINDING,  pbo16);
+
+    // glBufferStorage(GL_PIXEL_UNPACK_BUFFER_BINDING, 1024 * 512, NULL, GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT);
+    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER_BINDING, 0);
+    // 
+    // glGenTextures(GL_TEXTURE_2D, &tex16);
+    // glBindTexture(GL_TEXTURE_2D,  tex16);
+
+    // /* Set the texture parameters */
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // 
+    // /* allocate space on the gpu */
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, 1024, 512, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+
+    // /* select created texture and created pbo */
+    // glBindTexture(GL_TEXTURE_2D, tex16);
+    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER_BINDING, pbo16);
+
+    // uint16_t *ptr16 = (uint16_t *) glMapBufferRange(GL_PIXEL_UNPACK_BUFFER_BINDING, 0, 1024*512, GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT);
+
+    
+
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        printf("[ERROR]: GL %d\n", err);
+        exit(-1);
+    }
+
+
+    // load and compile shaders
+    r->shader = renderer_load_shader(shader_file);
+    r->offset = glGetUniformLocation(r->shader, "offset");
+}
+
+void renderer_start_frame(struct SDL_HANDLER *r) {
+    glClear(GL_COLOR_BUFFER_BIT);
+    r->triangle_count = 0;
+}
+
+void renderer_end_frame(struct SDL_HANDLER *r) {
+    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * r->triangle_count * sizeof(vertex_t), r->render_vertcies);
+
+    glUseProgram(r->shader);
+    glUniform2ui(r->offset, gpu_display_vram_x_start(), gpu_display_vram_y_start());
+    glBindVertexArray(r->vao);
+
+    glGenTextures(1, &r->texture);
+    glBindTexture(GL_TEXTURE_2D, r->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 512, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, memory_VRAM_pointer());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glDrawArrays(GL_TRIANGLES, 0, r->triangle_count * 3);
+
+    glDeleteTextures(1, &r->texture);
+}
+
+void renderer_push_triangle(struct SDL_HANDLER *r, vertex_t v1, vertex_t v2, vertex_t v3) {
+    if (r->triangle_count == MAX_TRIANGLES) {
+        renderer_end_frame(r);
+        renderer_start_frame(r);
+    }
+    
+    r->render_vertcies[r->triangle_count * 3 + 0] = v1;
+    r->render_vertcies[r->triangle_count * 3 + 1] = v2;
+    r->render_vertcies[r->triangle_count * 3 + 2] = v3;
+
+    r->triangle_count++;
+}
 
 static GLuint renderer_load_shader(const char *file) {
     // create file paths for vertex and fragment shaders
@@ -141,55 +256,4 @@ static GLuint renderer_load_shader(const char *file) {
     printf("[LOG]: loaded shaders\n");
 
     return program;
-}
-
-void renderer_init(struct SDL_HANDLER *r, const char *shader_file) {
-    // create vertex buffers and allocate memory for verticies
-    glGenBuffers(1, &r->vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_VERTICIES * sizeof(vertex_t), NULL, GL_DYNAMIC_DRAW);
-
-    // create vertex arrays and set the attribute locations
-    glGenVertexArrays(1, &r->vao);
-    glBindVertexArray(r->vao);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, position));
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, color));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 2,  GL_BYTE, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, texpos));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(3, 2, GL_SHORT, GL_FALSE, sizeof(vertex_t), (void *) offsetof(vertex_t, texpage));
-    glEnableVertexAttribArray(3);
-
-    // load and compile shaders
-    r->shader = renderer_load_shader(shader_file);
-    // r->offset = glGetUniformLocation(r->shader, "offset");
-}
-
-void renderer_start_frame(struct SDL_HANDLER *r) {
-    glClear(GL_COLOR_BUFFER_BIT);
-    r->triangle_count = 0;
-}
-
-void renderer_end_frame(struct SDL_HANDLER *r) {
-    glBindBuffer(GL_ARRAY_BUFFER, r->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * r->triangle_count * sizeof(vertex_t), r->render_vertcies);
-
-    glUseProgram(r->shader);
-    glBindVertexArray(r->vao);
-    // glUniform2ui(r->offset, gpu_display_vram_x_start(), gpu_display_vram_y_start());
-    glDrawArrays(GL_TRIANGLES, 0, r->triangle_count * 3);
-}
-
-void renderer_push_triangle(struct SDL_HANDLER *r, vertex_t v1, vertex_t v2, vertex_t v3) {
-    if (r->triangle_count == MAX_TRIANGLES) {
-        renderer_end_frame(r);
-        renderer_start_frame(r);
-    }
-    
-    r->render_vertcies[r->triangle_count * 3 + 0] = v1;
-    r->render_vertcies[r->triangle_count * 3 + 1] = v2;
-    r->render_vertcies[r->triangle_count * 3 + 2] = v3;
-
-    r->triangle_count++;
 }

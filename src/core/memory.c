@@ -1,4 +1,4 @@
-#include "../../include/memory.h"
+#include "memory.h"
 
 static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t aligned, bool load);
 
@@ -32,7 +32,7 @@ uint8_t *memory_VRAM_pointer(void) {
 }
 
 uint8_t *memory_pointer(uint32_t address) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     if (memory_cpu_map(&segment, &address, NULL, 4, true) != NO_ERROR) {
         print_memory_error("memory_cpu_store_32bit", "ADDRESS: 0X%08x\n", address);
         exit(1);
@@ -42,7 +42,7 @@ uint8_t *memory_pointer(uint32_t address) {
 
 
 void memory_cpu_load_8bit(uint32_t address, uint32_t *result) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     if (memory_cpu_map(&segment, &address, NULL, 1, true) != NO_ERROR) {
         print_memory_error("memory_cpu_load_8bit", "ADDRESS: 0X%08x", address);
         exit(1);
@@ -54,7 +54,7 @@ void memory_cpu_load_8bit(uint32_t address, uint32_t *result) {
 }
 
 void memory_cpu_store_8bit(uint32_t address, uint32_t data) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     uint32_t mask = 0XFFFFFFFF;
     if (memory_cpu_map(&segment, &address, &mask, 1, false) != NO_ERROR) {
         print_memory_error("memory_cpu_store_8bit", "ADDRESS: 0X%08x", address);
@@ -69,7 +69,7 @@ void memory_cpu_store_8bit(uint32_t address, uint32_t data) {
 }
 
 void memory_cpu_load_16bit(uint32_t address, uint32_t *result) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     if (memory_cpu_map(&segment, &address, NULL, 2, true) != NO_ERROR) {
         print_memory_error("memory_cpu_load_16bit", "ADDRESS: 0X%08x", address);
         exit(1);
@@ -83,7 +83,7 @@ void memory_cpu_load_16bit(uint32_t address, uint32_t *result) {
 }
 
 void memory_cpu_store_16bit(uint32_t address, uint32_t data) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     uint32_t mask = 0XFFFFFFFF;
     if (memory_cpu_map(&segment, &address, &mask, 2, false) != NO_ERROR) {
         print_memory_error("memory_cpu_store_16bit", "ADDRESS: 0X%08x", address);
@@ -99,7 +99,7 @@ void memory_cpu_store_16bit(uint32_t address, uint32_t data) {
 }
 
 void memory_cpu_load_32bit(uint32_t address, uint32_t *result) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     if (memory_cpu_map(&segment, &address, NULL, 4, true) != NO_ERROR) {
         print_memory_error("memory_cpu_load_32bit", "ADDRESS: 0X%08x", address);
         exit(1);
@@ -115,7 +115,7 @@ void memory_cpu_load_32bit(uint32_t address, uint32_t *result) {
 }
 
 void memory_cpu_store_32bit(uint32_t address, uint32_t data) {
-    uint8_t *segment;
+    uint8_t *segment = NULL;
     uint32_t mask = 0XFFFFFFFF;
     if (memory_cpu_map(&segment, &address, &mask, 4, false) != NO_ERROR) {
         print_memory_error("memory_cpu_store_32bit", "ADDRESS: 0X%08x\n", address);

@@ -1,4 +1,4 @@
-#include "../../include/error.h"
+#include "error.h"
 
 static PSX_ERROR error;
 static char *error_msg;

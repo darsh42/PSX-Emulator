@@ -1,29 +1,43 @@
 #version 460 core
 
-layout (location = 0) in vec2 position;
-layout (location = 1) in vec3 col;
-layout (location = 2) in uvec2 texpos;
-layout (location = 3) in uvec2 texpage;
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec3 color;
+layout(location = 2) in vec2 texpos;
+layout(location = 3) in vec2 texpage;
+layout(location = 4) in vec2 clutpos;
+layout(location = 5) in uint type;
+layout(location = 6) in uint blend;
+layout(location = 7) in uint depth;
+layout(location = 8) in uint draw_texture;
+layout(location = 9) in uint semi_transparent;
 
-layout (location = 0) out vec3 color;
+out vec3 fColor;
+flat out uvec2 fTexpos;
+flat out uvec2 fTexpage;
+flat out uvec2 fClut;
+flat out uint  fType;
+flat out uint  fBlend;
+flat out uint  fDepth;
+flat out uint  fDrawtextures;
+flat out uint  fSemi_transparent;
 
-// uniform uvec2 offset;
+vec2 vertex_norm(vec2 p) {
+    return vec2(
+        (p.x / 512.0) - 1.0,
+        1.0 - (p.y / 256.0)
+    );
+}
 
 void main() {
-    // Convert color components from 0-255 range to 0.0-1.0 range
-    // color = vec3(
-    //     float(col.r) / 255.0,
-    //     float(col.g) / 255.0,
-    //     float(col.b) / 255.0
-    // );
-    
-    // Apply offset to position
-    // vec2 pos = vec2(position) + vec2(offset);
-    // 
-    // // Convert to normalized device coordinates (NDC)
-    // float x = (float(pos.x) / 512.0) * 2.0 - 1.0;
-    // float y = 1.0 - (float(pos.y) / 256.0) * 2.0;
-    
-    color = col;
-    gl_Position = vec4(position, 0.0, 1.0);
+    gl_Position = vec4(vertex_norm(position), 0.0, 1.0);
+
+    fColor = color;
+    fTexpos = uvec2(texpos);
+    fTexpage = uvec2(texpage);
+    fClut = uvec2(clutpos);
+    fType = type;
+    fBlend = blend;
+    fDepth = depth;
+    fDrawtextures = draw_texture;
+    fSemi_transparent = semi_transparent;
 }

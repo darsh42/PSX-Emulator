@@ -1,4 +1,4 @@
-#include "../../include/debugger.h"
+#include "debugger.h"
 /* Debugger for the psx emulator
  *
  * Features:
