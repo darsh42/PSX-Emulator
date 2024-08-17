@@ -33,7 +33,7 @@ PSX_ERROR sdl_initialize(void) {
     gladLoadGLLoader(SDL_GL_GetProcAddress);
 
     glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
-    renderer_init(&handler, "screen");
+    // renderer_init(&handler, "screen");
 
     return set_PSX_error(NO_ERROR);
 }
@@ -44,7 +44,7 @@ PSX_ERROR sdl_destroy(void) {
 }
 
 PSX_ERROR sdl_update(void) {
-    renderer_end_frame(&handler);
+    // renderer_end_frame(&handler);
     SDL_GL_SwapWindow(handler.window);
 
     SDL_Event e;
@@ -55,7 +55,7 @@ PSX_ERROR sdl_update(void) {
     }
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    renderer_start_frame(&handler);
+    // renderer_start_frame(&handler);
 
     return set_PSX_error(NO_ERROR);
 }

@@ -3,6 +3,8 @@
 
 #include "error.h"
 #include "common.h"
+#include "cpu.h"
+#include "gpu.h"
 
 #define print_memory_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
@@ -216,12 +218,29 @@ struct MEMORY {
     uint32_t address_accessed; // used for debugging
 };
 
-// cpu functions
-extern void cpu_exception(enum EXCEPTION_CAUSE cause);
-extern bool cop0_SR_Isc(void);
-extern uint8_t *read_GPUSTAT(void);
-extern uint8_t *read_GPUREAD(void);
-extern uint8_t *write_GP0(void);
-extern uint8_t *write_GP1(void);
+
+// external API function
+extern struct MEMORY *get_memory( void );
+extern PSX_ERROR memory_load_bios(const char *filebios);
+extern uint8_t *memory_VRAM_pointer(void);
+extern uint8_t *memory_pointer(uint32_t address);
+
+// cpu address space memory functions
+extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_8bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_16bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
+
+// gpu address space memory functions 
+extern void memory_gpu_load_4bit(uint32_t address, uint8_t *data);
+extern void memory_gpu_load_8bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_load_16bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_load_24bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_store_4bit(uint32_t address, uint8_t data);
+extern void memory_gpu_store_8bit(uint32_t address, uint32_t data);
+extern void memory_gpu_store_16bit(uint32_t address, uint32_t data);
+extern void memory_gpu_store_24bit(uint32_t address, uint32_t data);
 
 #endif

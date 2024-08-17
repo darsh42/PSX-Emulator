@@ -2,6 +2,7 @@
 #define TIMER_H_INCLUDED
 
 #include "common.h"
+#include "memory.h"
 
 enum SYNCRONIZATION_ENABLE {
     FREE_RUN = 0,
@@ -73,7 +74,9 @@ struct TIMERS {
     struct TIMER T2;
 };
 
-// memory functions
-extern uint8_t *memory_pointer(uint32_t address);
+/* public functions */
+extern struct TIMERS *get_timers( void );
+extern PSX_ERROR timers_step(void);
+extern PSX_ERROR timers_create(void);
 
 #endif // !TIMER_H_INCLUDED

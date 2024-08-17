@@ -2,6 +2,8 @@
 #define GPU_H_INCLUDED
 
 #include "common.h"
+#include "memory.h"
+#include "renderer.h"
 
 #define print_gpu_error(func, format, ...) print_error("gpu.c", func, format, __VA_ARGS__)
 
@@ -35,13 +37,13 @@ enum GPUSTAT_VIDEO_MODE               { NTSC60HZ = false,       PAL50HZ  = true 
 enum GPUSTAT_DISPLAY_AREA_COLOR_DEPTH { _15BIT = false,         _24BIT = true };
 enum GPUSTAT_EVEN_ODD_INTERLACE       { EVEN_OR_VBLANK = false, ODD = true };
 enum GPUSTAT_TEXTURE_DEPTH {
-    DEPTH_4BIT, 
-    DEPTH_8BIT, 
-    DEPTH_15BIT, 
+    DEPTH_4BIT,
+    DEPTH_8BIT,
+    DEPTH_15BIT,
     DEPTH_RESERVED
 };
 enum GPUSTAT_DMA_OR_DATA_REQUEST {
-    FIFO_FULL = false, 
+    FIFO_FULL = false,
     FIFO_NOT_FULL = true,
 };
 enum GPUSTAT_DMA_DIRECTION {
@@ -57,7 +59,7 @@ enum COMMAND_PACKET_PRIMATIVE_TME  { TEXTURE_MAPPING_OFF = false,             TE
 enum COMMAND_PACKET_PRIMATIVE_ABE  { SEMI_TRANSPARENCY_OFF = false,           SEMI_TRANSPARENCY_ON = true };
 enum COMMAND_PACKET_PRIMATIVE_TGE  { BRIGHTNESS_ON_TEXURE_MAPPING_ON = false, BRIGHTNESS_ON_TEXURE_MAPPING_OFF = true };
 enum COMMAND_PACKET_PRIMATIVE_PLL  { SINGLE_LINE = false,                     POLY_LINE = true };
-enum COMMAND_PACKET_PRIMATIVE_SIZE { 
+enum COMMAND_PACKET_PRIMATIVE_SIZE {
     FREE   = 0,
     _1X1   = 1,
     _8X8   = 2,
@@ -160,20 +162,20 @@ union GPUREAD {
     };
 };
 
-struct GP0 { 
-    struct COMMAND_FIFO fifo; 
+struct GP0 {
+    struct COMMAND_FIFO fifo;
     bool write_occured;
 };
 
-struct GP1 { 
-    union COMMAND_PACKET command; 
+struct GP1 {
+    union COMMAND_PACKET command;
     bool write_occured;
 };
 
 struct GPU_COPY {
-    uint32_t d_x, d_y, d_w, d_h; // destination 
+    uint32_t d_x, d_y, d_w, d_h; // destination
     uint32_t s_x, s_y, s_w, s_h; // source
-    
+
     bool copying;
 
     enum GPU_COPY_DIRECTION direction;
@@ -200,7 +202,7 @@ struct GPU {
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
     uint8_t texture_window_offset_x; // texture window x offset (8 bit steps)
     uint8_t texture_window_offset_y; // texture window y offset (8 bit steps)
-    
+
     uint16_t drawing_area_top;    // drawing area top most line
     uint16_t drawing_area_left;   // drawing area left most column
     uint16_t drawing_area_right;  // drawing area right most column
@@ -208,7 +210,7 @@ struct GPU {
 
     int16_t drawing_offset_x; // horizontal offset applied too all verticies
     int16_t drawing_offset_y; // vertical offset applied too all verticies
-    
+
     uint16_t display_vram_x_start;     // first column of the display in vram
     uint16_t display_vram_y_start;     // first line of the display in vram
     uint16_t display_horizontal_start; // display output start relative to hsync
@@ -217,73 +219,25 @@ struct GPU {
     uint16_t display_vertical_end;     // display output end relative to vsync
 
     bool texture_rectangle_x_flip; // if texture is flipped in x direction
-    bool texture_rectangle_y_flip; // if texture is flipped in y direction 
+    bool texture_rectangle_y_flip; // if texture is flipped in y direction
 };
 
-// renderer functions
-extern void RENDER_THREE_POINT_POLYGON_MONOCHROME(
-    uint32_t c1, uint32_t v1, 
-                 uint32_t v2, 
-                 uint32_t v3, 
-    bool semi_transparent
-);
-extern void RENDER_FOUR_POINT_POLYGON_MONOCHROME(
-    uint32_t c1, uint32_t v1, 
-                 uint32_t v2, 
-                 uint32_t v3, 
-                 uint32_t v4,
-    bool semi_transparent
-);
-extern void RENDER_THREE_POINT_POLYGON_TEXTURED(
-    uint32_t c1, uint32_t v1, uint32_t t1_clut,
-                 uint32_t v2, uint32_t t2_page,
-                 uint32_t v3, uint32_t t3,
-    bool semi_transparent, bool texture_blending
-);
-extern void RENDER_FOUR_POINT_POLYGON_TEXTURED(
-    uint32_t c1, uint32_t v1, uint32_t t1_clut,
-                 uint32_t v2, uint32_t t2_page,
-                 uint32_t v3, uint32_t t3,
-                 uint32_t v4, uint32_t t4,
-    bool semi_transparent, bool texture_blending
-);
-extern void RENDER_THREE_POINT_POLYGON_SHADED(
-    uint32_t c1, uint32_t v1,
-    uint32_t c2, uint32_t v2,
-    uint32_t c3, uint32_t v3,
-    bool semi_transparent
-);
-extern void RENDER_FOUR_POINT_POLYGON_SHADED(
-    uint32_t c1, uint32_t v1,
-    uint32_t c2, uint32_t v2,
-    uint32_t c3, uint32_t v3,
-    uint32_t c4, uint32_t v4,
-    bool semi_transparent
-);
-extern void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(
-    uint32_t c1, uint32_t v1, uint32_t t1_clut,
-    uint32_t c2, uint32_t v2, uint32_t t2_page,
-    uint32_t c3, uint32_t v3, uint32_t t3,
-    bool semi_transparent, bool texture_blending
-);
-extern void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(
-    uint32_t c1, uint32_t v1, uint32_t t1_clut,
-    uint32_t c2, uint32_t v2, uint32_t t2_page,
-    uint32_t c3, uint32_t v3, uint32_t t3,
-    uint32_t c4, uint32_t v4, uint32_t t4,
-    bool semi_transparent, bool texture_blending
-);
-
-
-// memory functions
-extern uint8_t *memory_pointer(uint32_t address);
-extern void memory_gpu_load_4bit(uint32_t address, uint8_t *data);
-extern void memory_gpu_load_8bit(uint32_t address, uint32_t *data);
-extern void memory_gpu_load_16bit(uint32_t address, uint32_t *data);
-extern void memory_gpu_load_24bit(uint32_t address, uint32_t *data);
-extern void memory_gpu_store_4bit(uint32_t address, uint8_t data);
-extern void memory_gpu_store_8bit(uint32_t address, uint32_t data);
-extern void memory_gpu_store_16bit(uint32_t address, uint32_t data);
-extern void memory_gpu_store_24bit(uint32_t address, uint32_t data);
+/* public functions */
+extern struct GPU *get_gpu(void);
+extern void gpu_reset(void);
+extern void gpu_step(void);
+extern uint8_t *write_GP0(void);
+extern uint8_t *write_GP1(void);
+extern uint8_t *read_GPUSTAT(void);
+extern uint8_t *read_GPUREAD(void);
+extern bool gpu_vram_write(void);
+extern bool gpustat_display_enable(void);
+extern bool gpustat_interrupt_request(void);
+extern bool gpustat_dma_data_request(void);
+extern bool gpustat_ready_recieve_cmd_word(void);
+extern bool gpustat_ready_send_vram_cpu(void);
+extern bool gpustat_ready_recieve_dma_block(void);
+extern uint32_t gpu_display_vram_x_start(void);
+extern uint32_t gpu_display_vram_y_start(void);
 
 #endif // GPU_H_INCLUDED

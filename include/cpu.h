@@ -5,6 +5,7 @@
 #include "instruction.h"
 #include "coprocessor0.h"
 #include "coprocessor2.h"
+#include "memory.h"
 
 #define print_cpu_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
@@ -79,12 +80,29 @@ struct CPU {
 // coprocessor functions
 extern PSX_ERROR coprocessor_execute(uint32_t value, int coprocessor_num);
 
-// memory functions
-extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_8bit(uint32_t address, uint32_t data);
-extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_16bit(uint32_t address, uint32_t data);
-extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
+// public functions
+extern struct CPU *get_cpu( void );
+extern bool cop0_SR_IEc( void );
+extern bool cop0_SR_KUc( void );
+extern bool cop0_SR_IEp( void );
+extern bool cop0_SR_KUp( void );
+extern bool cop0_SR_IEo( void );
+extern bool cop0_SR_KUo( void );
+extern bool cop0_SR_Im( void );
+extern bool cop0_SR_Isc( void );
+extern bool cop0_SR_Swc( void );
+extern bool cop0_SR_PZ( void );
+extern bool cop0_SR_CM( void );
+extern bool cop0_SR_PE( void );
+extern bool cop0_SR_TS( void );
+extern bool cop0_SR_BEV( void );
+extern bool cop0_SR_RE( void );
+extern bool cop0_SR_CU0( void );
+extern bool cop0_SR_CU1( void );
+extern bool cop0_SR_CU2( void );
+extern bool cop0_SR_CU3( void );
+extern PSX_ERROR cpu_reset( void );
+extern PSX_ERROR cpu_step( void );
+extern void cpu_exception( enum EXCEPTION_CAUSE cause );
 
 #endif//CPU_H_INCLUDED

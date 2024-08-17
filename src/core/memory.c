@@ -1,7 +1,5 @@
 #include "memory.h"
 
-static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t aligned, bool load);
-
 static struct MEMORY memory;
 
 /* CPU and MAIN BUS memory map */
@@ -11,6 +9,8 @@ static uint32_t segment_lookup[] = {
     (uint32_t) 0X1FFFFFFF,                                     // KSEG1
     (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF               // KSEG2
 };
+
+static PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t aligned, bool load);
 
 struct MEMORY *get_memory() {return &memory;}
 
@@ -135,50 +135,6 @@ void memory_cpu_store_32bit(uint32_t address, uint32_t data) {
     segment[address + 3] = b3;
 
 }
-/* This is the main mapping function for each of the memory accessing routines                              *
- * segment   -> the memory array is being accessed, e.g. main RAM, IO ports, e.t.c.                         *
- * address   -> the virtual address that is being accessed, this is transformed into a real address         *
- * mask      -> the mask when writing to io ports, this is because some ports have "always zero" bits       *
- *                  for information on why the mask is a given value check the no$psx docs                  *
- * alignment -> stores the number of bytes being accessed and checks if the address is aligned accordingly  *
- * load      -> specifies if the address is being loaded from or stored to                                  */
-PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t alignment, bool load) {
-    memory.address_accessed = *address; // used for debugging
-
-    if (*address % alignment != 0) {
-        if (load) cpu_exception(ADEL);
-        else      cpu_exception(ADES);
-    }
-
-    uint32_t region = *address & segment_lookup[*address >> 29];
-
-    // KUSEG, KSEG0, KSEG1
-    if (region  >= 0X00000000 && region < 0X00200000) {
-        if (cop0_SR_Isc()) {*address = (region - 0X00000000) & 0X3FF; *segment = memory.SCRATCH_PAD.mem;}
-        else               {          *address = region - 0X00000000; *segment = memory.MAIN.mem;}
-    }
-    else if (region >= 0X1F000000 && region < 0X1F800000) {*address = region - 0X1F000000; *segment = memory.EXPANSION_1.mem;}
-    else if (region >= 0X1F800000 && region < 0X1F801000) {*address = region - 0X1F800000; *segment = memory.SCRATCH_PAD.mem;}
-    else if (region >= 0X1F801000 && region < 0X1F802000) {
-        // GPU read and write registers
-        if      ( load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = read_GPUREAD(); }
-        else if (!load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = write_GP0(); }
-        else if ( load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = read_GPUSTAT(); }
-        else if (!load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = write_GP1(); }
-        else {
-            *address = region - 0X1F801000; *segment = memory.IO_PORTS.mem;
-        }
-    }   
-    else if (region >= 0X1F802000 && region < 0X1FA00000) {*address = region - 0X1F802000; *segment = memory.EXPANSION_2.mem;}
-    else if (region >= 0X1F8A0000 && region < 0X1FC00000) {*address = region - 0X1F8A0000; *segment = memory.EXPANSION_3.mem;}
-    else if (region >= 0X1FC00000 && region < 0X1FC80000) {*address = region - 0X1FC00000; *segment = memory.BIOS.mem;}       
-
-    // KSEG2
-    else if (region >= 0XC0000000) {*address = region - 0XC0000000; *segment = memory.KSEG2.mem;}
-    else                           {return set_PSX_error(MEMORY_CPU_UNMAPPED_ADDRESS);}
-
-    return set_PSX_error(NO_ERROR);
-}
 
 /* GPU and VRAM memory map */
 
@@ -230,4 +186,49 @@ void memory_gpu_store_24bit(uint32_t address, uint32_t data) {
     memory.VRAM.mem[address + 0] = (data >>  0);
     memory.VRAM.mem[address + 1] = (data >>  8);
     memory.VRAM.mem[address + 2] = (data >> 16);
+}
+
+/* This is the main mapping function for each of the memory accessing routines                              *
+ * segment   -> the memory array is being accessed, e.g. main RAM, IO ports, e.t.c.                         *
+ * address   -> the virtual address that is being accessed, this is transformed into a real address         *
+ * mask      -> the mask when writing to io ports, this is because some ports have "always zero" bits       *
+ *                  for information on why the mask is a given value check the no$psx docs                  *
+ * alignment -> stores the number of bytes being accessed and checks if the address is aligned accordingly  *
+ * load      -> specifies if the address is being loaded from or stored to                                  */
+PSX_ERROR memory_cpu_map(uint8_t **segment, uint32_t *address, uint32_t *mask, uint32_t alignment, bool load) {
+    memory.address_accessed = *address; // used for debugging
+
+    if (*address % alignment != 0) {
+        if (load) cpu_exception(ADEL);
+        else      cpu_exception(ADES);
+    }
+
+    uint32_t region = *address & segment_lookup[*address >> 29];
+
+    // KUSEG, KSEG0, KSEG1
+    if (region  >= 0X00000000 && region < 0X00200000) {
+        if (cop0_SR_Isc()) {*address = (region - 0X00000000) & 0X3FF; *segment = memory.SCRATCH_PAD.mem;}
+        else               {          *address = region - 0X00000000; *segment = memory.MAIN.mem;}
+    }
+    else if (region >= 0X1F000000 && region < 0X1F800000) {*address = region - 0X1F000000; *segment = memory.EXPANSION_1.mem;}
+    else if (region >= 0X1F800000 && region < 0X1F801000) {*address = region - 0X1F800000; *segment = memory.SCRATCH_PAD.mem;}
+    else if (region >= 0X1F801000 && region < 0X1F802000) {
+        // GPU read and write registers
+        if      ( load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = read_GPUREAD(); }
+        else if (!load && region >= 0X1f801810 && region < 0X1f801814) {*address = 0; *segment = write_GP0(); }
+        else if ( load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = read_GPUSTAT(); }
+        else if (!load && region >= 0X1f801814 && region < 0X1f801818) {*address = 0; *segment = write_GP1(); }
+        else {
+            *address = region - 0X1F801000; *segment = memory.IO_PORTS.mem;
+        }
+    }   
+    else if (region >= 0X1F802000 && region < 0X1FA00000) {*address = region - 0X1F802000; *segment = memory.EXPANSION_2.mem;}
+    else if (region >= 0X1F8A0000 && region < 0X1FC00000) {*address = region - 0X1F8A0000; *segment = memory.EXPANSION_3.mem;}
+    else if (region >= 0X1FC00000 && region < 0X1FC80000) {*address = region - 0X1FC00000; *segment = memory.BIOS.mem;}       
+
+    // KSEG2
+    else if (region >= 0XC0000000) {*address = region - 0XC0000000; *segment = memory.KSEG2.mem;}
+    else                           {return set_PSX_error(MEMORY_CPU_UNMAPPED_ADDRESS);}
+
+    return set_PSX_error(NO_ERROR);
 }

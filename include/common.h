@@ -12,6 +12,13 @@
 #include "error.h"
 
 #define DEBUG
+#define MAX_TRIANGLES 1024
+#define MAX_VERTICIES 3 * MAX_TRIANGLES
+
+#define WIN_NAME "PSX-Emulator"
+#define WIN_W 640
+#define WIN_H 480
+#define WIN_FLAGS SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
 
 enum PSX_ENABLE {
     DISABLE = false,
@@ -51,18 +58,6 @@ enum IO_PORT_ADDRESSES {
     ADDR_GP1           = 0X1F801814,
     ADDR_GPUREAD       = 0X1F801810,
     ADDR_GPUSTAT       = 0X1F801814,
-};
-
-struct PSX {
-    bool running;
-
-    struct CPU *cpu;
-    struct GPU *gpu;
-    struct DMA *dma;
-    struct MEMORY *memory;
-    struct TIMERS *timers;
-
-    uint32_t system_clock;
 };
 
 

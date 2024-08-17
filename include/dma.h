@@ -3,6 +3,8 @@
 
 #include "common.h"
 #include "cpu.h"
+#include "gpu.h"
+#include "memory.h"
 
 enum DMA_Direction {
     DEV_TO_RAM = false,
@@ -140,17 +142,9 @@ struct DMA {
     bool interrupt_request;
 };
 
-// gpu functions
-extern bool gpustat_display_enable(void);
-extern bool gpustat_interrupt_request(void);
-extern bool gpustat_dma_data_request(void);
-extern bool gpustat_ready_recieve_cmd_word(void);
-extern bool gpustat_ready_send_vram_cpu(void);
-extern bool gpustat_ready_recieve_dma_block(void);
-
-// memory function
-extern uint8_t *memory_pointer(uint32_t address);
-extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
+/* public functions */
+extern struct DMA *get_dma( void );
+extern PSX_ERROR dma_reset(void);
+extern PSX_ERROR dma_step(void);
 
 #endif // DMA_H_INCLUDED

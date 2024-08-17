@@ -2,22 +2,22 @@
 
 static struct GPU gpu;
 
-// helpers
-static int fifo_len(void);
-static bool fifo_full(void);
-static bool fifo_empty(void);
-static void reset_fifo(void);
+// GPU command fifo helpers
+static int                   fifo_len(void);
+static bool                  fifo_full(void);
+static bool                  fifo_empty(void);
+static void                  reset_fifo(void);
 static union COMMAND_PACKET *push_fifo(void);
 static union COMMAND_PACKET  peek_fifo(void);
 static union COMMAND_PACKET  pop_fifo(void);
 
+// gpu operation helpers
 static void gpu_tick(void);
 static void gpu_handle_gp0(void);
 static void gpu_handle_gp1(void);
 static void gpu_handle_memory_access(void);
 static void gpu_execute_op(void);
 static void gpu_set_mode(enum GPU_MODE mode);
-
 
 // gpu copy helpers
 static void gpu_copy_cpu_to_vram(void);
