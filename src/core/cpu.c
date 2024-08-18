@@ -751,7 +751,7 @@ void MFCn(int cop_n) {
 
     reg(RT) = *result; 
 }
-void CFCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void CFCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
 void MTCn(int cop_n) {
     // Move To Coprocessor n
     uint32_t *destination;
@@ -759,12 +759,12 @@ void MTCn(int cop_n) {
     
     *destination = reg(RT);
 }
-void CTCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void COPn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void BCnF(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void BCnT(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void LWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
-void SWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}
+void CTCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
+void COPn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
+void BCnF(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
+void BCnT(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
+void LWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
+void SWCn(int cop_n) {print_cpu_error("OP", "UNIMPLEMENTED %x", cop_n); exit(1);}
 
 // COP0
 void TLBR()  {print_cpu_error("OP", "UNIMPLEMENTED", NULL); exit(1);}

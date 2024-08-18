@@ -115,7 +115,8 @@ union D_CHCR {
         enum PSX_ENABLE start_busy: 1;
         uint32_t : 3;
         enum PSX_ENABLE start_trigger: 1;
-        uint32_t : 3; };
+        uint32_t : 3;
+    };
 };
 
 struct DMAn {

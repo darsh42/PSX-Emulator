@@ -82,5 +82,4 @@ struct DEBUGGER {
 struct PSX *get_psx(void);
 
 extern void peek_cpu_instruction();
-
 #endif // DEBUGGER_H_INCLUDED
