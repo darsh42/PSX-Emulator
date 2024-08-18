@@ -33,6 +33,15 @@ void renderer_create(const char **shaders, uint32_t shader_count) {
     glEnableVertexAttribArray(6);
     glEnableVertexAttribArray(7);
     glEnableVertexAttribArray(8);
+    
+    // create vram texture
+    glGenTextures(1, &renderer.texture);
+    glBindTexture(GL_TEXTURE_2D, renderer.texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 1024, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, memory_VRAM_pointer());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // load and compile shaders
     // renderer_load_shaders(&renderer.shader, shaders, shader_count);
@@ -53,13 +62,8 @@ void renderer_end_frame(void) {
     glUniform2ui(renderer.offset, gpu_display_vram_x_start(), gpu_display_vram_y_start());
     glBindVertexArray(renderer.vao);
 
-    glGenTextures(1, &renderer.texture);
     glBindTexture(GL_TEXTURE_2D, renderer.texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 512, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, memory_VRAM_pointer());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexSubImage2D(GL_TEXTURE_2D, 0,0,0, 512, 1024, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, memory_VRAM_pointer());
 
     glDrawArrays(GL_TRIANGLES, 0, renderer.triangle_count * 3);
 

@@ -11,6 +11,9 @@ Dependencies
 ```
     SDL2, gnu-readline (for debugger), OpenGL version 4.6
 ```
+BIOS:
+Due to licences I cannot provide the BIOS rom, however it is available online, search for the SCPH1001.BIN version of the bios
+then create a "misc" directory (named exactly that) and place the file in there. The file needs to be placed there because fo the "make run" cmd.
 
 Clone the repository
 ```

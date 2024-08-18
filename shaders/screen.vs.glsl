@@ -1,4 +1,4 @@
-#version 460 core
+#version 450 core
 
 layout(location = 0) in vec2 position;
 layout(location = 1) in vec3 color;
@@ -11,15 +11,15 @@ layout(location = 7) in uint depth;
 layout(location = 8) in uint draw_texture;
 layout(location = 9) in uint semi_transparent;
 
-out vec3 fColor;
-flat out uvec2 fTexpos;
-flat out uvec2 fTexpage;
-flat out uvec2 fClut;
-flat out uint  fType;
-flat out uint  fBlend;
-flat out uint  fDepth;
-flat out uint  fDrawtextures;
-flat out uint  fSemi_transparent;
+layout(location = 0) out vec3 fColor;
+layout(location = 1) out uvec2 fTexpos;
+layout(location = 2) out uvec2 fTexpage;
+layout(location = 3) out uvec2 fClut;
+layout(location = 4) out uint  fType;
+layout(location = 5) out uint  fBlend;
+layout(location = 6) out uint  fDepth;
+layout(location = 7) out uint  fDrawtextures;
+layout(location = 8) out uint  fSemi_transparent;
 
 vec2 vertex_norm(vec2 p) {
     return vec2(

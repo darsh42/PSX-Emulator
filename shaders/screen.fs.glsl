@@ -1,18 +1,18 @@
-#version 460 core
+#version 450 core
 
-in vec3 fColor;
-flat in uvec2 fTexpos;
-flat in uvec2 fTexpage;
-flat in uvec2 fClut;
-flat in uint  fType;
-flat in uint  fBlend;
-flat in uint  fDepth;
-flat in uint  fDrawtextures;
-flat in uint  fSemi_transparent;
+layout(location = 0) in vec3 fColor;
+layout(location = 1) flat in uvec2 fTexpos;
+layout(location = 2) flat in uvec2 fTexpage;
+layout(location = 3) flat in uvec2 fClut;
+layout(location = 4) flat in uint  fType;
+layout(location = 5) flat in uint  fBlend;
+layout(location = 6) flat in uint  fDepth;
+layout(location = 7) flat in uint  fDrawtextures;
+layout(location = 8) flat in uint  fSemi_transparent;
 
-out vec4 frag_color;
+layout(location = 0) out vec4 frag_color;
 
-uniform sampler2D vram_texture;
+layout(binding = 0) uniform sampler2D vram_texture;
 
 #define NO_TEXTURE      0U
 #define RAW_TEXTURE     1U

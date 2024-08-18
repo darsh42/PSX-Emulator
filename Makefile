@@ -14,7 +14,7 @@ WARNINGS        := -Wall -Wextra
 IGNORE_WARNINGS := -Wno-type-limits -Wno-unused-function -Wno-sign-compare -Wno-unused-parameter
 LIBRARIES       := -lm -lSDL2 -lreadline # -lubsan
 DEBUGFLAGS      := -g #-pg -fsanitize=undefined
-CFLAGS          := -O3 $(WARNINGS) $(IGNORE_WARNINGS) $(INCLUDE) # $(DEBUGFLAGS)
+CFLAGS          := $(WARNINGS) $(IGNORE_WARNINGS) $(INCLUDE) $(DEBUGFLAGS) # -O3 
 
 $(shell mkdir -p $(addprefix $(_DIR_BUILD)/, $(_DIR_MODULES)))
 

@@ -92,12 +92,13 @@ typedef struct OPENGL_VERTEX {
 struct 
 RENDERER_CONTEXT
 {
+    GLint  offset;
     GLuint vao;
     GLuint vbo;
+    GLuint pbo;
     GLuint shader;
     GLuint texture;
 
-    GLint  offset;
     vertex_t render_vertcies[MAX_VERTICIES];
     uint32_t triangle_count;
 };
