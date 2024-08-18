@@ -7,15 +7,25 @@ and computer architecture.
 2.  [[Design]]
 
 ## Quick Start
+Dependencies
+```
+    SDL2, gnu-readline (for debugger), OpenGL version 4.6
+```
 
 Clone the repository
+```
     git clone https://github.com/darsh42/PSX-Emulator.git
+```
 
 Compile the Source code
+```
      make
+```
 
 Launch the Emulator
+```
     make run
+```
 
 ## Design
 
