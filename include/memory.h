@@ -3,6 +3,8 @@
 
 #include "error.h"
 #include "common.h"
+#include "cpu.h"
+#include "gpu.h"
 
 #define print_memory_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
@@ -195,36 +197,50 @@ typedef union MEM_CDROM_BUFFER          {uint8_t mem[0X8400];}   MEM_CDROM_BUFFE
 typedef union MEM_EXTERNAL_MEMORY_CARDS {uint8_t mem[0X20000];}  MEM_EXTERNAL_MEMORY_CARDS; // 128K
 
 struct MEMORY {
-  // CPU BUS
-  MEM_MAIN MAIN;
-  MEM_EXPANSION_1 EXPANSION_1;
-  MEM_SCRATCH_PAD SCRATCH_PAD;
-  MEM_IO_PORTS IO_PORTS;
-  MEM_EXPANSION_2 EXPANSION_2;
-  MEM_EXPANSION_3 EXPANSION_3;
-  MEM_BIOS BIOS;
-  MEM_KSEG2 KSEG2;
+    // CPU BUS
+    MEM_MAIN MAIN;
+    MEM_EXPANSION_1 EXPANSION_1;
+    MEM_SCRATCH_PAD SCRATCH_PAD;
+    MEM_IO_PORTS IO_PORTS;
+    MEM_EXPANSION_2 EXPANSION_2;
+    MEM_EXPANSION_3 EXPANSION_3;
+    MEM_BIOS BIOS;
+    MEM_KSEG2 KSEG2;
 
-  // NON-CPU BUS
-  MEM_VRAM VRAM;
-  MEM_SOUND SOUND;
-  MEM_CDROM_CONTROLLER_RAM CDROM_CONTROLLER_RAM;
-  MEM_CDROM_CONTROLLER_RAM CDROM_CONTROLLER_ROM;
-  MEM_CDROM_BUFFER CDROM_BUFFER;
-  MEM_EXTERNAL_MEMORY_CARDS EXTERNAL_MEMORY_CARDS;
+    // NON-CPU BUS
+    MEM_VRAM  VRAM;
+    MEM_SOUND SOUND;
+    MEM_CDROM_CONTROLLER_RAM CDROM_CONTROLLER_RAM;
+    MEM_CDROM_CONTROLLER_RAM CDROM_CONTROLLER_ROM;
+    MEM_CDROM_BUFFER CDROM_BUFFER;
+    MEM_EXTERNAL_MEMORY_CARDS EXTERNAL_MEMORY_CARDS;
 
+    uint32_t address_accessed; // used for debugging
 };
 
-union VIRTUAL_ADDRESS {
-    struct {
-        uint32_t address: 29;
-        uint32_t segment: 3;
-    };
-    uint32_t value;
-};
 
-// cpu functions
-extern void cpu_exception(enum EXCEPTION_CAUSE cause);
-extern bool cop0_SR_Isc(void);
+// external API function
+extern struct MEMORY *get_memory( void );
+extern PSX_ERROR memory_load_bios(const char *filebios);
+extern uint8_t *memory_VRAM_pointer(void);
+extern uint8_t *memory_pointer(uint32_t address);
+
+// cpu address space memory functions
+extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_8bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_16bit(uint32_t address, uint32_t data);
+extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
+extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
+
+// gpu address space memory functions 
+extern void memory_gpu_load_4bit(uint32_t address, uint8_t *data);
+extern void memory_gpu_load_8bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_load_16bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_load_24bit(uint32_t address, uint32_t *data);
+extern void memory_gpu_store_4bit(uint32_t address, uint8_t data);
+extern void memory_gpu_store_8bit(uint32_t address, uint32_t data);
+extern void memory_gpu_store_16bit(uint32_t address, uint32_t data);
+extern void memory_gpu_store_24bit(uint32_t address, uint32_t data);
 
 #endif

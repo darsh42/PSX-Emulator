@@ -1,4 +1,4 @@
-#include "../../include/cpu.h"
+#include "cpu.h"
 
 // main cpu struct
 static struct CPU cpu;
@@ -79,9 +79,7 @@ static void cpu_load_delay(void);
 static void cpu_branch_delay(void);
 static void COPn_reg(int n, int reg, uint32_t **refrence);
 
-#ifdef DEBUG
-struct CPU *get_cpu(void) {return &cpu;}
-#endif
+struct CPU *get_cpu(void) { return &cpu; }
 
 PSX_ERROR cpu_reset(void) {
     cpu.PC = 0Xbfc00000;
@@ -107,24 +105,13 @@ PSX_ERROR cpu_reset(void) {
     return set_PSX_error(NO_ERROR);
 }
 
-PSX_ERROR cpu_fetch(void) {
+PSX_ERROR cpu_step(void) {
     cpu_branch_delay();
-
     memory_cpu_load_32bit(cpu.PC, &cpu.instruction.value);
-
-    return set_PSX_error(NO_ERROR);
-}
-
-PSX_ERROR cpu_decode(void) {
-    return set_PSX_error(NO_ERROR);
-}
-
-PSX_ERROR cpu_execute(void) {
-    cpu_load_delay();        // load delay
-    cpu_execute_op();        // switch to instruction type
-
+    cpu_load_delay();
+    cpu_execute_op();
     cpu.PC += 4;
-
+    reg(0) = 0;
     return set_PSX_error(NO_ERROR);
 }
 
@@ -145,14 +132,14 @@ void cpu_exception(enum EXCEPTION_CAUSE cause) {
     cpu.cop0.CAUSE.EXECODE = cause; 
 
     // set exception program return
-    if (cpu.branch.stage != UNUSED) {
+    if (cpu.branch.stage == UNUSED) {
+        cpu.cop0.EPC.return_address = cpu.PC;
+    } else {
         cpu.cop0.EPC.return_address = cpu.branch.value;
         cpu.cop0.CAUSE.BranchDelay  = true;
 
         cpu.branch.value = 0;
         cpu.branch.stage = UNUSED;
-    } else {
-        cpu.cop0.EPC.return_address = cpu.PC;
     }
 
     // increment exception stack
@@ -180,8 +167,7 @@ void cpu_branch_delay(void) {
 void cpu_load_delay(void) {
     for (int i = 0; i < 32; i++) {
         switch (cpu.load[i].stage) {
-            case UNUSED:    
-                break;
+            case UNUSED: break;
             case TRANSFER: 
                 cpu.R[i] = cpu.load[i].value;
                 cpu.load[i].stage = UNUSED;
@@ -274,14 +260,14 @@ void cpu_execute_op(void) {
         case 0X11: COP1();   break;
         case 0X12: COP2();   break;
         case 0X13: COP3();   break;
-        case 0X30: LWC0();   break;
-        case 0X31: LWC1();   break;
-        case 0X32: LWC2();   break;
-        case 0X33: LWC3();   break;
-        case 0X38: SWC0();   break;
-        case 0X39: SWC1();   break;
-        case 0X3A: SWC2();   break;
-        case 0X3B: SWC3();   break;
+        case 0X30: LWCn(0);   break;
+        case 0X31: LWCn(1);   break;
+        case 0X32: LWCn(2);   break;
+        case 0X33: LWCn(3);   break;
+        case 0X38: SWCn(0);   break;
+        case 0X39: SWCn(1);   break;
+        case 0X3A: SWCn(2);   break;
+        case 0X3B: SWCn(3);   break;
     }
 }
 
@@ -354,7 +340,7 @@ void SLTI(void)    {
 }   
 void SLTIU(void)   {
     // Set if Less Than Immediate Unsigned
-    reg(RT) = reg(RS) < sign16(IMM16);
+    reg(RT) = reg(RS) < (uint32_t) sign16(IMM16);
 }  
 void ANDI(void)    {
     // AND Immediate

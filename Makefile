@@ -1,13 +1,36 @@
-CC=gcc
-FILES=src/core/*.c src/sdl/*.c src/gui/*.c src/utils/*.c
-DEBUG=src/debug/*.c
-FLAGS=
-FLAGS_DEBUG=-g -Wall -fsanitize=address -pg
-LIBS=-lm -lSDL2 
-TARGET=target/psx
+CC := gcc
+
+_DIR_INC     := include
+_DIR_SRC     := src
+_DIR_MODULES := core debug renderer
+_DIR_BUILD   := build
+
+INCLUDE := -I$(_DIR_INC)
+SOURCES := $(foreach module,$(_DIR_MODULES),$(wildcard $(_DIR_SRC)/$(module)/*.c))
+OBJECTS := $(patsubst $(_DIR_SRC)/%.c,$(_DIR_BUILD)/%.o,$(SOURCES))
+TARGET  := $(_DIR_BUILD)/psx
+
+WARNINGS        := -Wall -Wextra 
+IGNORE_WARNINGS := -Wno-type-limits -Wno-unused-function -Wno-sign-compare -Wno-unused-parameter
+LIBRARIES       := -lm -lSDL2 -lreadline # -lubsan
+DEBUGFLAGS      := -g #-pg -fsanitize=undefined
+CFLAGS          := -O3 $(WARNINGS) $(IGNORE_WARNINGS) $(INCLUDE) # $(DEBUGFLAGS)
+
+$(shell mkdir -p $(addprefix $(_DIR_BUILD)/, $(_DIR_MODULES)))
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $@ $(LIBRARIES)
+
+$(_DIR_BUILD)/%.o: $(_DIR_SRC)/%.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+.PHONY: clean run debug
+
+run:
+	./$(TARGET) misc/SCPH1001.BIN .
 
 debug:
-	$(CC) $(FILES) $(DEBUG) -o $(TARGET) $(FLAGS) $(FLAGS_DEBUG) $(LIBS)
+	gdb --args ./$(TARGET) misc/SCPH1001.BIN .
 
-psx:
-	$(CC) $(FILES) -o $(TARGET) $(FLAGS) $(LIBRARIES)
+clean:
+	rm -rf $(_DIR_BUILD)

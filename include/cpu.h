@@ -5,6 +5,7 @@
 #include "instruction.h"
 #include "coprocessor0.h"
 #include "coprocessor2.h"
+#include "memory.h"
 
 #define print_cpu_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
@@ -32,6 +33,12 @@
 
 #define reg(r) cpu.R[r]
 
+#define FOREACH_REGISTER(CMD) \
+     CMD(zr) CMD(at) CMD(v0) CMD(v1) CMD(a0) CMD(a1) CMD(a2) CMD(a3) \
+     CMD(t0) CMD(t1) CMD(t2) CMD(t3) CMD(t4) CMD(t5) CMD(t6) CMD(t7) \
+     CMD(s0) CMD(s1) CMD(s2) CMD(s3) CMD(s4) CMD(s5) CMD(s6) CMD(s7) \
+     CMD(t8) CMD(t9) CMD(k0) CMD(k1) CMD(gp) CMD(sp) CMD(fp) CMD(ra)
+
 struct delay {
     uint32_t value;
     enum {UNUSED, TRANSFER, DELAY} stage;
@@ -41,8 +48,6 @@ struct CPU {
     // PROGRAM COUNTER
     uint32_t PC;
     
-    struct delay branch;
-
     // GENERAL REGISTERS
     // NAME   | ALIAS | DESCRIPTION
     // R0       zero    Constant always 0 (not real register)
@@ -60,8 +65,9 @@ struct CPU {
     uint32_t R[32]; 
     // MULTIPLY/DIVIDE REGISTERS 
     uint32_t HI, LO; 
-    // LOAD DELAY
+    // DELAY
     struct delay load[32];
+    struct delay branch;
      
     // INSTRUCTIONS
     union INSTRUCTION instruction;
@@ -74,12 +80,29 @@ struct CPU {
 // coprocessor functions
 extern PSX_ERROR coprocessor_execute(uint32_t value, int coprocessor_num);
 
-// memory functions
-extern void memory_cpu_load_8bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_8bit(uint32_t address, uint32_t data);
-extern void memory_cpu_load_16bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_16bit(uint32_t address, uint32_t data);
-extern void memory_cpu_load_32bit(uint32_t address, uint32_t *result);
-extern void memory_cpu_store_32bit(uint32_t address, uint32_t data);
+// public functions
+extern struct CPU *get_cpu( void );
+extern bool cop0_SR_IEc( void );
+extern bool cop0_SR_KUc( void );
+extern bool cop0_SR_IEp( void );
+extern bool cop0_SR_KUp( void );
+extern bool cop0_SR_IEo( void );
+extern bool cop0_SR_KUo( void );
+extern bool cop0_SR_Im( void );
+extern bool cop0_SR_Isc( void );
+extern bool cop0_SR_Swc( void );
+extern bool cop0_SR_PZ( void );
+extern bool cop0_SR_CM( void );
+extern bool cop0_SR_PE( void );
+extern bool cop0_SR_TS( void );
+extern bool cop0_SR_BEV( void );
+extern bool cop0_SR_RE( void );
+extern bool cop0_SR_CU0( void );
+extern bool cop0_SR_CU1( void );
+extern bool cop0_SR_CU2( void );
+extern bool cop0_SR_CU3( void );
+extern PSX_ERROR cpu_reset( void );
+extern PSX_ERROR cpu_step( void );
+extern void cpu_exception( enum EXCEPTION_CAUSE cause );
 
 #endif//CPU_H_INCLUDED

@@ -1,4 +1,4 @@
-#include "../../include/error.h"
+#include "error.h"
 
 static PSX_ERROR error;
 static char *error_msg;
@@ -9,7 +9,7 @@ static void get_PSX_error() {
         // PSX
         case INSUFFICIENT_ARGS: error_msg = "INSUFFICIENT ARGUMENTS"; break;
         // MEMORY
-        case BIOS_FILE_NOT_FOUND: error_msg = "BIOS_FILE_NOT_FOUND"; break;
+        case BIOS_FILE_NOT_FOUND:  error_msg = "BIOS_FILE_NOT_FOUND"; break;
         case BIOS_FILE_UNREADABLE: error_msg = "BIOS_FILE_UNREADABLE"; break;
         case MEMORY_CPU_UNMAPPED_ADDRESS: error_msg = "MEMORY_CPU_UNMAPPED_ADDRESS"; break;
         default: error_msg = "UNEXPECTED ERROR"; break;

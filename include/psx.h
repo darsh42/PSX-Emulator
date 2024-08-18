@@ -6,48 +6,37 @@
 #include "common.h"
 
 // device headers
+#include "cpu.h"
+#include "gpu.h"
+#include "dma.h"
 #include "memory.h"
+#include "timers.h"
+#include "renderer.h"
+
+#include <SDL2/SDL.h>
 
 // macros
 #define print_psx_error(func, format, ...) print_error("psx.c", func, format, __VA_ARGS__)
 
-// device functions
-// memory
-extern PSX_ERROR memory_load_bios(const char *filebios);
+struct PSX {
+    bool running;
 
-// cpu
-extern PSX_ERROR cpu_reset(void);
-extern PSX_ERROR cpu_fetch(void);
-extern PSX_ERROR cpu_decode(void);
-extern PSX_ERROR cpu_execute(void);
+    SDL_Window   *window;
+    SDL_GLContext context;
+
+    struct CPU *cpu;
+    struct GPU *gpu;
+    struct DMA *dma;
+    struct MEMORY *memory;
+    struct TIMERS *timers;
+
+    uint32_t system_clock;
+};
 extern PSX_ERROR coprocessor_initialize(void);
 
-// gpu
-extern void gpu_reset(void);
-
-// dma
-extern PSX_ERROR dma_reset(void);
-
 // gui and sdl
-PSX_ERROR debugger_init(void);
-PSX_ERROR debugger_exec(void);
-PSX_ERROR debugger_destroy(void);
-void sdl_initialize(void);
-void sdl_destroy(void);
-
-#ifdef DEBUG
-// disassembler
-extern void disassemble(void);
-
-// cpu
-extern void set_debug_cpu(void);
-extern void peek_cpu_pc(void);
-extern void peek_cpu_R_registers(void);
-extern void peek_cpu_instruction(void);
-extern void peek_cpu_mult_div_registers(void);
-
-// co processor
-extern void peek_coprocessor_n_registers(int cop_n);
-#endif
+extern void debugger_reset(void);
+extern void debugger_exec(void);
+extern PSX_ERROR debugger_destroy(void);
 
 #endif//PSX_H_INCLUDED

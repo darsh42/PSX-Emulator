@@ -12,6 +12,18 @@
 #include "error.h"
 
 #define DEBUG
+#define MAX_TRIANGLES 1024
+#define MAX_VERTICIES 3 * MAX_TRIANGLES
+
+#define WIN_NAME "PSX-Emulator"
+#define WIN_WIDTH 1280 
+#define WIN_HEIGHT 720
+#define WIN_FLAGS SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
+
+enum PSX_ENABLE {
+    DISABLE = false,
+    ENABLE  = true
+};
 #define abs(a) (a < 0) ? -a: a
 
 enum EXCEPTION_CAUSE {
@@ -30,9 +42,23 @@ enum EXCEPTION_CAUSE {
     OVF
 };
 
-enum GENERAL_ENABLE {
-    DISABLE = 0,
-    ENABLE = 1
+enum IO_PORT_ADDRESSES {
+    ADDR_DMA0_MDEC_IN  = 0X1F801080,
+    ADDR_DMA1_MDEC_OUT = 0X1F801090,
+    ADDR_DMA2_GPU      = 0X1F8010A0,
+    ADDR_DMA3_CDROM    = 0X1F8010B0,
+    ADDR_DMA4_SPU      = 0X1F8010C0,
+    ADDR_DMA5_PIO      = 0X1F8010D0,
+    ADDR_DMA6_OTC      = 0X1F8010E0,
+    ADDR_DMA_DPRC      = 0X1F8010F0,
+    ADDR_DMA_DIRC      = 0X1F8010F4,
+    ADDR_TIMER_0       = 0X1F801100,
+    ADDR_TIMER_1       = 0X1F801110,
+    ADDR_TIMER_2       = 0X1F801120,
+    ADDR_GP0           = 0X1F801810,
+    ADDR_GP1           = 0X1F801814,
+    ADDR_GPUREAD       = 0X1F801810,
+    ADDR_GPUSTAT       = 0X1F801814,
 };
 
 
