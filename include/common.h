@@ -16,8 +16,8 @@
 #define MAX_VERTICIES 3 * MAX_TRIANGLES
 
 #define WIN_NAME "PSX-Emulator"
-#define WIN_W 640
-#define WIN_H 480
+#define WIN_WIDTH 1280 
+#define WIN_HEIGHT 720
 #define WIN_FLAGS SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
 
 enum PSX_ENABLE {

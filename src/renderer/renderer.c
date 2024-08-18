@@ -97,7 +97,7 @@ renderer_load_shaders
 
         char buffer[size];
         
-        if ( fread( buffer, size, 1, fp) != size )
+        if ( fread( buffer, 1, size, fp) != size )
         {
             print_renderer_error("renderer_load_shaders", "Could not read shader %s", shaders[s]);
             exit(EXIT_FAILURE);
@@ -125,4 +125,432 @@ renderer_load_shaders
 
         glDeleteShader(shader);
     }
+}
+
+static Position_t pos_from_gp0(uint32_t p) {
+    Position_t pos;
+
+    pos.x = ((p >>  0) & 0xffff);
+    pos.y = ((p >> 16) & 0xffff);
+
+    // pos.x -= gpu_display_vram_x_start();
+
+    // pos.x = (pos.x / 512.0f) - 1.0f;
+    // pos.y = 1.0f - (pos.y / 256.0f);
+
+    // PRINT_POS(pos);
+
+    return pos;
+}
+
+static Color_t col_from_gp0(uint32_t c) {
+    Color_t col;
+
+    col.r = (c >>  0) & 0xff;
+    col.g = (c >>  8) & 0xff;
+    col.b = (c >> 16) & 0xff;
+
+    col.r = col.r / 255.0f;
+    col.g = col.g / 255.0f;
+    col.b = col.b / 255.0f;
+
+    // PRINT_COL(col);
+
+    return col;
+}
+
+static Texpos_t texpos_from_gp0(uint32_t p) {
+    Texpos_t texpos;
+
+    texpos.x = (p >> 0) & 0xff;
+    texpos.y = (p >> 4) & 0xff;
+
+    return texpos;
+}
+
+static Texpage_t texpage_from_gp0(uint32_t p) {
+    Texpage_t page;
+    
+    p >>= 16;
+
+    page.x_base = ((p >> 0) & 0xf) * 64;
+    page.y_base = ((p >> 4) & 0x1) *256;
+
+    return page;
+}
+
+static Texdepth_e texdepth_from_gp0(uint32_t p) {
+    Texdepth_e depth;
+
+    // p >>= 16;
+
+    depth = (p >> 7) & 0x3;
+
+    return depth;
+}
+
+static Clutpos_t clutpos_from_gp0(uint32_t c) {
+    Clutpos_t clut;
+
+    c >>= 16;
+    
+    clut.x = ((c >> 0) & 0x3f) * 16;
+    clut.y = ((c >> 6) & 0x1ff) * 1;
+    
+    return clut;
+}
+
+// renderer functions
+void RENDER_THREE_POINT_POLYGON_MONOCHROME(
+    uint32_t gp0_c1, uint32_t gp0_v1, 
+    uint32_t gp0_v2, 
+    uint32_t gp0_v3, 
+    bool semi_transparent
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {};
+    
+    v1 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+    
+    renderer_push_triangle(v1, v2, v3);
+}
+void RENDER_FOUR_POINT_POLYGON_MONOCHROME(
+    uint32_t gp0_c1, uint32_t gp0_v1, 
+                     uint32_t gp0_v2, 
+                     uint32_t gp0_v3, 
+                     uint32_t gp0_v4,
+    bool semi_transparent
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {}, v4 = {};
+    
+    v1 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v4 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v4),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    renderer_push_triangle(v1, v2, v3);
+    renderer_push_triangle(v2, v3, v4);
+}
+void RENDER_THREE_POINT_POLYGON_TEXTURED(
+    uint32_t gp0_c1, uint32_t gp0_v1, uint32_t gp0_t1_clut,
+                     uint32_t gp0_v2, uint32_t gp0_t2_page,
+                     uint32_t gp0_v3, uint32_t gp0_t3,
+    bool semi_transparent, bool texture_blending
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {};
+    
+    v1 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t1_clut),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t2_page),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t3),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    renderer_push_triangle(v1, v2, v3);
+}
+void RENDER_FOUR_POINT_POLYGON_TEXTURED(
+    uint32_t gp0_c1, uint32_t gp0_v1, uint32_t gp0_t1_clut,
+                     uint32_t gp0_v2, uint32_t gp0_t2_page,
+                     uint32_t gp0_v3, uint32_t gp0_t3,
+                     uint32_t gp0_v4, uint32_t gp0_t4,
+    bool semi_transparent, bool texture_blending
+) 
+{
+    vertex_t v1, v2, v3, v4;
+    
+    v1 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t1_clut),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t2_page),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t3),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v4 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v4),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t4),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    PRINT_VERTEX(v1);
+    PRINT_VERTEX(v2);
+    PRINT_VERTEX(v3);
+    PRINT_VERTEX(v4);
+
+    renderer_push_triangle(v1, v2, v3);
+    renderer_push_triangle(v2, v3, v4);
+}
+void RENDER_THREE_POINT_POLYGON_SHADED(
+    uint32_t gp0_c1, uint32_t gp0_v1,
+    uint32_t gp0_c2, uint32_t gp0_v2,
+    uint32_t gp0_c3, uint32_t gp0_v3,
+    bool semi_transparent
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {};
+    
+    v1 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c2),
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c3),
+        .semi_transparent = semi_transparent
+    };
+
+    renderer_push_triangle(v1, v2, v3);
+}
+void RENDER_FOUR_POINT_POLYGON_SHADED(
+    uint32_t gp0_c1, uint32_t gp0_v1,
+    uint32_t gp0_c2, uint32_t gp0_v2,
+    uint32_t gp0_c3, uint32_t gp0_v3,
+    uint32_t gp0_c4, uint32_t gp0_v4,
+    bool semi_transparent
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {}, v4 = {};
+    
+    v1 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c2),
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c3),
+        .semi_transparent = semi_transparent
+    };
+
+    v4 = (vertex_t) {
+        .position = pos_from_gp0(gp0_v4),
+        .color    = col_from_gp0(gp0_c4),
+        .semi_transparent = semi_transparent
+    };
+
+    renderer_push_triangle(v1, v2, v3);
+    renderer_push_triangle(v2, v3, v4);
+}
+void RENDER_THREE_POINT_POLYGON_SHADED_TEXTURED(
+    uint32_t gp0_c1, uint32_t gp0_v1, uint32_t gp0_t1_clut,
+    uint32_t gp0_c2, uint32_t gp0_v2, uint32_t gp0_t2_page,
+    uint32_t gp0_c3, uint32_t gp0_v3, uint32_t gp0_t3,
+    bool semi_transparent, bool texture_blending
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {};
+    
+    v1 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t1_clut),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c2),
+        .texpos   = texpos_from_gp0(gp0_t2_page),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c3),
+        .texpos   = texpos_from_gp0(gp0_t3),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    renderer_push_triangle(v1, v2, v3);
+}
+void RENDER_FOUR_POINT_POLYGON_SHADED_TEXTURED(
+    uint32_t gp0_c1, uint32_t gp0_v1, uint32_t gp0_t1_clut,
+    uint32_t gp0_c2, uint32_t gp0_v2, uint32_t gp0_t2_page,
+    uint32_t gp0_c3, uint32_t gp0_v3, uint32_t gp0_t3,
+    uint32_t gp0_c4, uint32_t gp0_v4, uint32_t gp0_t4,
+    bool semi_transparent, bool texture_blending
+) 
+{
+    vertex_t v1 = {}, v2 = {}, v3 = {}, v4 = {};
+    
+    v1 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v1),
+        .color    = col_from_gp0(gp0_c1),
+        .texpos   = texpos_from_gp0(gp0_t1_clut),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v2 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v2),
+        .color    = col_from_gp0(gp0_c2),
+        .texpos   = texpos_from_gp0(gp0_t2_page),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v3 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v3),
+        .color    = col_from_gp0(gp0_c3),
+        .texpos   = texpos_from_gp0(gp0_t3),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    v4 = (vertex_t) {
+        .draw_texture = true,
+        .position = pos_from_gp0(gp0_v4),
+        .color    = col_from_gp0(gp0_c4),
+        .texpos   = texpos_from_gp0(gp0_t4),
+        .texpage  = texpage_from_gp0(gp0_t2_page),
+        .depth    = texdepth_from_gp0(gp0_t2_page),
+        .clutpos  = clutpos_from_gp0(gp0_t1_clut),
+        .blend    = texture_blending + 1,
+        .semi_transparent = semi_transparent
+    };
+
+    renderer_push_triangle(v1, v2, v3);
+    renderer_push_triangle(v2, v3, v4);
 }

@@ -19,7 +19,7 @@ psx_create
 
     // create psx SDL context
     SDL_CHECK_ZERO(SDL_Init(SDL_INIT_VIDEO));
-    SDL_CHECK_NULL(psx.window = SDL_CreateWindow(WIN_NAME, 0, 0, WIN_W, WIN_H, WIN_FLAGS));
+    SDL_CHECK_NULL(psx.window = SDL_CreateWindow(WIN_NAME, 0, 0, WIN_WIDTH, WIN_HEIGHT, WIN_FLAGS));
     
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
@@ -31,13 +31,13 @@ psx_create
     SDL_CHECK_NULL(psx.context = SDL_GL_CreateContext(psx.window));
     gladLoadGLLoader(SDL_GL_GetProcAddress);
 
-    glViewport(0, 0, WIN_W, WIN_H);
+    glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
     
     // create the renderer context and load the shaders
     
     const char *shaders[] = {
-        "shaders/screen.vs.glsl",
-        "shaders/screen.fs.glsl"
+        "./shaders/screen.vs.glsl",
+        "./shaders/screen.fs.glsl"
     };
     renderer_create(shaders, 2);
     
@@ -83,16 +83,12 @@ psx_step_interface
 ( void )
 {
     renderer_end_frame();
-
     SDL_GL_SwapWindow( psx.window );
 
     SDL_Event e;
     while ( SDL_PollEvent( &e ) )
     {
-        if ( e.type == SDL_QUIT )
-        {
-            exit(0);
-        }
+        if ( e.type == SDL_QUIT ) { exit(0); }
     }
     glClearColor( 0.0f , 0.0f , 0.0f , 1.0f );
 
@@ -111,7 +107,6 @@ psx_main
         {
             psx_step_interface();
         }
-
         psx_step_components();
     }
 }
