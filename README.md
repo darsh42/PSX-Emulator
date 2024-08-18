@@ -3,8 +3,8 @@
 PSX-Emulator is emulator for the Playstation 1 developed in C. The project was built with the aim of furthering my knowledge surrounding programming fundamentals
 and computer architecture.
 
-1.  [[Quick Start]]
-2.  [[Design]]
+1.  [Quick Start]
+2.  [Design]
 
 ## Quick Start
 Dependencies
