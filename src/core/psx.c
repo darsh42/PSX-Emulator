@@ -13,9 +13,15 @@ void
 psx_create
 ( int argc, char **argv )
 {
-    if (argc != 3) { print_psx_error("main", "USEAGE: ./psx <bios.bin> game.psx", NULL); exit(-1); }
+    if (argc != 3) 
+    { 
+        print_psx_error("main", "USEAGE: ./psx <bios.bin> game.psx", NULL); exit(-1); 
+    }
 
-    if (memory_load_bios(*(++argv)) != NO_ERROR) { print_psx_error("main", "Cannot load BIOS file", NULL); exit(1); }
+    if (memory_load_bios(*(++argv)) != NO_ERROR) 
+    { 
+        print_psx_error("main", "Cannot load BIOS file", NULL); exit(1); 
+    }
 
     // create psx SDL context
     SDL_CHECK_ZERO(SDL_Init(SDL_INIT_VIDEO));
@@ -111,6 +117,26 @@ psx_main
     }
 }
 
+/** run the psx and the gdb stub rsp */
+void
+psx_debug
+( void )
+{
+    gdb_stub_init();
+    
+    while ( psx.running )
+    {
+        gdb_stub_process();
+        if ( psx.gpu->render_phase == VBLANK )
+        {
+            psx_step_interface();
+        }
+        psx_step_components();
+    }
+
+    gdb_stub_deinit();
+}
+
 /* destroy the psx instance */
 void 
 psx_destroy
@@ -125,7 +151,10 @@ int
 main
 ( int argc , char **argv )
 {
+    /** create and initialise the PSX */
     psx_create(argc, argv);
-    psx_main();
+    /** if gdb_stub mode do psx_debug else psx_main */
+    ((psx.gdb_stub) ? psx_debug: psx_main)();
+    /** clean up any resources and quit */
     psx_destroy();
 }

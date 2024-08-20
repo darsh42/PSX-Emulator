@@ -90,16 +90,16 @@ PSX_ERROR cpu_reset(void) {
     cpu.cop0.R[2]  = &cpu.cop0.TLBL.value;
     cpu.cop0.R[3]  = &cpu.cop0.BPC.value;
     cpu.cop0.R[4]  = &cpu.cop0.CTXT.value;
+    // simple helper functions
     cpu.cop0.R[5]  = &cpu.cop0.BDA.value;
     cpu.cop0.R[6]  = &cpu.cop0.PIDMASK.value;
     cpu.cop0.R[7]  = &cpu.cop0.DCIC.value;
-    cpu.cop0.R[8]  = &cpu.cop0.BADV.value;
     cpu.cop0.R[9]  = &cpu.cop0.BDAM.value;
-    cpu.cop0.R[10] = &cpu.cop0.TLBH.value;
     cpu.cop0.R[11] = &cpu.cop0.BCPM.value;
     cpu.cop0.R[12] = &cpu.cop0.SR.value;
     cpu.cop0.R[13] = &cpu.cop0.CAUSE.value;
     cpu.cop0.R[14] = &cpu.cop0.EPC.value;
+    // main instruction execution functions
     cpu.cop0.R[15] = &cpu.cop0.PIRD.value;
 
     return set_PSX_error(NO_ERROR);
