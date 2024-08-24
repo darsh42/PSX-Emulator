@@ -66,6 +66,62 @@ psx_create
     psx.running = true;
 }
 
+/** create a psx instance */
+void 
+psx_debug_create
+( int argc, char **argv )
+{
+    if (argc != 3) 
+    { 
+        print_psx_error("main", "USEAGE: ./psx <bios.bin> game.psx", NULL); exit(-1); 
+    }
+
+    if (memory_load_bios(*(++argv)) != NO_ERROR) 
+    { 
+        print_psx_error("main", "Cannot load BIOS file", NULL); exit(1); 
+    }
+
+    // create psx SDL context
+    SDL_CHECK_ZERO(SDL_Init(SDL_INIT_VIDEO));
+    SDL_CHECK_NULL(psx.window = SDL_CreateWindow(WIN_NAME, 0, 0, WIN_WIDTH, WIN_HEIGHT, WIN_FLAGS));
+    
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+    SDL_CHECK_NULL(psx.context = SDL_GL_CreateContext(psx.window));
+    gladLoadGLLoader(SDL_GL_GetProcAddress);
+
+    glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
+    
+    // create the renderer context and load the shaders
+    
+    const char *shaders[] = {
+        "./shaders/screen.vs.glsl",
+        "./shaders/screen.fs.glsl"
+    };
+    renderer_create(shaders, 2);
+    
+    psx.cpu     = get_cpu();
+    psx.gpu     = get_gpu();
+    psx.dma     = get_dma();
+    psx.memory  = get_memory();
+    psx.timers  = get_timers();
+
+    cpu_reset();
+    gpu_reset();
+    dma_reset();
+    timers_create();
+    
+    gdb_stub_init();
+
+    // start the psx
+    psx.running = true;
+}
+
 /** step the internal components of the psx */
 void 
 psx_step_components
@@ -119,11 +175,9 @@ psx_main
 
 /** run the psx and the gdb stub rsp */
 void
-psx_debug
+psx_debug_main
 ( void )
 {
-    gdb_stub_init();
-    
     while ( psx.running )
     {
         gdb_stub_process();
@@ -133,8 +187,6 @@ psx_debug
         }
         psx_step_components();
     }
-
-    gdb_stub_deinit();
 }
 
 /* destroy the psx instance */
@@ -147,14 +199,26 @@ psx_destroy
     SDL_Quit();
 }
 
+/* destroy the psx instance */
+void 
+psx_debug_destroy
+( void ) 
+{
+    gdb_stub_deinit();
+    SDL_GL_DeleteContext(psx.context);
+    SDL_DestroyWindow(psx.window);
+    SDL_Quit();
+}
+
 int 
 main
 ( int argc , char **argv )
 {
+    psx.gdb_stub = true;
     /** create and initialise the PSX */
-    psx_create(argc, argv);
+    ((psx.gdb_stub) ? psx_debug_create: psx_create)(argc, argv);
     /** if gdb_stub mode do psx_debug else psx_main */
-    ((psx.gdb_stub) ? psx_debug: psx_main)();
+    ((psx.gdb_stub) ? psx_debug_main: psx_main)();
     /** clean up any resources and quit */
-    psx_destroy();
+    ((psx.gdb_stub) ? psx_debug_destroy: psx_destroy)();
 }

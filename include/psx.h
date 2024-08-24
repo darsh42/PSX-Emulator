@@ -20,6 +20,7 @@
 
 struct PSX {
     bool running;
+    bool gdb_stub;
 
     SDL_Window   *window;
     SDL_GLContext context;
@@ -38,5 +39,7 @@ extern PSX_ERROR coprocessor_initialize(void);
 extern void debugger_reset(void);
 extern void debugger_exec(void);
 extern PSX_ERROR debugger_destroy(void);
+
+extern struct PSX *get_psx(void);
 
 #endif//PSX_H_INCLUDED

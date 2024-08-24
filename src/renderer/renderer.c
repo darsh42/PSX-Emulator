@@ -225,56 +225,6 @@ static GLuint renderer_load_shader(const char *file) {
     return program;
 }
 
-void
-renderer_load_shaders
-( GLuint *program, const char **shaders, uint32_t count )
-{
-    for ( uint32_t s = 0 ; s < count ; s++ )
-    {
-        FILE *fp;
-
-        if ( ( fp = fopen( shaders[s], "r") ) == NULL )
-        {
-            print_renderer_error("renderer_load_shaders", "Could not open shader %s", shaders[s]);
-            exit(EXIT_FAILURE);
-        }
-
-        fseek(fp, 0L, SEEK_END);
-        size_t size = ftell(fp);
-        fseek(fp, 0L, SEEK_SET);
-
-        char buffer[size];
-        
-        if ( fread( buffer, 1, size, fp) != size )
-        {
-            print_renderer_error("renderer_load_shaders", "Could not read shader %s", shaders[s]);
-            exit(EXIT_FAILURE);
-        }
-        
-        GLint  result;
-        GLuint shader, shader_flags;
-        bool vert, frag;
-
-        FILETYPE(shaders[s], "vs", vert);
-        FILETYPE(shaders[s], "fs", frag);
-
-        shader_flags = (vert) ? GL_VERTEX_SHADER:   shader_flags;
-        shader_flags = (frag) ? GL_FRAGMENT_SHADER: shader_flags;
-        
-        shader = glCreateShader(shader_flags);
-
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
-
-        *program = glCreateProgram();
-
-        glAttachShader(*program, shader);
-        glLinkProgram(*program);
-        glDetachShader(*program, shader);
-
-        glDeleteShader(shader);
-    }
-}
-
 static Position_t pos_from_gp0(uint32_t p) {
     Position_t pos;
 

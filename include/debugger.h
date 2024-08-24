@@ -82,4 +82,8 @@ struct DEBUGGER {
 struct PSX *get_psx(void);
 
 extern void peek_cpu_instruction();
+
+extern void gdb_stub_init(void);
+extern void gdb_stub_process(void);
+extern void gdb_stub_deinit(void);
 #endif // DEBUGGER_H_INCLUDED
