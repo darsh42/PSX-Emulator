@@ -12,6 +12,7 @@
 #include "memory.h"
 #include "timers.h"
 #include "renderer.h"
+#include "debugger.h"
 
 #include <SDL2/SDL.h>
 

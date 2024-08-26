@@ -24,6 +24,8 @@
 #define HASH_TABLE_SIZE 32
 #define HASH_TABLE_HASH(address) ((address) % HASH_TABLE_SIZE)
 
+#define hextoint(c) (((c) <= '9') ? (c) - '0': ((c) <= 'Z') ? (c) - 'A': (c) - 'a')
+
 #define print_stub_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
 /** All possible main commands of the stub */
@@ -42,11 +44,12 @@ enum GDB_COMMANDS {
     GDB_PSX_BREAKPOINT_SET     = 'Z',
     GDB_PSX_QUERY_GENERAL      = 'q',
     GDB_PSX_QUERY_SET          = 'Q',
+    GDB_PSX_MULTILETTER        = 'v',
+    GDB_PSX_KILL               = 'k',
 
     GDB_PSX_BREAKPOINT_LIST    = 'y',
     GDB_PSX_DEVICE_INFO        = '/',
     GDB_PSX_HELP               = '.',
-    GDB_PSX_QUIT               = ',',
     GDB_PSX_STOP               = 'x',
 };
 
@@ -57,8 +60,8 @@ struct gdb_packet {
 
 /** All possible matchpoints (break/watch points) */
 enum MP_TYPE {
-    MP_BP_READ,
-    MP_BP_WRITE,
+    MP_BP_SOFTWARE,
+    MP_BP_HARDWARE,
     MP_WP_READ,
     MP_WP_WRITE,
     MP_WP_ACCESS
@@ -81,6 +84,8 @@ struct gdb_stub {
     int socket_fd;
     int listen_fd;
     int signal;
+
+    bool stepping;
 };
 
 static struct gdb_stub stub;
@@ -122,6 +127,7 @@ bool gdb_stub_verify_checksum ( void )
         sum += c; // total
         i++;      // index
     }
+
 
     /** skip past '#' */
     i++;
@@ -292,7 +298,7 @@ static struct mp_entry * mp_hash_lookup ( enum MP_TYPE type, uint32_t address )
     }
     
     /** return matchpoint if found otherwise NULL */
-    return (seek->mp_type == type && seek->address == address) ? seek: NULL;
+    return (seek != NULL && seek->mp_type == type && seek->address == address) ? seek: NULL;
 }
 
 /** finds the specified matchpoint NOTE: does delete */
@@ -318,7 +324,26 @@ static struct mp_entry * mp_hash_delete ( enum MP_TYPE type, uint32_t address )
     }
     
     /** return matchpoint if found otherwise NULL */
-    return (delete->mp_type == type && delete->address == address) ? delete: NULL;
+    return (delete != NULL && delete->mp_type == type && delete->address == address) ? delete: NULL;
+}
+
+static bool mp_hash_hit ( void )
+{
+    /** calculate hash table entry */
+    uint32_t address = stub.psx->cpu->PC;
+    uint32_t index = HASH_TABLE_HASH(address);
+
+    /** will store desired matchpoint */
+    struct mp_entry *seek = NULL;
+
+    /** find matchpoint */
+    for (seek = &hash_table[index]; seek != NULL; seek = seek->next)
+    {
+        if (seek->address > address) { break; }
+    }
+    
+    /** return matchpoint if found otherwise NULL */
+    return (seek != NULL && seek->address == address);
 }
 
 /** deinitialises the hash table for the matchpoints */
@@ -346,7 +371,10 @@ static void gdb_stub_default_response ( void )
 
 /** continues the operation of the emulator */
 static void gdb_stub_continue ( void )
-{ }
+{ 
+    stub.stepping = true;
+    gdb_stub_default_response();
+}
 
 /** deletes a defined breakpoint */
 static void gdb_stub_breakpoint_delete ( void )
@@ -358,7 +386,46 @@ static void gdb_stub_breakpoint_list ( void )
 
 /** creates a new breakpoint */
 static void gdb_stub_breakpoint_set ( void )
-{ }
+{ 
+    char c;
+    int  i = 0;
+
+    while ( (c = stub.current.data[i]) != '$' && i < stub.current.size)
+        i++;
+    
+    /** skip '$' */
+    i++;
+
+    /** skip 'z' */
+    i++;
+
+    switch ( (stub.current.data[i] - '0') )
+    {
+        case (MP_BP_SOFTWARE): // software breakpoint
+        {
+            /** skip ',' */
+            i++;
+            
+            mp_hash_add(MP_BP_SOFTWARE, (uint32_t) strtol(&stub.current.data[i], NULL, 16));
+
+            gdb_stub_default_response();
+            break;
+        }
+        case (MP_BP_HARDWARE): // hardware breakpoint
+        {
+            /** skip ',' */
+            i++;
+            
+            mp_hash_add(MP_BP_HARDWARE, (uint32_t) strtol(&stub.current.data[i], NULL, 16));
+
+            gdb_stub_default_response();
+            break;
+        }
+        case (MP_WP_WRITE):  // write  watchpoint
+        case (MP_WP_READ):   // read   watchpoint
+        case (MP_WP_ACCESS): // access watchpoint
+    }
+}
 
 /** returns all device information */
 static void gdb_stub_device_info ( void )
@@ -384,7 +451,7 @@ static void gdb_stub_memory_read ( void )
     i++;
     
     /** retrive address from string */
-    int address = strtol(&stub.current.data[i], NULL, 16);
+    uint32_t address = strtol(&stub.current.data[i], NULL, 16);
     
     /** skip to length */
     while ( (c = stub.current.data[i]) != ',' && i < STUB_PACKET_SIZE )
@@ -405,29 +472,25 @@ static void gdb_stub_memory_read ( void )
     stub.response.data[i++] = '+';
     stub.response.data[i++] = '$';
     
-    uint32_t b0, b1, b2, b3;
+    uint32_t result;
     
     /** read based on size */
     switch (size) {
         case 1: 
-            memory_cpu_load_8bit(address, &b0); 
-            sprintf(&stub.response.data[i], "%02x", b0);
+            memory_cpu_load_8bit(address, &result); 
+            sprintf(&stub.response.data[i], "%02x", __builtin_bswap32(result));
             i += 2;
             break;
 
         case 2: 
-            memory_cpu_load_8bit(address, &b0); 
-            memory_cpu_load_8bit(address, &b1); 
-            sprintf(&stub.response.data[i], "%02x%02x", b0, b1);
+            memory_cpu_load_16bit(address, &result); 
+            sprintf(&stub.response.data[i], "%04x", __builtin_bswap32(result));
             i += 4;
             break;
 
         case 4: 
-            memory_cpu_load_8bit(address, &b0);
-            memory_cpu_load_8bit(address, &b1);
-            memory_cpu_load_8bit(address, &b2);
-            memory_cpu_load_8bit(address, &b3); 
-            sprintf(&stub.response.data[i], "%02x%02x%02x%02x", b0, b1, b2, b3);
+            memory_cpu_load_32bit(address, &result);
+            sprintf(&stub.response.data[i], "%08x", __builtin_bswap32(result));
             i += 8;
             break;
 
@@ -451,7 +514,11 @@ static void gdb_stub_memory_write ( void )
 
 /** quits the application */
 static void gdb_stub_quit ( void )
-{ }
+{ 
+    stub.psx->running = false;
+    stub.stepping = true;
+    gdb_stub_default_response();
+}
 
 /** reads a specified register */
 static void gdb_stub_register_read_all ( void )
@@ -537,7 +604,7 @@ static void gdb_stub_register_read ( void )
     char *registers = &stub.response.data[i];
     
     /** determine what register has been requested */
-    if ( reg < 32  ) { sprintf(registers, "%08x", __builtin_bswap32(stub.psx->cpu->R[reg]));           i+= 8; } else /** retrieve artimetic register */ 
+    if ( reg <= 31 ) { sprintf(registers, "%08x", __builtin_bswap32(stub.psx->cpu->R[reg]));           i+= 8; } else /** retrieve artimetic register */ 
     if ( reg == 32 ) { sprintf(registers, "%08x", __builtin_bswap32(stub.psx->cpu->cop0.SR.value));    i+= 8; } else /** retrieve COP0 SR register */
     if ( reg == 33 ) { sprintf(registers, "%08x", __builtin_bswap32(stub.psx->cpu->HI));               i+= 8; } else /** retrieve Hi register */ 
     if ( reg == 34 ) { sprintf(registers, "%08x", __builtin_bswap32(stub.psx->cpu->LO));               i+= 8; } else /** retrieve Lo register */
@@ -562,7 +629,9 @@ static void gdb_stub_register_write ( void )
 
 /** steps the emulator by one instruction */
 static void gdb_stub_step_instruction ( void )
-{ }
+{ 
+
+}
 
 /** stops the execution of the emulator */
 static void gdb_stub_stop ( void )
@@ -610,15 +679,15 @@ static void gdb_stub_query_general ( void )
     char *type = &stub.current.data[++i];
 
     /** find length of type */
-    while ( (c = stub.current.data[i]) != ':' && c != '#' && i < stub.current.size )
+    while ( (c = stub.current.data[i]) != '#' && c != ';' && c != ',' && i < stub.current.size )
     {
         i++; // loop index
         j++; // lenght counter
     }
 
     /** compare with supported query types */
-    if (!strncmp(type, "Search", j))    { } else 
-    if (!strncmp(type, "Supported", j)) { 
+    if (!strncmp(type, "Search", j))    { } 
+    else if (!strncmp(type, "Supported", j)) { 
         /** create start of response packet */
         stub.response.data[k++] = '+';
         stub.response.data[k++] = '$';
@@ -655,9 +724,9 @@ static void gdb_stub_query_general ( void )
 
         stub.response.size++;
         stub.response.size++;
-    } else 
-    if (!strncmp(type, "Symbol", j))    { } else
-    if (!strncmp(type, "Attached", j))  { 
+    } 
+    else if (!strncmp(type, "Symbol", j))    { } 
+    else if (!strncmp(type, "Attached", j))  { 
         /** create start of response packet */
         stub.response.data[k++] = '+';
         stub.response.data[k++] = '$';
@@ -673,7 +742,74 @@ static void gdb_stub_query_general ( void )
 
         stub.response.size++;
         stub.response.size++;
-    } else 
+    } 
+    else if (!strncmp(type, "Rcmd", j)) {
+        /** determine what custom command has been sent */
+
+        j = 0;
+        char command[STUB_PACKET_SIZE];
+        
+        /** skip comma */
+        i++;
+        
+        /** loop through hex chars */
+        while ( (c = stub.current.data[i]) != '#' && i < stub.current.size )
+        {
+            /** clear char */
+            command[j] = 0;
+            
+            /** determine char */
+            command[j] += hextoint(stub.current.data[i]) << 4; i++;
+            command[j] += hextoint(stub.current.data[i]) << 0; i++;
+            
+
+
+            /** increment to next char */
+            j++;
+        }
+
+        if (!strncmp(command, "Gpu", j)) { 
+            i = 0;
+            j = 0;
+
+            stub.response.data[i++] = '+';
+            stub.response.data[i++] = 'o';
+            
+            /** contains the gpu status message */
+            char status[STUB_PACKET_SIZE - 5];
+            
+            /** will format the status string to contain all information */
+            sprintf
+            (
+                status, 
+                "GPU STATUS"
+            );
+            
+            /** will copy the information into the response buffer as two hex char per status char */
+            while ( (c = status[j++]) != '\0'  && i < STUB_PACKET_SIZE - 3)
+            {
+                sprintf(&stub.response.data[i], "%02x", c);
+                i++;
+                i++;
+            }
+
+            /** calculate checksum */
+            stub.response.data[i++] = '#';
+            stub.response.size      = i;
+            
+            gdb_stub_apply_checksum(stub.response.data, &stub.response.data[i], i);
+
+            stub.response.size++;
+            stub.response.size++;
+        }
+        else if (!strncmp(command, "Dma", j))    { }
+        else if (!strncmp(command, "Timers", j)) { }
+        else if (!strncmp(command, "Cdrom", j))  { }
+        else {
+            gdb_stub_default_response();
+        }
+    } 
+    else 
     {
         gdb_stub_default_response();
     }
@@ -683,8 +819,41 @@ static void gdb_stub_query_general ( void )
 static void gdb_stub_query_set ( void )
 { }
 
+/** gdb multletter command */
+void gdb_stub_multiletter ( void )
+{
+    char c;
+    int  i = 0, j = 0;
+
+    /** determine multiletter command */
+    /** skip to command */
+    while ( (c = stub.current.data[i]) != '$' && i < stub.current.size)
+        i++;
+    /* skip past '$' */
+    i++;
+    /*skip past command char */
+    i++;
+    
+    char *command = &stub.current.data[i];
+
+    while ( (c = stub.current.data[i]) != ';' && i < stub.current.size)
+    {
+        i++; // loop index
+        j++; // command length
+    }
+    
+    if (!strncmp(command, "Cont", j))  { } 
+    else if (!strncmp(command, "Cont?", j)) { } 
+    else if (!strncmp(command, "MustReplyEmpty", j)) {
+        gdb_stub_default_response();
+    } 
+    else {
+        gdb_stub_default_response();
+    }
+}
+
 /** initializes the stub context */
-void gdb_stub_init ( int argc, char **argv )
+void gdb_stub_init ( void )
 { 
     /** Parse arguments */
     socket_connect(STUB_ADDRESS, STUB_PORT);
@@ -702,40 +871,48 @@ void gdb_stub_deinit ( void )
 /** gdb stub processes main commands */
 void gdb_stub_process ( void )
 { 
-    /** clear buffer contents */
-    memset(stub.current.data,  0, STUB_PACKET_SIZE);
-    memset(stub.response.data, 0, STUB_PACKET_SIZE);
+    /** check breakpoints */
+    stub.stepping = mp_hash_hit();
 
-    while ( !gdb_stub_verify_checksum())
-        socket_read( stub.current.data , &stub.current.size , sizeof( stub.current.data ) );
-
-    // print_stub_error("gdb_stub_process", "current: %s", stub.current.data);
-    switch ( gdb_stub_get_command() )
+    /** process commands */
+    while (!stub.stepping ) 
     {
-        case ( GDB_PSX_EXTENDED_SUPPORT   ): gdb_stub_extended_support();   break;
-        case ( GDB_PSX_EXCEPTION          ): gdb_stub_exception();          break;
-        case ( GDB_PSX_CONTINUE           ): gdb_stub_continue();           break;
-        case ( GDB_PSX_REGISTER_READ_ALL  ): gdb_stub_register_read_all();  break;
-        case ( GDB_PSX_REGISTER_WRITE_ALL ): gdb_stub_register_write_all(); break;
-        case ( GDB_PSX_REGISTER_READ      ): gdb_stub_register_read();      break;
-        case ( GDB_PSX_REGISTER_WRITE     ): gdb_stub_register_write();     break;
-        case ( GDB_PSX_MEMORY_READ        ): gdb_stub_memory_read ();       break;
-        case ( GDB_PSX_MEMORY_WRITE       ): gdb_stub_memory_write();       break;
-        case ( GDB_PSX_STEP_INSTRUCTION   ): gdb_stub_step_instruction();   break;
-        case ( GDB_PSX_BREAKPOINT_DELETE  ): gdb_stub_breakpoint_delete();  break;
-        case ( GDB_PSX_BREAKPOINT_SET     ): gdb_stub_breakpoint_set();     break;
-        case ( GDB_PSX_QUERY_GENERAL      ): gdb_stub_query_general();      break;
-        case ( GDB_PSX_QUERY_SET          ): gdb_stub_query_set();          break;
+        /** clear buffer contents */
+        memset(stub.current.data,  0, STUB_PACKET_SIZE);
+        memset(stub.response.data, 0, STUB_PACKET_SIZE);
 
-        case ( GDB_PSX_BREAKPOINT_LIST    ): gdb_stub_breakpoint_list();    break;
-        case ( GDB_PSX_DEVICE_INFO        ): gdb_stub_device_info();        break;
-        case ( GDB_PSX_HELP               ): gdb_stub_help();               break;
-        case ( GDB_PSX_QUIT               ): gdb_stub_quit();               break;
-        case ( GDB_PSX_STOP               ): gdb_stub_stop();               break;
-        default:                             gdb_stub_default_response();   break;
+        while ( !gdb_stub_verify_checksum() )
+            socket_read( stub.current.data , &stub.current.size , sizeof( stub.current.data ) );
+
+        // print_stub_error("gdb_stub_process", "current: %s", stub.current.data);
+        switch ( gdb_stub_get_command() )
+        {
+            case ( GDB_PSX_EXTENDED_SUPPORT   ): gdb_stub_extended_support();   break;
+            case ( GDB_PSX_EXCEPTION          ): gdb_stub_exception();          break;
+            case ( GDB_PSX_CONTINUE           ): gdb_stub_continue();           break;
+            case ( GDB_PSX_REGISTER_READ_ALL  ): gdb_stub_register_read_all();  break;
+            case ( GDB_PSX_REGISTER_WRITE_ALL ): gdb_stub_register_write_all(); break;
+            case ( GDB_PSX_REGISTER_READ      ): gdb_stub_register_read();      break;
+            case ( GDB_PSX_REGISTER_WRITE     ): gdb_stub_register_write();     break;
+            case ( GDB_PSX_MEMORY_READ        ): gdb_stub_memory_read ();       break;
+            case ( GDB_PSX_MEMORY_WRITE       ): gdb_stub_memory_write();       break;
+            case ( GDB_PSX_STEP_INSTRUCTION   ): gdb_stub_step_instruction();   break;
+            case ( GDB_PSX_BREAKPOINT_DELETE  ): gdb_stub_breakpoint_delete();  break;
+            case ( GDB_PSX_BREAKPOINT_SET     ): gdb_stub_breakpoint_set();     break;
+            case ( GDB_PSX_QUERY_GENERAL      ): gdb_stub_query_general();      break;
+            case ( GDB_PSX_QUERY_SET          ): gdb_stub_query_set();          break;
+            case ( GDB_PSX_MULTILETTER        ): gdb_stub_multiletter();        break;
+
+            case ( GDB_PSX_BREAKPOINT_LIST    ): gdb_stub_breakpoint_list();    break;
+            case ( GDB_PSX_DEVICE_INFO        ): gdb_stub_device_info();        break;
+            case ( GDB_PSX_HELP               ): gdb_stub_help();               break;
+            case ( GDB_PSX_KILL               ): gdb_stub_quit();               break;
+            case ( GDB_PSX_STOP               ): gdb_stub_stop();               break;
+            default:                             gdb_stub_default_response();   break;
+        }
+        
+        // print_stub_error("gdb_stub_process", "response: %s", stub.response.data);
+        socket_write( stub.response.data , stub.response.size );
     }
-    
-    // print_stub_error("gdb_stub_process", "response: %s", stub.response.data);
-    socket_write( stub.response.data , stub.response.size );
 }
 

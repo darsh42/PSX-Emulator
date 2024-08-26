@@ -4,7 +4,11 @@
 #include "common.h"
 #include "memory.h"
 
+#include "fifo.h"
+
 #define print_cdrom_error(func, format, ...) print_error("cdrom.c", func, format,  __VA_ARGS__)
+
+
 
 struct CDROM {
     /** Registers */

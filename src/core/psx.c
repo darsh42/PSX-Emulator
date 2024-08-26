@@ -9,9 +9,7 @@ struct PSX psx;
 struct PSX *get_psx(void) { return &psx; }
 
 /** create a psx instance */
-void 
-psx_create
-( int argc, char **argv )
+void psx_create ( int argc, char **argv )
 {
     if (argc != 3) 
     { 
@@ -67,9 +65,7 @@ psx_create
 }
 
 /** create a psx instance */
-void 
-psx_debug_create
-( int argc, char **argv )
+void psx_debug_create ( int argc, char **argv )
 {
     if (argc != 3) 
     { 
@@ -123,9 +119,7 @@ psx_debug_create
 }
 
 /** step the internal components of the psx */
-void 
-psx_step_components
-( void ) 
+void psx_step_components ( void ) 
 {
     #ifdef DEBUG
     // debugger_exec();
@@ -140,9 +134,7 @@ psx_step_components
 }
 
 /** step the external user interface of the psx */
-void
-psx_step_interface
-( void )
+void psx_step_interface ( void )
 {
     renderer_end_frame();
     SDL_GL_SwapWindow( psx.window );
@@ -159,9 +151,7 @@ psx_step_interface
 }
 
 /** run the psx */
-void
-psx_main
-( void )
+void psx_main ( void )
 {
     while ( psx.running ) 
     {
@@ -174,9 +164,7 @@ psx_main
 }
 
 /** run the psx and the gdb stub rsp */
-void
-psx_debug_main
-( void )
+void psx_debug_main ( void )
 {
     while ( psx.running )
     {
@@ -190,9 +178,7 @@ psx_debug_main
 }
 
 /* destroy the psx instance */
-void 
-psx_destroy
-( void ) 
+void psx_destroy ( void ) 
 {
     SDL_GL_DeleteContext(psx.context);
     SDL_DestroyWindow(psx.window);
@@ -200,9 +186,7 @@ psx_destroy
 }
 
 /* destroy the psx instance */
-void 
-psx_debug_destroy
-( void ) 
+void psx_debug_destroy ( void ) 
 {
     gdb_stub_deinit();
     SDL_GL_DeleteContext(psx.context);
@@ -210,9 +194,7 @@ psx_debug_destroy
     SDL_Quit();
 }
 
-int 
-main
-( int argc , char **argv )
+int main ( int argc , char **argv )
 {
     psx.gdb_stub = true;
     /** create and initialise the PSX */

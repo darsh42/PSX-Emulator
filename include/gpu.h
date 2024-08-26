@@ -79,8 +79,6 @@ union COMMAND_PACKET {
 #define FIFO_SIZE 12
 #define MAX_COMMANDS 3
 
-typedef struct FIFO fifo_t;
-
 struct COMMAND_FIFO {
     union COMMAND_PACKET commands[FIFO_SIZE];
 

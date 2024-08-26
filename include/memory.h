@@ -9,13 +9,35 @@
 #define print_memory_error(func, format, ...) print_error("cpu.c", func, format, __VA_ARGS__)
 
 // CPU address space
-typedef union MEM_MAIN                  {uint8_t mem[0X200000];}   MEM_MAIN;                  // 2048K
+typedef union MEM_MAIN                  {                                                     // 2048K
+                                            uint8_t mem[0X200000];
+                                            struct {
+                                                // BIOS RAM (reserved first 64Kbytes
+                                                uint32_t _garbage[4];
+                                                uint32_t _unused_1[12];
+                                                uint32_t cop0_debug_break_vector[8];
+                                                uint32_t ram_size;
+                                                uint32_t _unknown_1;
+                                                uint32_t _unknown_2;
+                                                uint32_t _unused_2[5];
+                                                uint32_t exception_vector[4];
+                                                uint32_t _unused_3[4];
+                                                uint32_t function_vector_Ann[4];
+                                                uint32_t function_vector_Bnn[4];
+                                                uint32_t function_vector_Cnn[4];
+                                                uint32_t _unused_4[12];
+                                                uint32_t table_of_tables[22];
+                                                uint32_t _unused_5[10];
+                                                uint32_t cli_argument[32];
+                                                uint32_t jumptable_Ann[192];
+                                            };
+                                        }   MEM_MAIN;
 typedef union MEM_EXPANSION_1           {uint8_t mem[0X800000];}   MEM_EXPANSION_1;           // 8192K
 typedef union MEM_SCRATCH_PAD           {uint8_t mem[0X400];}      MEM_SCRATCH_PAD;           // 1K
 typedef union MEM_IO_PORTS              {
                                             uint8_t mem[0X2000];
                                             struct {
-                                                // Memory control
+                                                // Memory control 1             : 1F801000 - 1F801020
                                                 uint32_t expansion_1_base_address;
                                                 uint32_t expansion_2_base_address;
                                                 uint32_t expansion_1;
@@ -28,7 +50,7 @@ typedef union MEM_IO_PORTS              {
                                                 
                                                 uint8_t _pad_mem_cont_periph[28];
 
-                                                // Peripherals
+                                                // Peripherals                  : 1F801040 - 1F80105E
                                                 uint32_t joy_data;
                                                 uint32_t joy_stat;
                                                 uint16_t joy_mode;
@@ -42,18 +64,18 @@ typedef union MEM_IO_PORTS              {
                                                 uint16_t sio_misc;
                                                 uint16_t sio_baud;
 
-                                                // Memory control 2
+                                                // Memory control 2             :  1F801060
                                                 uint32_t ram_size;
 
                                                 uint8_t _pad_mem_cont_2_interrupt[12];
                                                 
-                                                // Interrupt control
+                                                // Interrupt control            : 1F801070 - 1F801074
                                                 uint32_t i_stat;
                                                 uint32_t i_mask;
                                                 
                                                 uint8_t _pad_interrupt_dma[8];
                                                 
-                                                // DMA
+                                                // DMA                          : 1F801080 - 1F8010FC
                                                 uint32_t dma0_mdec_in[4];
                                                 uint32_t dma1_mdec_out[4];
                                                 uint32_t dma2_gpu[4];
@@ -66,120 +88,290 @@ typedef union MEM_IO_PORTS              {
 
                                                 uint8_t _pad_dma_timer[8];
 
-                                                // Timers (AKA root counters)
+                                                // Timers (AKA root counters)   : 1F801100 - 1F801130
                                                 uint8_t timer_0_dot_clock[16];
                                                 uint8_t timer_1_horizontal_retrace[16];
                                                 uint8_t timer_2_8th_system_clock[16];
 
                                                 uint8_t _pad_timers_cdrom[1744];
 
-                                                // TODO: CDROM registers use of bits needs attention
+                                                // CDROM Registers              : 1F801800 - 1F801803
                                                 uint8_t cd_index_status;
                                                 uint8_t cd_response_fifo;
                                                 uint8_t cd_data_fifo;
                                                 uint8_t cd_interrupt;
-                                                // uint8_t cd_index_status[1];                 //  CD Index/Status Register (Bit0-1 R/W, Bit2-7 Read Only)
-                                                // uint8_t cd_response_fifo[1];                //  CD Response Fifo (R) (usually with Index1)
-                                                // uint8_t cd_data_fifo[2];                    //  CD Data Fifo - 8bit/16bit (R) (usually with Index0..1)
-                                                // uint8_t cd_interrupt_enable_read[1];        //  CD Interrupt Enable Register (R)
-                                                // uint8_t cd_interrupt_flag[1];               //  CD Interrupt Flag Register (R/W)
-                                                // uint8_t cd_interrupt_enable_read_mirror[1]; //  CD Interrupt Enable Register (R) (Mirror)
-                                                // uint8_t cd_interrupt_flag_mirror[1];        //  CD Interrupt Flag Register (R/W) (Mirror)
-                                                // uint8_t cd_command[1];                      //  CD Command Register (W)
-                                                // uint8_t cd_parameter_fifo[1];               //  CD Parameter Fifo (W)
-                                                // uint8_t cd_request[1];                      //  CD Request Register (W)
-                                                // uint8_t cd_unused[1];                       //  Unknown/unused
-                                                // uint8_t cd_interrupt_enable_write[1];       //  CD Interrupt Enable Register (W)
-                                                // uint8_t cd_interrupt_flag_2[1];             //  CD Interrupt Flag Register (R/W)
-                                                // uint8_t cd_unused2[1];                      //  Unknown/unused
-                                                // uint8_t cd_volume_Lcd_Lspu[1];              //  CD Audio Volume for Left-CD-Out to Left-SPU-Input (W)
-                                                // uint8_t cd_volume_Lcd_Rspu[1];              //  CD Audio Volume for Left-CD-Out to Right-SPU-Input (W)
-                                                // uint8_t cd_volume_Rcd_Rspu[1];              //  CD Audio Volume for Right-CD-Out to Right-SPU-Input (W)
-                                                // uint8_t cd_volume_Rcd_Lspu[1];              //  CD Audio Volume for Right-CD-Out to Left-SPU-Input (W)
-                                                // uint8_t cd_volume[1];                       //  CD Audio Volume Apply Changes (by writing bit5=1)
-                                                //// Verified upto this point
 
                                                 uint8_t _pad_cdrom_gpu[12];
 
-                                                // GPU Registers
+                                                // GPU Registers                : 1F801810 - 1F801814
                                                 uint32_t gp0_and_gpu_read; // GP0 (Write) GPUREAD (Read) responses to GP0(C0h) and GP1(10h) commands
                                                 uint32_t gp1_and_gpu_stat; // GP1 (Write) GPUSTAT (Read) GPU Status Register
 
                                                 uint8_t _pad_gpu_mdec[8];
 
-                                                // MDEC Registers
+                                                // MDEC Registers               : 1F801820 - 1F801824
                                                 uint32_t mdec_command_parameter;   // MDEC Command/Parameter Register (W)
                                                 uint32_t mdec_data_response;       // MDEC Data/Response Register (R)
                                                 uint32_t mdec_control_reset;       // MDEC Control/Reset Register (W)
                                                 uint32_t mdec_status;              // MDEC Status Register (R)
+                                                
+                                                uint8_t _pad_mdec_spu[976];
 
-                                                // TODO: SPU Voice 0..23 Registers
-                                                // 
-                                                //   1F801C00h+N*10h 4   Voice 0..23 Volume Left/Right
-                                                //   1F801C04h+N*10h 2   Voice 0..23 ADPCM Sample Rate
-                                                //   1F801C06h+N*10h 2   Voice 0..23 ADPCM Start Address
-                                                //   1F801C08h+N*10h 4   Voice 0..23 ADSR Attack/Decay/Sustain/Release
-                                                //   1F801C0Ch+N*10h 2   Voice 0..23 ADSR Current Volume
-                                                //   1F801C0Eh+N*10h 2   Voice 0..23 ADPCM Repeat Address
-                                                // 
+                                                // SPU Registers                : 1F801C00 - 1F801C0E
+                                                
+                                                // SPU Voice Registers 
+                                                uint32_t voice_0_volume;
+                                                uint16_t voice_0_adpcm_sample_rate;
+                                                uint16_t voice_0_adpcm_start_address;
+                                                uint32_t voice_0_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_0_adsr_current_volume;
+                                                
+                                                uint32_t voice_1_volume;
+                                                uint16_t voice_1_adpcm_sample_rate;
+                                                uint16_t voice_1_adpcm_start_address;
+                                                uint32_t voice_1_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_1_adsr_current_volume;
+                                                uint16_t voice_1_adsr_repeat_address;
+                                                
+                                                uint32_t voice_2_volume;
+                                                uint16_t voice_2_adpcm_sample_rate;
+                                                uint16_t voice_2_adpcm_start_address;
+                                                uint32_t voice_2_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_2_adsr_current_volume;
+                                                uint16_t voice_2_adsr_repeat_address;
+                                                
+                                                uint32_t voice_3_volume;
+                                                uint16_t voice_3_adpcm_sample_rate;
+                                                uint16_t voice_3_adpcm_start_address;
+                                                uint32_t voice_3_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_3_adsr_current_volume;
+                                                uint16_t voice_3_adsr_repeat_address;
+                                                
+                                                uint32_t voice_4_volume;
+                                                uint16_t voice_4_adpcm_sample_rate;
+                                                uint16_t voice_4_adpcm_start_address;
+                                                uint32_t voice_4_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_4_adsr_current_volume;
+                                                uint16_t voice_4_adsr_repeat_address;
+                                                
+                                                uint32_t voice_5_volume;
+                                                uint16_t voice_5_adpcm_sample_rate;
+                                                uint16_t voice_5_adpcm_start_address;
+                                                uint32_t voice_5_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_5_adsr_current_volume;
+                                                uint16_t voice_5_adsr_repeat_address;
+                                                
+                                                uint32_t voice_6_volume;
+                                                uint16_t voice_6_adpcm_sample_rate;
+                                                uint16_t voice_6_adpcm_start_address;
+                                                uint32_t voice_6_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_6_adsr_current_volume;
+                                                uint16_t voice_6_adsr_repeat_address;
+                                                
+                                                uint32_t voice_7_volume;
+                                                uint16_t voice_7_adpcm_sample_rate;
+                                                uint16_t voice_7_adpcm_start_address;
+                                                uint32_t voice_7_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_7_adsr_current_volume;
+                                                uint16_t voice_7_adsr_repeat_address;
+                                                
+                                                uint32_t voice_8_volume;
+                                                uint16_t voice_8_adpcm_sample_rate;
+                                                uint16_t voice_8_adpcm_start_address;
+                                                uint32_t voice_8_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_8_adsr_current_volume;
+                                                uint16_t voice_8_adsr_repeat_address;
+                                                
+                                                uint32_t voice_9_volume;
+                                                uint16_t voice_9_adpcm_sample_rate;
+                                                uint16_t voice_9_adpcm_start_address;
+                                                uint32_t voice_9_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_9_adsr_current_volume;
+                                                uint16_t voice_9_adsr_repeat_address;
+                                                
+                                                uint32_t voice_10_volume;
+                                                uint16_t voice_10_adpcm_sample_rate;
+                                                uint16_t voice_10_adpcm_start_address;
+                                                uint32_t voice_10_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_10_adsr_current_volume;
+                                                uint16_t voice_10_adsr_repeat_address;
+                                                
+                                                uint32_t voice_11_volume;
+                                                uint16_t voice_11_adpcm_sample_rate;
+                                                uint16_t voice_11_adpcm_start_address;
+                                                uint32_t voice_11_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_11_adsr_current_volume;
+                                                uint16_t voice_11_adsr_repeat_address;
+                                                
+                                                uint32_t voice_12_volume;
+                                                uint16_t voice_12_adpcm_sample_rate;
+                                                uint16_t voice_12_adpcm_start_address;
+                                                uint32_t voice_12_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_12_adsr_current_volume;
+                                                uint16_t voice_12_adsr_repeat_address;
+                                                
+                                                uint32_t voice_13_volume;
+                                                uint16_t voice_13_adpcm_sample_rate;
+                                                uint16_t voice_13_adpcm_start_address;
+                                                uint32_t voice_13_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_13_adsr_current_volume;
+                                                uint16_t voice_13_adsr_repeat_address;
+                                                
+                                                uint32_t voice_14_volume;
+                                                uint16_t voice_14_adpcm_sample_rate;
+                                                uint16_t voice_14_adpcm_start_address;
+                                                uint32_t voice_14_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_14_adsr_current_volume;
+                                                uint16_t voice_14_adsr_repeat_address;
+                                                
+                                                uint32_t voice_15_volume;
+                                                uint16_t voice_15_adpcm_sample_rate;
+                                                uint16_t voice_15_adpcm_start_address;
+                                                uint32_t voice_15_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_15_adsr_current_volume;
+                                                uint16_t voice_15_adsr_repeat_address;
+                                                
+                                                uint32_t voice_16_volume;
+                                                uint16_t voice_16_adpcm_sample_rate;
+                                                uint16_t voice_16_adpcm_start_address;
+                                                uint32_t voice_16_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_16_adsr_current_volume;
+                                                uint16_t voice_16_adsr_repeat_address;
+                                                
+                                                uint32_t voice_17_volume;
+                                                uint16_t voice_17_adpcm_sample_rate;
+                                                uint16_t voice_17_adpcm_start_address;
+                                                uint32_t voice_17_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_17_adsr_current_volume;
+                                                uint16_t voice_17_adsr_repeat_address;
+                                                
+                                                uint32_t voice_18_volume;
+                                                uint16_t voice_18_adpcm_sample_rate;
+                                                uint16_t voice_18_adpcm_start_address;
+                                                uint32_t voice_18_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_18_adsr_current_volume;
+                                                uint16_t voice_18_adsr_repeat_address;
+                                                
+                                                uint32_t voice_19_volume;
+                                                uint16_t voice_19_adpcm_sample_rate;
+                                                uint16_t voice_19_adpcm_start_address;
+                                                uint32_t voice_19_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_19_adsr_current_volume;
+                                                uint16_t voice_19_adsr_repeat_address;
+                                                
+                                                uint32_t voice_20_volume;
+                                                uint16_t voice_20_adpcm_sample_rate;
+                                                uint16_t voice_20_adpcm_start_address;
+                                                uint32_t voice_20_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_20_adsr_current_volume;
+                                                uint16_t voice_20_adsr_repeat_address;
+                                                
+                                                uint32_t voice_21_volume;
+                                                uint16_t voice_21_adpcm_sample_rate;
+                                                uint16_t voice_21_adpcm_start_address;
+                                                uint32_t voice_21_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_21_adsr_current_volume;
+                                                uint16_t voice_21_adsr_repeat_address;
+                                                
+                                                uint32_t voice_22_volume;
+                                                uint16_t voice_22_adpcm_sample_rate;
+                                                uint16_t voice_22_adpcm_start_address;
+                                                uint32_t voice_22_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_22_adsr_current_volume;
+                                                uint16_t voice_22_adsr_repeat_address;
+                                                
+                                                uint32_t voice_23_volume;
+                                                uint16_t voice_23_adpcm_sample_rate;
+                                                uint16_t voice_23_adpcm_start_address;
+                                                uint32_t voice_23_adsr_attack_decay_sustain_release;
+                                                uint16_t voice_23_adsr_current_volume;
+                                                uint16_t voice_23_adsr_repeat_address;
+                                                
                                                 // SPU Control Registers
-                                                // 
-                                                //   1F801D80h 4  Main Volume Left/Right
-                                                //   1F801D84h 4  Reverb Output Volume Left/Right
-                                                //   1F801D88h 4  Voice 0..23 Key ON (Start Attack/Decay/Sustain) (W)
-                                                //   1F801D8Ch 4  Voice 0..23 Key OFF (Start Release) (W)
-                                                //   1F801D90h 4  Voice 0..23 Channel FM (pitch lfo) mode (R/W)
-                                                //   1F801D94h 4  Voice 0..23 Channel Noise mode (R/W)
-                                                //   1F801D98h 4  Voice 0..23 Channel Reverb mode (R/W)
-                                                //   1F801D9Ch 4  Voice 0..23 Channel ON/OFF (status) (R)
-                                                //   1F801DA0h 2  Unknown? (R) or (W)
-                                                //   1F801DA2h 2  Sound RAM Reverb Work Area Start Address
-                                                //   1F801DA4h 2  Sound RAM IRQ Address
-                                                //   1F801DA6h 2  Sound RAM Data Transfer Address
-                                                //   1F801DA8h 2  Sound RAM Data Transfer Fifo
-                                                //   1F801DAAh 2  SPU Control Register (SPUCNT)
-                                                //   1F801DACh 2  Sound RAM Data Transfer Control
-                                                //   1F801DAEh 2  SPU Status Register (SPUSTAT) (R)
-                                                //   1F801DB0h 4  CD Volume Left/Right
-                                                //   1F801DB4h 4  Extern Volume Left/Right
-                                                //   1F801DB8h 4  Current Main Volume Left/Right
-                                                //   1F801DBCh 4  Unknown? (R/W)
-                                                // 
-                                                // SPU Reverb Configuration Area
-                                                // 
-                                                //   1F801DC0h 2  dAPF1  Reverb APF Offset 1
-                                                //   1F801DC2h 2  dAPF2  Reverb APF Offset 2
-                                                //   1F801DC4h 2  vIIR   Reverb Reflection Volume 1
-                                                //   1F801DC6h 2  vCOMB1 Reverb Comb Volume 1
-                                                //   1F801DC8h 2  vCOMB2 Reverb Comb Volume 2
-                                                //   1F801DCAh 2  vCOMB3 Reverb Comb Volume 3
-                                                //   1F801DCCh 2  vCOMB4 Reverb Comb Volume 4
-                                                //   1F801DCEh 2  vWALL  Reverb Reflection Volume 2
-                                                //   1F801DD0h 2  vAPF1  Reverb APF Volume 1
-                                                //   1F801DD2h 2  vAPF2  Reverb APF Volume 2
-                                                //   1F801DD4h 4  mSAME  Reverb Same Side Reflection Address 1 Left/Right
-                                                //   1F801DD8h 4  mCOMB1 Reverb Comb Address 1 Left/Right
-                                                //   1F801DDCh 4  mCOMB2 Reverb Comb Address 2 Left/Right
-                                                //   1F801DE0h 4  dSAME  Reverb Same Side Reflection Address 2 Left/Right
-                                                //   1F801DE4h 4  mDIFF  Reverb Different Side Reflection Address 1 Left/Right
-                                                //   1F801DE8h 4  mCOMB3 Reverb Comb Address 3 Left/Right
-                                                //   1F801DECh 4  mCOMB4 Reverb Comb Address 4 Left/Right
-                                                //   1F801DF0h 4  dDIFF  Reverb Different Side Reflection Address 2 Left/Right
-                                                //   1F801DF4h 4  mAPF1  Reverb APF Address 1 Left/Right
-                                                //   1F801DF8h 4  mAPF2  Reverb APF Address 2 Left/Right
-                                                //   1F801DFCh 4  vIN    Reverb Input Volume Left/Right
-                                                // 
-                                                // SPU Internal Registers
-                                                // 
-                                                //   1F801E00h+N*04h  4 Voice 0..23 Current Volume Left/Right
-                                                //   1F801E60h      20h Unknown? (R/W)
-                                                //   1F801E80h     180h Unknown? (Read: FFh-filled) (Unused or Write only?)
+                                                uint32_t main_volume;
+                                                uint32_t reverbe_output_volume;
+                                                uint32_t voice_0_23_key_on;
+                                                uint32_t voice_0_23_key_off;
+                                                uint32_t voice_0_23_channel_fm;
+                                                uint32_t voice_0_23_channel_noise_mode;
+                                                uint32_t voice_0_23_channel_reverb_mode;
+                                                uint32_t voice_0_23_channle_on_off;
+                                                uint16_t _pad_spu_1;
+                                                uint16_t sound_ram_reverb_work_area_start_address;
+                                                uint16_t sound_ram_data_transfer_address;
+                                                uint16_t sound_ram_data_transfer_fifo;
+                                                uint16_t spu_control_register;
+                                                uint32_t cd_volume;
+                                                uint32_t extern_volume;
+                                                uint32_t current_main_volume;
+                                                uint32_t _pad_spu_2;
 
+                                                // SPU Reverb Configuration Area
+                                                uint16_t dAPF1_reverb_apf_offset_1;
+                                                uint16_t dAPF2_reverb_apf_offset_2;
+                                                uint16_t vIIR_reverb_reflection_volume_1;
+                                                uint16_t vCOMB1_reverb_comb_volume_1;
+                                                uint16_t vCOMB2_reverb_comb_volume_2;
+                                                uint16_t vCOMB3_reverb_comb_volume_3;
+                                                uint16_t vCOMB4_reverb_comb_volume_4;
+                                                uint16_t vWALL_reverb_reflection_volume_2;
+                                                uint16_t vAPF1_reverb_apf_volume_1;
+                                                uint16_t vAPF2_reverb_apf_volume_2;
+                                                uint32_t mSAME__reverb_same_side_reflection_address_1;
+                                                uint32_t mCOMB1_reverb_comb_address_1;
+                                                uint32_t mCOMB2_reverb_comb_address_2;
+                                                uint32_t dSAME_reverb_same_side_reflection_address_2;
+                                                uint32_t mDIFF_reverb_different_side_reflection_address_1;
+                                                uint32_t mCOMB3_reverb_comb_address_3;
+                                                uint32_t mCOMB4_reverb_comb_address_4;
+                                                uint32_t dDIFF_reverb_different_side_reflection_address_2;
+                                                uint32_t mAPF1_reverb_apf_address_1;
+                                                uint32_t mAPF2_reverb_apf_address_2;
+                                                uint32_t vIN_reverb_input_volume;
+                                                
+                                                // SPU Internal Registers
+                                                uint32_t voice_0_current_volume;
+                                                uint32_t voice_1_current_volume;
+                                                uint32_t voice_2_current_volume;
+                                                uint32_t voice_3_current_volume;
+                                                uint32_t voice_4_current_volume;
+                                                uint32_t voice_5_current_volume;
+                                                uint32_t voice_6_current_volume;
+                                                uint32_t voice_7_current_volume;
+                                                uint32_t voice_8_current_volume;
+                                                uint32_t voice_9_current_volume;
+                                                uint32_t voice_10_current_volume;
+                                                uint32_t voice_11_current_volume;
+                                                uint32_t voice_12_current_volume;
+                                                uint32_t voice_13_current_volume;
+                                                uint32_t voice_14_current_volume;
+                                                uint32_t voice_15_current_volume;
+                                                uint32_t voice_16_current_volume;
+                                                uint32_t voice_17_current_volume;
+                                                uint32_t voice_18_current_volume;
+                                                uint32_t voice_19_current_volume;
+                                                uint32_t voice_20_current_volume;
+                                                uint32_t voice_21_current_volume;
+                                                uint32_t voice_22_current_volume;
+                                                uint32_t voice_23_current_volume;
                                             };
                                         } MEM_IO_PORTS;                                       // 8K
 typedef union MEM_EXPANSION_2           {uint8_t mem[0X2000];}     MEM_EXPANSION_2;           // 8K
 typedef union MEM_EXPANSION_3           {uint8_t mem[0X200000];}   MEM_EXPANSION_3;           // 2048K
-typedef union MEM_BIOS                  {uint8_t mem[0X80000];}    MEM_BIOS;                  // 512K
+typedef union MEM_BIOS                  {                                                     // 512K
+                                            uint8_t mem[0X80000];
+                                            struct {
+                                                // Kernal Part 1  BFC00000 - BFC10000
+                                                uint32_t _pad_start_kernel_date[0x100];
+                                                uint32_t kernel_date;
+                                                uint32_t console_type;
+                                                uint32_t kernel_maker;
+                                                uint32_t gui_version;
+                                                // Kernal Part 2  BFC10000 - BFC18000
+                                                // Intro/Bootmenu BFC10000 - BFC18000
+                                                // Character Sets BFC64000 - BFC80000
+                                            };
+                                        }    MEM_BIOS;
 typedef union MEM_KSEG2                 {
                                             uint8_t mem[0X40000000];
                                             struct {
@@ -190,7 +382,15 @@ typedef union MEM_KSEG2                 {
 
 // NON-CPU address space
 typedef union MEM_VRAM                  {uint8_t mem[0X100000];} MEM_VRAM;                  // 1024K used for frame buffers, textures and CLUTs
-typedef union MEM_SOUND                 {uint8_t mem[0X80000];}  MEM_SOUND;                 // 512K
+typedef union MEM_SOUND                 {
+                                            uint8_t mem[0X80000];
+                                            struct {
+                                                uint32_t cd_audio_left[256];
+                                                uint32_t cd_audio_right[256];
+                                                uint32_t voice_mono_1[256];
+                                                uint32_t voice_mono_2[256];
+                                            };
+                                        }  MEM_SOUND;                 // 512K
 typedef union MEM_CDROM_CONTROLLER_RAM  {uint8_t mem[0X200];}    MEM_CDROM_CONTROLLER_RAM;  // 0.5K
 typedef union MEM_CDROM_CONTROLLER_ROM  {uint8_t mem[0X4200];}   MEM_CDROM_CONTROLLER_ROM;  // 16.5K
 typedef union MEM_CDROM_BUFFER          {uint8_t mem[0X8400];}   MEM_CDROM_BUFFER;          // 32K
