@@ -4,6 +4,9 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#define _STR(x) #x
+#define MMRY_CTRL_ENUM_ACCESS(e) memory.##_STR(e)
+
 #define RAM_START  0x00000000
 #define RAM_END    0x1F000000
 #define DEV_START  0x1F801000
@@ -13,9 +16,24 @@
 
 #ifdef MEMORY_PRIVATE
 struct memory {
-    uint8_t ram[0x200000];
-    uint8_t bios[0x80000];
+    uint8_t        ram[0x200000];
+    uint8_t scratchpad[0x400];
+    uint8_t       bios[0x80000];
+    
+    /* memory control 1 */
+    uint32_t expansion_1_base_address;
+    uint32_t expansion_2_base_address;
+    uint32_t expansion_1_delay_size;
+    uint32_t expansion_3_delay_size;
+    uint32_t bios_rom_delay_size;
+    uint32_t spu_delay_size;
+    uint32_t cdrom_delay_size;
+    uint32_t expansion_2_delay_size;
+    uint32_t com_delay_size;
+    
+    /* memory control 2 */
 
+    /* cache control and KSEG2 */
     uint32_t cache_control;
 };
 #endif // MEMORY_PRIVATE
@@ -24,13 +42,13 @@ enum memory_map {
     /* general registers */
     expansion_1_base_address = 0x1F801000,
     expansion_2_base_address = 0x1F801004,
-    expansion_1              = 0x1F800008,
-    expansion_3              = 0x1F80000C,
-    bios_rom                 = 0x1F800010,
-    spu_delay                = 0x1F800014,
-    cdrom_delay              = 0x1F800018,
-    expansion_2              = 0x1F80001C,
-    com_delay                = 0x1F800020,
+    expansion_1_delay_size   = 0x1F800008,
+    expansion_3_delay_size   = 0x1F80000C,
+    bios_rom_delay_size      = 0x1F800010,
+    spu_delay_size           = 0x1F800014,
+    cdrom_delay_size         = 0x1F800018,
+    expansion_2_delay_size   = 0x1F80001C,
+    com_delay_size           = 0x1F800020,
     
     /* interrupt control registers */
     i_stat                   = 0x1F801070,

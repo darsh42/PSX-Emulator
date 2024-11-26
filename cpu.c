@@ -7,7 +7,24 @@
 #include "timer.h"
 #include "memory.h"
 
+#define DO_LOAD_DELAY               \
+{                                   \
+    /* complete load delay */       \
+    cpu.r[cpu.load_d] = cpu.load_v; \
+    /* set register r0 to 0 */      \
+    cpu.r[0] = 0;                   \
+    /* set load delay to default */ \
+    cpu.load_v = 0xffffffff;        \
+    cpu.load_d = 0;                 \
+}
+
+
 struct cpu cpu;
+
+uint32_t cpu_cop0_sr_isc( void ) 
+{ 
+    union cop0_sr sr  = { .value = cpu.cop0[COP0_SR] }; return sr.Isc; 
+}
 
 static const char *cpu_register_names[] = 
 {
@@ -49,7 +66,7 @@ static void cpu_print_instruction( void )
 
 static void cpu_branch( void )
 {
-    cpu.branch_v = cpu.pc + 4 + (sign16(IMM16) << 2);
+    cpu.branch_v = cpu.pc + 4 + (S_IMM16 << 2);
     cpu.branch_s = DELAY;
 }
 
@@ -59,9 +76,13 @@ static void cpu_exception( enum cpu_exception_type t )
 }
 
 static inline void bltz(void)    
-{
+{   
     // Branch Less Than Zero
-    if (sign32(reg(RS)) < 0) 
+    int32_t s = sign32(reg(RS));
+
+    DO_LOAD_DELAY;
+
+    if (s < 0) 
     {
         cpu_branch();
     }
@@ -69,7 +90,11 @@ static inline void bltz(void)
 static inline void bgez(void)    
 {
     // Branch Greater than Equal Zero 
-    if (sign32(reg(RS)) >= 0) 
+    int32_t s = sign32(reg(RS));
+    
+    DO_LOAD_DELAY;
+
+    if (s >= 0) 
     {
         cpu_branch();
     }
@@ -77,7 +102,11 @@ static inline void bgez(void)
 static inline void bltzal(void)    
 {
     // Branch Less Than Zero And Link
-    if (sign32(reg(RS)) < 0) 
+    int32_t s = sign32(reg(RS));
+
+    DO_LOAD_DELAY;
+
+    if (s < 0) 
     {
         cpu.r[31] = cpu.pc;
         cpu_branch();
@@ -86,16 +115,43 @@ static inline void bltzal(void)
 static inline void bgezal(void)    
 {
     // Branch Greater than Equal Zero And Link
-    if (sign32(reg(RS)) >= 0) 
+    int32_t s = sign32(reg(RS));
+
+    DO_LOAD_DELAY;
+
+    if (s >= 0) 
     {
         cpu.r[31] = cpu.pc;
         cpu_branch();
     }
 }
+static inline void j(void)       
+{
+    // Jump
+    DO_LOAD_DELAY;
+
+    cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
+    cpu.branch_s = DELAY;
+}
+static inline void jal(void)     
+{
+    // Jump And Link
+    DO_LOAD_DELAY;
+
+    cpu.r[31] = cpu.pc + 4;
+
+    cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
+    cpu.branch_s = DELAY;
+}
 static inline void beq(void)     
 {
     // Branch Equal
-    if (reg(RS) == reg(RT)) 
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+    
+    DO_LOAD_DELAY;
+
+    if (s == t) 
     {
         cpu_branch();
     }
@@ -103,7 +159,12 @@ static inline void beq(void)
 static inline void bne(void)     
 {
     // Branch Not Equal
-    if (reg(RS) != reg(RT)) 
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+    
+    DO_LOAD_DELAY;
+
+    if (s != t )
     {
         cpu_branch();
     }
@@ -111,7 +172,11 @@ static inline void bne(void)
 static inline void blez(void)    
 {
     // Branch Less than Equal Zero
-    if (sign32(reg(RS)) <= 0) 
+    int32_t s = sign32(reg(RS));
+    
+    DO_LOAD_DELAY;
+
+    if (s <= 0) 
     {
         cpu_branch();
     }
@@ -119,7 +184,11 @@ static inline void blez(void)
 static inline void bgtz(void)    
 {
     // Branch Greater Than Zero
-    if (sign32(reg(RS)) > 0) 
+    int32_t s = sign32(reg(RS));
+    
+    DO_LOAD_DELAY;
+
+    if (s > 0) 
     {
         cpu_branch();
     }
@@ -127,91 +196,141 @@ static inline void bgtz(void)
 static inline void addi(void)    
 {
     // ADD Immediate, with overflow 
-    if (overflow(reg(RS), sign16(IMM16))) 
+    uint32_t s = reg(RS);
+    
+    DO_LOAD_DELAY;
+
+    if (overflow(s, S_IMM16))
     {
         cpu_exception(OVF);
     } 
     else 
     {
-        reg(RT) = reg(RS) + sign16(IMM16);
+        reg(RT) = s + S_IMM16;
     }
 }   
 static inline void addiu(void)   
 {
     // ADD Immediate Unsigned
-    reg(RT) = reg(RS) + sign16(IMM16);
+    uint32_t s = reg(RS);
+    
+    DO_LOAD_DELAY;
+
+    reg(RT) = s + S_IMM16;
 }  
 static inline void slti(void)    
 {
     // Set if Less Than Immediate
-    reg(RT) = sign32(reg(RS)) < sign16(IMM16);
+    int32_t s = sign32(reg(RS));
+    
+    DO_LOAD_DELAY;
+
+    reg(RT) = s < S_IMM16;
 }   
 static inline void sltiu(void)   
 {
     // Set if Less Than Immediate Unsigned
-    reg(RT) = reg(RS) < (uint32_t) sign16(IMM16);
+    uint32_t s = reg(RS);
+    
+    DO_LOAD_DELAY;
+
+    reg(RT) = s < S_IMM16;
 }  
 static inline void andi(void)    
 {
     // AND Immediate
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
     reg(RT) = reg(RS) & IMM16;
 }   
 static inline void ori(void)     
 {
     // OR Immediate 
-    reg(RT) = reg(RS) | IMM16;
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
+    reg(RT) = s | IMM16;
 }    
 static inline void xori(void)    
 {
     // XOR Immediate 
-    reg(RT) = reg(RS) ^ IMM16;
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
+    reg(RT) = s ^ IMM16;
 }   
 static inline void lui(void)     
 {
     // shift immediate << 16 and store in RT
+
+    DO_LOAD_DELAY;
+
     reg(RT) = IMM16 << 16;
 }    
 static inline void lb(void)      
 {
     // Load Byte
-    uint32_t result, address = reg(RS) + sign16(IMM16);
+    uint32_t result, address = reg(RS) + S_IMM16;
 
     memory_read(address, &result, 1);
     
+    if (cpu.load_d != RT)
+    {
+        DO_LOAD_DELAY;
+    }
+
     cpu.load_d = RT;
     cpu.load_v = sign8(result);
-    cpu.load_s = DELAY;
 }     
 static inline void lh(void)      
 {
     // Load Halfword 
-    uint32_t result, address = reg(RS) + sign16(IMM16);
+    uint32_t result, address = reg(RS) + S_IMM16;
 
     memory_read(address, &result, 2);
+
+    if (cpu.load_d != RT)
+    {
+        DO_LOAD_DELAY;
+    }
     
-    cpu.load_v = sign16(result);
     cpu.load_d = RT;
-    cpu.load_s = DELAY;
+    cpu.load_v = sign16(result);
 }    
 static inline void lw(void)      
 {
     // Load Word 
-    uint32_t result, address = reg(RS) + sign16(IMM16);
+    uint32_t result, address = reg(RS) + S_IMM16;
 
     memory_read(address, &result, 4);
 
-    cpu.load_v = result;
+    if (cpu.load_d != RT)
+    {
+        DO_LOAD_DELAY;
+    }
+
     cpu.load_d = RT;
-    cpu.load_s = DELAY;
+    cpu.load_v = result;
 }     
 static inline void lwl(void)     
 {
-    // Load Halfword 
-    uint32_t mask, result, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+    // Load Halfword Left TODO:
+    uint32_t s = reg(RS);
+
+    if (cpu.load_d != RT)
+    {
+        DO_LOAD_DELAY;
+    }
+
+    uint32_t mask, result, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &result, 2);
 
-    switch ((reg(RS) + sign16(IMM16)) & 0X3) 
+    switch ((s + S_IMM16) & 0X3) 
     {
         case 0: mask = 0X00FFFFFF; result <<= 24; break;
         case 1: mask = 0X0000FFFF; result <<= 16; break;
@@ -221,6 +340,7 @@ static inline void lwl(void)
     
     cpu.load_v &= mask;
     cpu.load_v |= result;
+
     if (cpu.load_s == UNUSED) 
     {
         cpu.load_s = DELAY;
@@ -228,12 +348,19 @@ static inline void lwl(void)
 }
 static inline void lwr(void)     
 {
-    // Load Halfword 
-    uint32_t mask, result, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+    // Load Halfword Right TODO:
+    uint32_t s = reg(RS);
+    
+    if (cpu.load_d != RT)
+    {
+        DO_LOAD_DELAY;
+    }
+    
+    uint32_t mask, result, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &result, 2);
 
-    switch ((reg(RS) + sign16(IMM16)) & 0X3) 
+    switch ((s + S_IMM16) & 0X3) 
     {
         case 1: mask = 0X00000000; result <<= 0;  break;
         case 2: mask = 0X000000FF; result <<= 8;  break;
@@ -243,6 +370,7 @@ static inline void lwr(void)
     
     cpu.load_v &= mask;
     cpu.load_v |= result;
+
     if (cpu.load_s == UNUSED) 
     {
         cpu.load_s = DELAY;
@@ -251,45 +379,65 @@ static inline void lwr(void)
 static inline void lbu(void)     
 {
     // Load Byte Unsigned
-    uint32_t result, address = reg(RS) + sign16(IMM16);
+    uint32_t result, address = reg(RS) + S_IMM16;
 
     memory_read(address, &result, 1);
 
+    if (cpu.load_d == RT)
+    {
+        DO_LOAD_DELAY;
+    }
+
     cpu.load_v = result;
     cpu.load_d = RT;
-    cpu.load_s = DELAY;
 }    
 static inline void lhu(void)     
 {
     // Load Halfword Unsigned
-    uint32_t result, address = reg(RS) + sign16(IMM16);
+    uint32_t result, address = reg(RS) + S_IMM16;
 
     memory_read(address, &result, 2);
 
+    if (cpu.load_d == RT)
+    {
+        DO_LOAD_DELAY;
+    }
+
     cpu.load_v = result;
     cpu.load_d = RT;
-    cpu.load_s = DELAY;
 }    
 static inline void sb(void)      
 {
     // Store Byte
-    uint32_t address = reg(RS) + sign16(IMM16);
-    memory_write(address, reg(RT), 1);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+    
+    DO_LOAD_DELAY;
+
+    memory_write(s + S_IMM16, t, 1);
 }     
 static inline void sh(void)      
 {
     // Store Half word 
-    uint32_t address = reg(RS) + sign16(IMM16);
-    memory_write(address, reg(RT), 2);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+    
+    DO_LOAD_DELAY;
+
+    memory_write(s + S_IMM16, t, 2);
 }     
 static inline void swl(void)     
 {
-    // Store Halfword Left
-    uint32_t mask, current, value, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+    // Store Halfword Left TODO:
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
+    uint32_t mask, current, value, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &current, 2);
 
-    switch ((reg(RS) + sign16(IMM16)) & 0X3) 
+    switch ((s + S_IMM16) & 0X3) 
     {
         case 0: mask = 0X00FFFFFF; value = current << 24; break;
         case 1: mask = 0X0000FFFF; value = current << 16; break;
@@ -304,12 +452,16 @@ static inline void swl(void)
 }
 static inline void swr(void)     
 {
-    // Store Halfword Right
-    uint32_t mask, current, value, address = (reg(RS) + (sign16(IMM16) & ~0X3));
+    // Store Halfword Right TODO:
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
+    uint32_t mask, current, value, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &current, 2);
 
-    switch ((reg(RS) + sign16(IMM16)) & 0X3) 
+    switch ((s + S_IMM16) & 0X3) 
     {
         case 0: mask = 0X00000000; value = current << 0;  break;
         case 1: mask = 0X000000FF; value = current << 8;  break;
@@ -325,8 +477,12 @@ static inline void swr(void)
 static inline void sw(void)      
 {
     // Store Word 
-    uint32_t address = reg(RS) + sign16(IMM16);
-    memory_write(address, reg(RT), 4);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+    
+    DO_LOAD_DELAY;
+
+    memory_write(s + S_IMM16, t, 4);
 }     
 static inline void lwc0(void)    
 {
@@ -375,200 +531,305 @@ static inline void swc3(void)
 static inline void sll(void)     
 {
     // Shift Left Logical
-    reg(RD) = reg(RT) << SHAMT;
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = t << SHAMT;
 }
 static inline void srl(void)     
 {
     // Shift Right Logical
-    reg(RD) = reg(RT) >> SHAMT;
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = t >> SHAMT;
 }    
 static inline void sra(void)     
 {
     // Shift Right Arithmetic
-    reg(RD) = sign32(reg(RT)) >> SHAMT;
+    int32_t t = sign32(reg(RT));
+        
+    DO_LOAD_DELAY;
+
+    reg(RD) = t >> SHAMT;
 }    
 static inline void sllv(void)    
 {
     // Shift Left Logical Variable
-    reg(RD) = reg(RT) << (reg(RS) & 0X1F);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = t << (s & 0X1F);
 }   
 static inline void srlv(void)    
 {
     // Shift Right Logical Variable
-    reg(RD) = reg(RT) >> (reg(RS) & 0X1F);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = t >> (s & 0X1F);
 }   
 static inline void srav(void)    
 {
     // Shift Right Arthmetic Variable
-    reg(RD) = sign32(reg(RT)) >> (reg(RS) & 0X1F);
+    uint32_t s = reg(RS);
+     int32_t t = sign32(reg(RT));
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = t >> (s & 0x1f);
 }   
 static inline void jr(void)      
 {
     // Jump to Register
-    cpu.branch_v = reg(RS);
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
+    cpu.branch_v = s;
     cpu.branch_s = DELAY;
 }     
 static inline void jalr(void)    
 {
     // Jump And Link Register
-    reg(RD) = cpu.pc + 8;
-    jr();
+    uint32_t s = reg(RS);
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = cpu.pc + 4;
+
+    cpu.branch_v = s;
+    cpu.branch_s = DELAY;
 }   
 static inline void syscall(void) 
 {
     // SYStem CALL exception
+    DO_LOAD_DELAY;
+
     cpu_exception(SYS);
 }
 static inline void brk(void)   
 {
     // BREAK exception
+    DO_LOAD_DELAY;
+
     cpu_exception(BP);
 }  
 static inline void mfhi(void)    
 {
     // Move From HI
+    DO_LOAD_DELAY;
+
     reg(RD) = cpu.hi;
 }   
 static inline void mthi(void)    
 {
     // Move To HI
+    DO_LOAD_DELAY;
+
     cpu.hi = reg(RS);
 }   
 static inline void mflo(void)    
 {
     // Move From LO
+    DO_LOAD_DELAY;
+    
     reg(RD) = cpu.lo;
 }   
 static inline void mtlo(void)    
 {
     // Move To LO
+    DO_LOAD_DELAY;
+
     cpu.lo = reg(RS);
 }
 static inline void mult(void)    
 {
     // MULTiplication RS and RT store in HI:LO
-    uint64_t result = sign64(reg(RS)) * sign64(reg(RT));
-    cpu.hi = (uint32_t) (result >> 32);
-    cpu.lo = (uint32_t) result;
+    int64_t  s = sign64(reg(RS));
+    int64_t  t = sign64(reg(RT));
+    uint64_t r = s * t;
+
+    DO_LOAD_DELAY;
+
+    cpu.hi = (uint32_t) (r >> 32);
+    cpu.lo = (uint32_t)  r;
 }   
 static inline void multu(void)   
 {
     // MULTiplication Unsigned RS and RT store in HI:LO
-    uint64_t result = reg(RS) * reg(RT);
-    cpu.hi = (uint32_t) (result >> 32);
-    cpu.lo = (uint32_t) result;
+    uint64_t s = reg(RS);
+    uint64_t t = reg(RT);
+    uint64_t r = s * t;
+
+    DO_LOAD_DELAY;
+
+    cpu.hi = (uint32_t) (r >> 32);
+    cpu.lo = (uint32_t)  r;
 }  
 static inline void div(void)     
 {
     // DIVision, edge cases accounted for, TODO: delays on MULT/DIV operations
-    if (reg(RT) == 0) 
+    int32_t s = sign32(reg(RS));
+    int32_t t = sign32(reg(RT));
+
+    DO_LOAD_DELAY;
+
+    if (t == 0) 
     {
-        cpu.hi = reg(RS);
-        cpu.lo = (sign32(reg(RS)) < 0) ? 0X00000001: 0XFFFFFFFF;
+        cpu.hi = s;
+        cpu.lo = (s < 0) ? 0X00000001: 0XFFFFFFFF;
     } 
-    else if (reg(RT) == 0XFFFFFFFF && reg(RS) == 0X80000000) 
+    else if (t == 0XFFFFFFFF && s == 0X80000000) 
     {
         cpu.hi = 0X00000000;
         cpu.lo = 0X80000000;
     } 
     else 
     {
-        cpu.hi = sign32(reg(RS)) % sign32(reg(RT));
-        cpu.lo = sign32(reg(RS)) / sign32(reg(RT));
+        cpu.hi = s % t;
+        cpu.lo = s / t;
     }
 }    
 static inline void divu(void)    
 {
     // DIVide Unsigned RS by RT
-    if (reg(RT) == 0) 
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+    
+    DO_LOAD_DELAY;
+
+    if (t == 0) 
     {
-        cpu.hi = reg(RS);
+        cpu.hi = s;
         cpu.lo = 0XFFFFFFFF;
     } 
     else 
     {
-        cpu.hi = reg(RS) % reg(RT);
-        cpu.lo = reg(RS) / reg(RT);
+        cpu.hi = s % t;
+        cpu.lo = s / t;
     }
 }   
 static inline void add(void)     
 {
     // ADD with overflow
-    if (overflow(reg(RS), reg(RT))) 
+    int32_t s = sign32(reg(RS));
+    int32_t t = sign32(reg(RT));
+    
+    DO_LOAD_DELAY;
+
+    if (overflow(s, t)) 
     {
         cpu_exception(OVF);
     } 
     else 
     {
-        reg(RD) = reg(RS) + reg(RT);
+        reg(RD) = s + t;
     }
 }    
 static inline void addu(void)    
 {
     // ADD Unsigned
-    reg(RD) = reg(RS) + reg(RT);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = s + t;
 }   
 static inline void sub(void)     
 {
     // SUB with overflow
-    if (underflow(RS, RT)) 
+    int32_t s = sign32(reg(RS));
+    int32_t t = sign32(reg(RT));
+
+    DO_LOAD_DELAY;
+
+    if (underflow(s, t)) 
     {
         cpu_exception(OVF);
     } 
     else 
     {
-        reg(RD) = reg(RS) - reg(RT);
+        reg(RD) = s - t;
     }
 }    
 static inline void subu(void)    
 {
     // SUBtract Unsigned
-    reg(RD) = reg(RS) - reg(RT);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+    
+    reg(RD) = s - t;
 }   
 static inline void and(void)     
 {
     // AND 
-    reg(RD) = reg(RS) & reg(RT);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+    
+    reg(RD) = s & t;
 }    
 static inline void or(void)      
 {
     // OR RS
-    reg(RD) = reg(RS) | reg(RT);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+    
+    reg(RD) = s | t;
 }     
 static inline void xor(void)     
 {
     // XOR RS
-    reg(RD) = reg(RS) ^ reg(RT);
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+    
+    reg(RD) = s ^ t;
 }    
 static inline void nor(void)     
 {
     // Not OR
-    reg(RD) = ~(reg(RS) | reg(RT));
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
+
+    DO_LOAD_DELAY;
+    
+    reg(RD) = ~(s | t);
 }    
 static inline void slt(void)     
 {
     // Set Less Than 
-    reg(RD) = sign32(reg(RS)) < sign32(reg(RT));
+    int32_t s = sign32(reg(RS));
+    int32_t t = sign32(reg(RT));
+
+    DO_LOAD_DELAY;
+
+    reg(RD) = s < t;
 }    
 static inline void sltu(void)    
 {
     // Set Less Than Unsigned 
-    reg(RD) = reg(RS) < reg(RT);
-}   
+    uint32_t s = reg(RS);
+    uint32_t t = reg(RT);
 
-// J-Type
-static inline void j(void)       
-{
-    // Jump
-    cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
-    cpu.branch_s = DELAY;
-}
-static inline void jal(void)     
-{
-    // Jump And Link
-    cpu.r[31] = cpu.pc + 8;
-    j();
-}
+    DO_LOAD_DELAY;
+
+    reg(RD) = s < t;
+}   
 
 // COPn
 static inline void MFCn(int cop_n) 
@@ -717,24 +978,6 @@ static inline void cpu_execute( void )
 {
     /* wait for system tick */
     wait_system_tick( 1 );
-
-    /* handle load delay */
-    switch (cpu.load_s)
-    {
-        case DELAY:    
-            cpu.load_s = TRANSFER;
-            break;
-        case TRANSFER: 
-            cpu.load_s = UNUSED;
-
-            cpu.r[cpu.load_d] = cpu.load_v;
-
-            cpu.load_d = 0;
-            cpu.load_v = 0;
-            break;
-        case UNUSED:   
-            break;
-    }
 
     /* handle branch delay */
     switch (cpu.branch_s)
