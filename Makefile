@@ -1,5 +1,6 @@
 CC := gcc
 
+HEADERS := $(wildcard *.h)
 SOURCES := $(wildcard *.c)
 OBJECTS := $(patsubst %.c,%.o,$(SOURCES))
 TARGET  := psx
@@ -9,10 +10,10 @@ LIBRARY := -lpthread -lSDL2
 CFLAGS := -g -Wall -Wextra -Wpedantic -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes -Wstrict-overflow=5 -pthread # -DDEBUG
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $@ $(LIBRARY) 
+	$(CC) $(CFLAGS) $^ -o $@ $(LIBRARY) -I.
 
 %.o: %.c; 
-	$(CC) $(CFLAGS) -c $< -o $@ $(LIBRARY) 
+	$(CC) $(CFLAGS) -c $< -o $@ $(LIBRARY) -I.
 
 .PHONY: clean run debug stub run_debug all
 

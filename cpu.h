@@ -92,6 +92,22 @@ union cop0_sr
     };
 };
 
+/* coprocessor 0 CAUSE struct */
+union cop0_cause
+{
+    uint32_t value;
+    struct {
+        uint32_t             :  2;
+        uint32_t excode      :  5;
+        uint32_t             :  1;
+        uint32_t Ip          :  8;
+        uint32_t             : 12;
+        uint32_t CE          :  2;
+        uint32_t             :  1;
+        uint32_t branch_delay:  1;
+    };
+};
+
 struct cpu 
 {
     uint32_t pc;

@@ -71,8 +71,47 @@ static void cpu_branch( void )
 }
 
 static void cpu_exception( enum cpu_exception_type t )
-{
+{   
+    union cop0_cause cause = { .value = cpu.cop0[COP0_CAUSE] };
+    union cop0_sr    sr    = { .value = cpu.cop0[COP0_SR]    };
+    uint32_t         epc   =            cpu.cop0[COP0_EPC]    ;
+    
+    uint32_t handler;
+    
+    /* set the correct execption code */
+    cause.excode = t;
 
+    /* determine which exeption handler to use */
+    if (sr.BEV) handler = 0xBFC00180;
+    else        handler = 0x80000000;
+    
+    /* set exception routine return */
+    if (cpu.branch_s == UNUSED)
+    {
+        /* normal, non-branch exception */
+        epc = cpu.pc;
+    }
+    else
+    {
+        /* branch miss if exception occurs during branch */
+        epc = cpu.branch_v;
+
+        cause.branch_delay = 1;
+
+        cpu.branch_v = 0;
+        cpu.branch_s = UNUSED;
+    }
+    
+    /* set correct sr status */
+    sr.value = (sr.value & ~0X3F) | ((sr.value &  0X3F) >> 2); 
+    
+    /* write back all register values */
+    cpu.cop0[COP0_SR]    = sr.value;
+    cpu.cop0[COP0_CAUSE] = cause.value;
+    cpu.cop0[COP0_EPC]   = epc;
+    
+    /* set pc to handler */
+    cpu.pc = handler - 4;
 }
 
 static inline void bltz(void)    
@@ -837,9 +876,11 @@ static inline void MFCn(int cop_n)
     // Move From Coprocessor n
     switch (cop_n)
     {
-        case 0x0: reg(RT) = cpu.cop0[RD]; break;
-        case 0x2: reg(RT) = cpu.cop2[RD]; break;
+        case 0x0: cpu.load_v = cpu.cop0[RD]; break;
+        case 0x2: cpu.load_v = cpu.cop2[RD]; break;
     }
+
+    cpu.load_d = RT;
 }
 static inline void CFCn(int cop_n) { running = 0; }
 static inline void MTCn(int cop_n) 
@@ -866,9 +907,10 @@ static inline void TLBP()  { running = 0; }
 static inline void RFE()   
 {
     // Return From Exception
-    if ((cpu.cir & 0b11111) == 0b01000) 
+    if ((cpu.cir & 0x1f) == 0x08) 
     {
-        // cpu.cop0.SR.value = (cpu.cop0.SR.value & ~0X3F) | ((cpu.cop0.SR.value & 0X3F) >> 2); // increment exception stack
+        /* increment exception stack */
+        cpu.cop0[COP0_SR] = (cpu.cop0[COP0_SR] & ~0X3F) | ((cpu.cop0[COP0_SR] &  0X3F) >> 2); 
     }
 }
 static inline void cop0(void)    

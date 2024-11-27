@@ -11,6 +11,9 @@
 #include "memory.h"
 #include "system.h"
 
+#define TRACE_H_IMPLEMENTATION
+#include "trace.h"
+
 #ifdef DEBUG
 #include "stub.h"
 #endif
@@ -51,6 +54,8 @@ int main( int argc , char **argv )
     
     if (!game)
         usage();
+    
+    trace_init( NULL );
 
     memory_load_bios( bios );
 
@@ -83,6 +88,8 @@ int main( int argc , char **argv )
     pthread_join(thread_gpu,    NULL);
     pthread_join(thread_dma,    NULL);
     pthread_join(thread_timers, NULL);
+
+    trace_deinit();
 
     return 0;
 }

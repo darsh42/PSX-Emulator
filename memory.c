@@ -12,6 +12,9 @@
 #include "dma.h"
 #include "timer.h"
 
+// utilities
+#include "trace.h"
+
 static struct memory memory;
 
 /* virtual to physical memory lookup table */
@@ -42,6 +45,9 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 
     /* virtual to physical memory lookup */
     uint32_t physical = address & segment_lookup[address >> 29];
+
+    /* trace signals to memory */
+    trace("memory.c", "memory_write", "address: %08x | data: %08x | size: %d", address, data, size);
 
     if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
     {
@@ -167,6 +173,9 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
 
     /* virtual to physical memory lookup */
     uint32_t physical = address & segment_lookup[address >> 29];
+    
+    /* trace signals to memory */
+    trace("memory.c", "memory_write", "address: %08x | data: %08x | size: %d", address, data, size);
 
     if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
     {
