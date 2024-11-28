@@ -7,6 +7,14 @@
 
 #ifdef CPU_PRIVATE
 
+#include "trace.h"
+
+#ifdef ENABLE_CPU_TRACE
+#define TRACE_CPU(function, format, ...) trace("cpu.c", function, format, __VA_ARGS__)
+#else
+#define TRACE_CPU(function, format, ...) 
+#endif
+
 /* main opcode breakdown */
 #define FUNCT    ((cpu.cir >>  0) & 0x3F)
 #define SHAMT    ((cpu.cir >>  6) & 0x1F)
@@ -49,14 +57,25 @@
 #define reg(R) cpu.r[R]
 #define copn_reg(N, R) cpu.STRCAT(cop, N)[R]
 
-enum cpu_exception_type {
-    OVF,
-    CPU,
-    SYS,
-    BP
+enum cpu_exception_type 
+{
+    INT     = 0x00,
+    MOD     = 0x01,
+    TLBL    = 0x02,
+    TLBS    = 0x03,
+    AdEL    = 0x04,
+    AdES    = 0x05,
+    IBE     = 0x06,
+    DBE     = 0x07,
+    SYSCALL = 0x08,
+    BP      = 0x09,
+    RI      = 0x0A,
+    CpU     = 0x0B,
+    Ov      = 0x0C
 };
 
-enum cpu_load_delay {
+enum cpu_load_delay 
+{
     UNUSED,
     TRANSFER,
     DELAY

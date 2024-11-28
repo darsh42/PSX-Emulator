@@ -4,6 +4,7 @@
 
 #define DMA_PRIVATE
 #include "dma.h"
+
 #include "gpu.h"
 #include "timer.h"
 #include "memory.h"
@@ -116,6 +117,8 @@ void dma_check_channels( void )
         case ( DMA4_SPU      ):
         case ( DMA5_PIO      ):
         case ( DMA6_OTC      ):
+            TRACE_DMA("dma_check_channel", "device: %d\n", dev);
+
             dma.channel = dev;
             dma.state   = DMA_TRANSFER;
             break;
@@ -143,6 +146,9 @@ void dma_transfer_data( void )
             chcr.value = dma.dma0_mdec_in_chcr;
             brc.value  = dma.dma0_mdec_in_brc;
 
+            TRACE_DMA("dma_transfer_data", "device: mdec in | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
+
             break;
         case( DMA1_MDEC_OUT ): 
             clocks = 1;
@@ -150,6 +156,9 @@ void dma_transfer_data( void )
             madr.value = dma.dma1_mdec_out_madr;
             chcr.value = dma.dma1_mdec_out_chcr;
             brc.value  = dma.dma1_mdec_out_brc;
+
+            TRACE_DMA("dma_transfer_data", "device: mdec out | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
 
             break;
         case( DMA2_GPU      ): 
@@ -165,6 +174,9 @@ void dma_transfer_data( void )
                 case DEVICE_TO_RAM: destination = madr.base_address; source = gp0_gpu_read; break;
             }
 
+            TRACE_DMA("dma_transfer_data", "device: gpu | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
+
             break;
         case( DMA3_CDROM    ): 
             /* TODO: bios - 24clks, games - 40clks */
@@ -174,6 +186,9 @@ void dma_transfer_data( void )
             chcr.value = dma.dma3_cdrom_chcr;
             brc.value  = dma.dma3_cdrom_brc;
 
+            TRACE_DMA("dma_transfer_data", "device: cdrom | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
+
             break;
         case( DMA4_SPU      ): 
             clocks = 4;
@@ -181,6 +196,9 @@ void dma_transfer_data( void )
             madr.value = dma.dma4_spu_madr;
             chcr.value = dma.dma4_spu_chcr;
             brc.value  = dma.dma4_spu_brc;
+
+            TRACE_DMA("dma_transfer_data", "device: spu | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
 
             break;
         case( DMA5_PIO      ): 
@@ -190,6 +208,9 @@ void dma_transfer_data( void )
             chcr.value = dma.dma5_pio_chcr;
             brc.value  = dma.dma5_pio_brc;
 
+            TRACE_DMA("dma_transfer_data", "device: pio | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
+
             break;
         case( DMA6_OTC      ): 
             clocks = 1;
@@ -197,6 +218,9 @@ void dma_transfer_data( void )
             madr.value = dma.dma6_otc_madr;
             chcr.value = dma.dma6_otc_chcr;
             brc.value  = dma.dma6_otc_brc;
+
+            TRACE_DMA("dma_transfer_data", "device: otc | words per clock: %d | madr: %08x | chcr: %08x | brc: %08x\n", 
+                    clocks, madr.value, chcr.value, brc.value);
 
             break;
     }
@@ -213,6 +237,8 @@ void dma_transfer_data( void )
             assert(dma.channel != DMA2_GPU);
             assert(dma.channel != DMA4_SPU);
             assert(dma.channel != DMA5_PIO);
+
+            TRACE_DMA("dma_transfer_data", "manual transfer mode\n", 0);
 
             /* lock memory */
 
@@ -253,6 +279,8 @@ void dma_transfer_data( void )
             assert(dma.channel != DMA3_CDROM);
             assert(dma.channel != DMA5_PIO);
             assert(dma.channel != DMA6_OTC);
+
+            TRACE_DMA("dma_transfer_data", "request transfer mode\n", 0);
 
             /* wait for device condition */
         
@@ -297,6 +325,8 @@ void dma_transfer_data( void )
             assert(dma.channel != DMA4_SPU);
             assert(dma.channel != DMA5_PIO);
             assert(dma.channel != DMA6_OTC);
+
+            TRACE_DMA("dma_transfer_data", "linked list transfer mode\n", 0);
 
             /* wait for gpustat dma data request bit    */
             wait_gpu_gpustat_dma_data_request();
@@ -349,6 +379,8 @@ void dma_transfer_data( void )
     }
 
     dma.state = DMA_IDLE;
+
+    TRACE_DMA("dma_transfer_data", "transfer complete\n", 0);
 }
 
 /* only used if external devices need to notify dma without writing to it */
@@ -364,6 +396,7 @@ void *task_dma( void *ignore )
     {
         switch (dma.state)
         {
+
             case DMA_IDLE:        
                 assert(!pthread_cond_wait(&dma_notify, &dma_mutex)); 
                 break;

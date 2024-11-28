@@ -12,9 +12,6 @@
 #include "dma.h"
 #include "timer.h"
 
-// utilities
-#include "trace.h"
-
 static struct memory memory;
 
 /* virtual to physical memory lookup table */
@@ -47,13 +44,13 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
     uint32_t physical = address & segment_lookup[address >> 29];
 
     /* trace signals to memory */
-    trace("memory.c", "memory_write", "address: %08x | data: %08x | size: %d", address, data, size);
+    TRACE_MEM("memory_write", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
     if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
     {
         pthread_cond_t *notify = NULL;
 
-        enum memory_map device_address = address - DEV_START;
+        enum memory_map device_address = address;
 
         switch (device_address)
         {
@@ -101,17 +98,17 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
                 notify = write_timers(physical, data);
                 break;
             /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address): segment = (uint8_t *) &memory.expansion_1_base_address; goto memory_registers_write;
-            case(expansion_2_base_address): segment = (uint8_t *) &memory.expansion_2_base_address; goto memory_registers_write;
-            case(expansion_1_delay_size  ): segment = (uint8_t *) &memory.expansion_1_delay_size  ; goto memory_registers_write;
-            case(expansion_3_delay_size  ): segment = (uint8_t *) &memory.expansion_3_delay_size  ; goto memory_registers_write;
-            case(bios_rom_delay_size     ): segment = (uint8_t *) &memory.bios_rom_delay_size     ; goto memory_registers_write;
-            case(spu_delay_size          ): segment = (uint8_t *) &memory.spu_delay_size          ; goto memory_registers_write;
-            case(cdrom_delay_size        ): segment = (uint8_t *) &memory.cdrom_delay_size        ; goto memory_registers_write;
-            case(expansion_2_delay_size  ): segment = (uint8_t *) &memory.expansion_2_delay_size  ; goto memory_registers_write;
-            case(com_delay_size          ): segment = (uint8_t *) &memory.com_delay_size          ; goto memory_registers_write;
+            case(expansion_1_base_address): segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; goto memory_registers_write;
+            case(expansion_2_base_address): segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; goto memory_registers_write;
+            case(expansion_1_delay_size  ): segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; goto memory_registers_write;
+            case(expansion_3_delay_size  ): segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; goto memory_registers_write;
+            case(bios_rom_delay_size     ): segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; goto memory_registers_write;
+            case(spu_delay_size          ): segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; goto memory_registers_write;
+            case(cdrom_delay_size        ): segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; goto memory_registers_write;
+            case(expansion_2_delay_size  ): segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; goto memory_registers_write;
+            case(com_delay_size          ): segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; goto memory_registers_write;
             /* CACHE CONTROL / KSEG2 */
-            case (cache_control    ): segment = (uint8_t *) &memory.cache_control; goto memory_registers_write;
+            case (cache_control          ): segment = (uint8_t *) &memory.cache_control           ; physical = 0; goto memory_registers_write;
         }
         
         /* if the write triggers a change in state send a signal */
@@ -175,11 +172,11 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
     uint32_t physical = address & segment_lookup[address >> 29];
     
     /* trace signals to memory */
-    trace("memory.c", "memory_write", "address: %08x | data: %08x | size: %d", address, data, size);
+    TRACE_MEM("memory_read ", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
     if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
     {
-        switch ((enum memory_map) address - DEV_START)
+        switch ((enum memory_map) address)
         {
             /* DMA REGISTERS */
             case(dma0_mdec_in_madr ):
@@ -235,8 +232,7 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
             case(expansion_2_delay_size  ): *data = memory.expansion_2_delay_size;   break;
             case(com_delay_size          ): *data = memory.com_delay_size;           break;
             /* CACHE CONTROL / KSEG2 */
-            case(cache_control     ):
-                *data = memory.cache_control;
+            case(cache_control           ): *data = memory.cache_control;            break;
         }
 
         switch (size) 

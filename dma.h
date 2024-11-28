@@ -6,12 +6,21 @@
 
 #ifdef DMA_PRIVATE
 
-enum dma_commands {
+#include "trace.h"
+#ifdef ENABLE_DMA_TRACE
+#define TRACE_DMA(function, format, ...) trace("dma.c", function, format, __VA_ARGS__)
+#else
+#define TRACE_DMA(function, format, ...) 
+#endif
+
+enum dma_commands 
+{
     END = 0x0,
     START_TRANSFER = 0x1,
 };
 
-enum dma_channels {
+enum dma_channels 
+{
     DMA0_MDEC_IN,
     DMA1_MDEC_OUT,
     DMA2_GPU,
@@ -21,42 +30,52 @@ enum dma_channels {
     DMA6_OTC
 };
 
-enum dma_sync_mode {
+enum dma_sync_mode 
+{
     MANUAL      = 0,
     REQUEST     = 1,
     LINKED_LIST = 2
 };
 
-enum dma_direction {
+enum dma_direction 
+{
     DEVICE_TO_RAM = 0,
     RAM_TO_DEVICE = 1
 };
 
-enum dma_state {
+enum dma_state 
+{
     DMA_IDLE,
     DMA_TRANSFER,
     DMA_CHECK_CHANNEL
 };
 
-union madr{
+union madr
+{
     uint32_t value;
-    struct {
+    struct 
+    {
         uint32_t base_address: 24;
     };
 };
-union brc {
+union brc 
+{
     uint32_t value;
-    struct {
+    struct 
+    {
         uint32_t bc: 16;
     };
-    struct {
+    struct 
+    {
         uint32_t bs: 16;
         uint32_t ba: 16;
     };
 };
-union chcr {
+union chcr 
+{
     uint32_t value;
-    struct {
+    struct 
+    {
         uint32_t transfer_direction       : 1;
         uint32_t address_step             : 1;
         uint32_t                          : 6;
@@ -75,7 +94,8 @@ union chcr {
 };
 
 
-struct dma {
+struct dma 
+{
     uint32_t dma0_mdec_in_madr;
     uint32_t dma0_mdec_in_brc;
     uint32_t dma0_mdec_in_chcr;

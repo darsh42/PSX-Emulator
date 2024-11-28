@@ -55,8 +55,6 @@ int main( int argc , char **argv )
     if (!game)
         usage();
     
-    trace_init( NULL );
-
     memory_load_bios( bios );
 
     pthread_t thread_cpu;
@@ -88,8 +86,6 @@ int main( int argc , char **argv )
     pthread_join(thread_gpu,    NULL);
     pthread_join(thread_dma,    NULL);
     pthread_join(thread_timers, NULL);
-
-    trace_deinit();
 
     return 0;
 }

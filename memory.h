@@ -15,6 +15,16 @@
 #define BIOS_END   0x1FC80000
 
 #ifdef MEMORY_PRIVATE
+
+// utilities
+#include "trace.h"
+
+#ifdef ENABLE_MEMORY_TRACE
+#define TRACE_MEM(function, format, ...) trace("memory.c", function, format, __VA_ARGS__)
+#else
+#define TRACE_MEM(function, format, ...) 
+#endif
+
 struct memory {
     uint8_t        ram[0x200000];
     uint8_t scratchpad[0x400];
