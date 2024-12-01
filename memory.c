@@ -11,6 +11,7 @@
 #include "gpu.h"
 #include "dma.h"
 #include "timer.h"
+#include "interrupts.h"
 
 static struct memory memory;
 
@@ -54,6 +55,11 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 
         switch (device_address)
         {
+            /* INTERRUPT REGISTERS */
+            case (i_stat):
+            case (i_mask):
+                notify = write_interrupts(address, data);
+                break;
             /* DMA REGISTERS */
             case(dma0_mdec_in_madr ):
             case(dma0_mdec_in_brc  ):
@@ -78,12 +84,12 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(dma6_otc_chcr     ):
             case(dpcr              ):
             case(dicr              ):
-                notify = write_dma(physical, data);
+                notify = write_dma(address, data);
                 break;
             /* GPU REGISTERS */
             case(gp0_gpu_read      ):
             case(gp1_gpu_stat      ):
-                notify = write_gpu(physical, data);
+                notify = write_gpu(address, data);
                 break;
             /* TIMER REGISTERS */
             case(timer_0_current_counter):
@@ -95,7 +101,7 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(timer_2_current_counter):
             case(timer_2_mode           ):
             case(timer_2_target         ):
-                notify = write_timers(physical, data);
+                notify = write_timers(address, data);
                 break;
             /* MEMORY CONTROL 1 */
             case(expansion_1_base_address): segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; goto memory_registers_write;
@@ -178,6 +184,11 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
     {
         switch ((enum memory_map) address)
         {
+            /* INTERRUPT REGISTERS */
+            case (i_stat):
+            case (i_mask):
+                *data = read_interrupts(address);
+                break;
             /* DMA REGISTERS */
             case(dma0_mdec_in_madr ):
             case(dma0_mdec_in_brc  ):

@@ -52,13 +52,13 @@ enum memory_map {
     /* general registers */
     expansion_1_base_address = 0x1F801000,
     expansion_2_base_address = 0x1F801004,
-    expansion_1_delay_size   = 0x1F800008,
-    expansion_3_delay_size   = 0x1F80000C,
-    bios_rom_delay_size      = 0x1F800010,
-    spu_delay_size           = 0x1F800014,
-    cdrom_delay_size         = 0x1F800018,
-    expansion_2_delay_size   = 0x1F80001C,
-    com_delay_size           = 0x1F800020,
+    expansion_1_delay_size   = 0x1F801008,
+    expansion_3_delay_size   = 0x1F80100C,
+    bios_rom_delay_size      = 0x1F801010,
+    spu_delay_size           = 0x1F801014,
+    cdrom_delay_size         = 0x1F801018,
+    expansion_2_delay_size   = 0x1F80101C,
+    com_delay_size           = 0x1F801020,
     
     /* interrupt control registers */
     i_stat                   = 0x1F801070,

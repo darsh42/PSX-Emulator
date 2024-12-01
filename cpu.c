@@ -103,7 +103,7 @@ static void cpu_exception( enum cpu_exception_type t )
     }
     
     /* set correct sr status */
-    sr.value = (sr.value & ~0X3F) | ((sr.value &  0X3F) >> 2); 
+    sr.value = (sr.value & ~0X3F) | ((sr.value >> 2) & 0X3F);
     
     /* write back all register values */
     cpu.cop0[COP0_SR]    = sr.value;
@@ -1046,7 +1046,7 @@ static inline void RFE()
     // Return From Exception
     cpu_trace_instruction("RFE");
 
-    if ((cpu.cir & 0x1f) == 0x08) 
+    if ((cpu.cir & 0x1f) == 0x10) 
     {
         /* increment exception stack */
         cpu.cop0[COP0_SR] = (cpu.cop0[COP0_SR] & ~0X3F) | ((cpu.cop0[COP0_SR] &  0X3F) >> 2); 
@@ -1117,7 +1117,8 @@ static inline void cop2(void)
 
 static inline void cpu_secondary( void )
 {
-    switch (FUNCT) {
+    switch (FUNCT) 
+    {
         case 0x00: sll();                break;
         case 0x02: srl();                break;
         case 0x03: sra();                break;
@@ -1146,16 +1147,23 @@ static inline void cpu_secondary( void )
         case 0x27: nor();                break;
         case 0x2a: slt();                break;
         case 0x2b: sltu();               break;
+        default:
+            assert(0 && "Unhandled instruction\n");
+            break;
     } 
 }
 
 static inline void cpu_branch_condition( void )
 {
-    switch (RT) {
+    switch (RT) 
+    {
         case (0x00): bltz();             break;
         case (0x01): bgez();             break;
         case (0x16): bltzal();           break;
         case (0x17): bgezal();           break;
+        default:
+            assert(0 && "Unhandled instruction\n");
+            break;
     }
 }
 
@@ -1184,7 +1192,8 @@ static inline void cpu_execute( void )
     /* read and increment program counter */
     memory_read(cpu.pc, &cpu.cir, 4);
 
-    switch (OP) {
+    switch (OP) 
+    {
         case 0X00: cpu_secondary();        break;
         case 0x01: cpu_branch_condition(); break;
         case 0x02: j();                    break;
@@ -1216,7 +1225,7 @@ static inline void cpu_execute( void )
         case 0x10: cop0();                 break;
         case 0x12: cop2();                 break;
         default:
-            running = 0;
+            assert(0 && "Unhandled instruction\n");
             break;
     }
     

@@ -1,7 +1,25 @@
 #ifndef TIMER_H_INCLUDED
 #define TIMER_H_INCLUDED
 
+#include <stdint.h>
+#include <pthread.h>
+
+extern void *task_timers( void *ignore );
+
+extern void wait_system_tick( int clocks );
+
+extern uint32_t        read_timers( uint32_t address );
+extern pthread_cond_t *write_timers( uint32_t address, uint32_t data );
+
 #ifdef TIMER_PRIVATE
+
+#include "trace.h"
+
+#ifdef ENABLE_TIMERS_TRACE
+#define TRACE_TIMERS(function, format, ...) trace("timers.c", function, format, __VA_ARGS__)
+#else
+#define TRACE_TIMERS(function, format, ...) 
+#endif
 
 union timer_mode {
     uint16_t value;
@@ -32,13 +50,6 @@ struct timers {
     struct timer t1;
     struct timer t2;
 };
+
 #endif // TIMER_PRIVATE
-
-extern void *task_timers( void *ignore );
-
-extern void wait_system_tick( int clocks );
-
-extern uint32_t        read_timers( uint32_t address );
-extern pthread_cond_t *write_timers( uint32_t address, uint32_t data );
-
 #endif // TIMER_H_INCLUDED

@@ -6,6 +6,14 @@
 
 #ifdef GPU_PRIVATE
 
+#include "trace.h"
+
+#ifdef ENABLE_GPU_TRACE
+#define TRACE_GPU(function, format, ...) trace("gpu.c", function, format, __VA_ARGS__)
+#else
+#define TRACE_GPU(function, format, ...) 
+#endif
+
 #include "fifo.h"
 
 #define COMMAND(c)   (c >> 24)

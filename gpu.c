@@ -24,6 +24,9 @@ uint32_t read_gpu( uint32_t address )
         case( gp0_gpu_read ): data = gpu.gpuread;       break;
         case( gp1_gpu_stat ): data = gpu.gpustat.value; break;
     }
+
+    TRACE_GPU("read_gpu ", "address: %08x | data: %08x\n", address, data);
+
     return data;
 }
 
@@ -34,6 +37,9 @@ pthread_cond_t *write_gpu( uint32_t address, uint32_t data )
         case( gp0_gpu_read ): fifo_push(&gpu.gp0, data); gpu.state = GPU_PROCESS_GP0; break;
         case( gp1_gpu_stat ): gpu.gp1 = data;            gpu.state = GPU_PROCESS_GP1; break;
     }
+
+    TRACE_GPU("write_gpu", "address: %08x | data: %08x\n", address, data);
+
     return &gpu_notify;
 }
 

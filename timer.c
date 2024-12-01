@@ -32,6 +32,8 @@ uint32_t read_timers( uint32_t address )
         case(timer_2_mode           ): data = timers.t2.mode.value;    break;
         case(timer_2_target         ): data = timers.t2.target_count;  break;
     }
+    TRACE_TIMERS("read_timers ", "address: %08x | data: %08x\n", address, data);
+
     return data;
 }
 
@@ -50,6 +52,9 @@ pthread_cond_t *write_timers( uint32_t address, uint32_t _data )
         case(timer_2_mode           ): timers.t2.mode.value    = data; break;
         case(timer_2_target         ): timers.t2.target_count  = data; break;
     }
+
+    TRACE_TIMERS("write_timers", "address: %08x | data: %08x\n", address, data);
+
     return NULL;
 }
 
@@ -108,7 +113,7 @@ void *task_timers( void *ignore )
 
 #endif // DEBUG
 
-         usleep(20);
+        //usleep(20);
 
         timers.t0.current_count++; timer_reset(&timers.t0);
         timers.t1.current_count++; timer_reset(&timers.t1);

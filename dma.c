@@ -43,6 +43,9 @@ uint32_t read_dma( uint32_t address )
         case(dpcr              ): data = dma.dpcr              ; break;
         case(dicr              ): data = dma.dicr              ; break;
     }
+
+    TRACE_DMA("read_dma ", "address: %08x | data: %08x\n", address, data);
+
     return data;
 }
 
@@ -75,6 +78,9 @@ pthread_cond_t *write_dma( uint32_t address, uint32_t data )
         case(dpcr              ): dma.dpcr               = data; notify = &dma_notify; dma.state = DMA_CHECK_CHANNEL; break;
         case(dicr              ): dma.dicr               = data; break;
     }
+
+    TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
+
     return notify;
 }
 
@@ -93,15 +99,19 @@ void dma_check_channels( void )
      int32_t dev          = -1;
     uint32_t dev_priority = 10;
     uint32_t address      = dma6_otc_chcr;
-    uint32_t priority, enabled;
+    uint32_t channel_bits, priority, enabled;
     
-    for (int32_t i = 6; i >= 0; i--, address -= 0X10) {
-        priority = (dma.dpcr >> i*4) & 0x7;
-        enabled  = (dma.dpcr >> i*4) & 0x8;
+    for (int32_t i = 6; i >= 0; i--, address -= 0X10) 
+    {   
+        channel_bits = (dma.dpcr >> (i * 4)) & 0xf;
+
+        priority = channel_bits & 0x7; /* get 0b0111 */
+        enabled  = channel_bits & 0x8; /* get 0b1000 */
 
         memory_read(address, &chcr.value, 4);
         
-        if (enabled && chcr.start_busy && priority < dev_priority) {
+        if (enabled && chcr.start_busy && priority < dev_priority) 
+        {
             dev_priority = priority;
             dev = i;
         }
