@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <pthread.h>
 
-extern uint32_t        read_interrupts( uint32_t address );
-extern pthread_cond_t *write_interrupts( uint32_t address, uint32_t data );
+extern uint32_t read_interrupts( uint32_t address );
+extern void     write_interrupts( uint32_t address, uint32_t data );
 
 #ifdef INTERRUPTS_PRIVATE
 
@@ -24,5 +24,7 @@ struct interrupts
 };
 
 #endif // INTERRUPTS_PRIVATE
+
+void init_interrupts( void );
 
 #endif // INTERRUPTS_H_INCLUDED

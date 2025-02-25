@@ -99,20 +99,16 @@ static inline void system_render( void )
 
 void *task_system( void *ignore )
 {
+    printf("SYSTEM: %ld\n", pthread_self());
+
     SDL_CHECK_RET(SDL_Init(INITIALIZE_FLAGS));
     SDL_CHECK_PTR(sys.window = SDL_CreateWindow(NAME, X, Y, W, H, 0));
     SDL_CHECK_PTR(sys.renderer = SDL_CreateRenderer(sys.window, -1, SDL_RENDERER_ACCELERATED));
 
     while ( true )
     {
-        if ( !running )
-        {
-            /* unlock all devices allowing for shutdown */
-            unlock_gpu();
-            unlock_dma();
-
+        if ( !running ) 
             goto cleanup;
-        }
 
         system_input();
 

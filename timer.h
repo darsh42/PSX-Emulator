@@ -4,12 +4,11 @@
 #include <stdint.h>
 #include <pthread.h>
 
-extern void *task_timers( void *ignore );
+extern void init_timers( void );
+extern void task_timers( void );
 
-extern void wait_system_tick( int clocks );
-
-extern uint32_t        read_timers( uint32_t address );
-extern pthread_cond_t *write_timers( uint32_t address, uint32_t data );
+extern uint32_t  read_timers( uint32_t address );
+extern void     write_timers( uint32_t address, uint32_t data );
 
 #ifdef TIMER_PRIVATE
 

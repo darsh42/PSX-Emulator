@@ -25,10 +25,16 @@
 #define TRACE_MEM(function, format, ...) 
 #endif
 
+#define RAM_SIZE 0x200000
+#define SCRPD_SIZE 0x400
+#define BIOS_SIZE 0x80000
+#define VRAM_SIZE 0x10000
+
 struct memory {
-    uint8_t        ram[0x200000];
-    uint8_t scratchpad[0x400];
-    uint8_t       bios[0x80000];
+    uint8_t        ram[RAM_SIZE];
+    uint8_t scratchpad[SCRPD_SIZE];
+    uint8_t       bios[BIOS_SIZE];
+    uint8_t       vram[VRAM_SIZE];
     
     /* memory control 1 */
     uint32_t expansion_1_base_address;
@@ -112,6 +118,8 @@ extern void memory_load_bios( const char *bios );
 
 extern void memory_write(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read(uint32_t address, uint32_t *data, uint32_t size);
+extern void memory_write_vram(uint32_t address, uint32_t data, uint32_t size);
+extern void memory_read_vram(uint32_t address, uint32_t *data, uint32_t size);
 
 extern uint32_t running;
 

@@ -9,7 +9,7 @@ LIBRARY := -lpthread -lSDL2
 
 CFLAGS := -g -Wall -Wextra -Wpedantic -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes -Wstrict-overflow=5 -pthread # -DDEBUG
 
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJECTS) trace.h
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBRARY) -I.
 
 %.o: %.c; 
@@ -17,7 +17,7 @@ $(TARGET): $(OBJECTS)
 
 .PHONY: clean run debug stub run_debug all
 
-BIOS := SCPH1001.BIN
+BIOS := scph1001.bin
 GAME := .
 
 clean:

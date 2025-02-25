@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -28,7 +27,7 @@ uint32_t read_interrupts( uint32_t address )
     return data;
 }
 
-pthread_cond_t *write_interrupts( uint32_t address, uint32_t data )
+void write_interrupts( uint32_t address, uint32_t data )
 {
     switch ( address )
     {
@@ -40,6 +39,6 @@ pthread_cond_t *write_interrupts( uint32_t address, uint32_t data )
     }
 
     TRACE_INTERRUPTS("write_interrupts", "address: %08x | data: %08x\n", address, data);
-
-    return NULL;
 }
+
+void init_interrupts( void ) {}

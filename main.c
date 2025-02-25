@@ -20,6 +20,44 @@
 
 uint32_t running = 1;
 
+void *task_core( void * )
+{
+    printf("CORE: %ld\n", pthread_self());
+
+	init_cpu();
+	init_gpu();
+	init_dma();
+	init_timers();
+	init_interrupts();
+		
+    uint32_t ticks_till_cpu = 0;
+    uint32_t ticks_till_gpu = 0;
+
+    while (running)
+    {
+        /* clock */
+        task_timers();
+
+        ticks_till_cpu++;
+        ticks_till_gpu++;
+        
+        if (ticks_till_cpu == 11) { task_cpu(); ticks_till_cpu = 0; }
+        if (ticks_till_gpu ==  7) { task_gpu(); ticks_till_gpu = 0; }
+
+        task_dma();
+    }
+
+    return NULL;
+}
+
+
+void *task_debug( void * )
+{
+    printf("DEBUGGER: %ld\n", pthread_self());
+
+    return NULL;
+}
+
 void usage( void )
 {
     fprintf(stdout, "usage: psx -b bios -g game\n");
@@ -56,36 +94,18 @@ int main( int argc , char **argv )
         usage();
     
     memory_load_bios( bios );
+	
+    pthread_t thread_core;
+    pthread_t thread_debug;
+    pthread_t thread_system;
 
-    pthread_t thread_cpu;
-    pthread_t thread_gpu;
-    pthread_t thread_dma;
-    pthread_t thread_timers;
-    // pthread_t thread_system;
+    assert(!pthread_create(&thread_system, NULL, task_system, NULL));
+    assert(!pthread_create(&thread_debug, NULL, task_debug, NULL));
+    assert(!pthread_create(&thread_core, NULL, task_core, NULL));
 
-#ifdef DEBUG
-    pthread_t thread_gdbstub;
-
-    assert(!pthread_create(&thread_gdbstub, NULL, task_gdb_stub, NULL));
-#endif // DEBUG
-    
-    // assert(!pthread_create(&thread_system, NULL, task_system, NULL));
-
-    assert(!pthread_create(&thread_dma,    NULL, task_dma,    NULL));
-    assert(!pthread_create(&thread_gpu,    NULL, task_gpu,    NULL));
-    assert(!pthread_create(&thread_cpu,    NULL, task_cpu,    NULL));
-    assert(!pthread_create(&thread_timers, NULL, task_timers, NULL));
-
-#ifdef DEBUG
-    pthread_join(thread_gdbstub, NULL);
-#endif
-    
-    /* signal to other threads to kill themselves */
-    // pthread_join(thread_system, NULL);
-    pthread_join(thread_cpu,    NULL);
-    pthread_join(thread_gpu,    NULL);
-    pthread_join(thread_dma,    NULL);
-    pthread_join(thread_timers, NULL);
+    pthread_join(thread_core, NULL);
+    pthread_join(thread_debug, NULL);
+    pthread_join(thread_system, NULL);
 
     return 0;
 }

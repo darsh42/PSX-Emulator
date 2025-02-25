@@ -1,7 +1,6 @@
 #ifndef CPU_H_INCLUDED
 #define CPU_H_INCLUDED
 
-#include <pthread.h>
 #include <stdint.h>
 #include <limits.h>
 
@@ -85,7 +84,8 @@ enum cpu_load_delay
 union cop0_sr
 {
     uint32_t value;
-    struct {
+    struct 
+	{
         uint32_t IEc: 1;
         uint32_t KUc: 1;
         uint32_t IEp: 1;
@@ -115,7 +115,8 @@ union cop0_sr
 union cop0_cause
 {
     uint32_t value;
-    struct {
+    struct 
+	{
         uint32_t             :  2;
         uint32_t excode      :  5;
         uint32_t             :  1;
@@ -153,6 +154,7 @@ struct cpu
 
 extern uint32_t cpu_cop0_sr_isc( void );
 
-extern void *task_cpu( void *ignore );
+extern void init_cpu( void );
+extern void task_cpu( void );
 
 #endif // CPU_H_INCLUDED

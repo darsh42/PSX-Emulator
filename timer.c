@@ -12,9 +12,6 @@
 #include "stub.h"
 #endif
 
-pthread_cond_t system_tick_notify = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t system_tick_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 static struct timers timers;
 
 uint32_t read_timers( uint32_t address ) 
@@ -37,7 +34,7 @@ uint32_t read_timers( uint32_t address )
     return data;
 }
 
-pthread_cond_t *write_timers( uint32_t address, uint32_t _data ) 
+void write_timers( uint32_t address, uint32_t _data ) 
 {
     uint16_t data = (uint16_t) _data;
     switch ( address )
@@ -54,14 +51,6 @@ pthread_cond_t *write_timers( uint32_t address, uint32_t _data )
     }
 
     TRACE_TIMERS("write_timers", "address: %08x | data: %08x\n", address, data);
-
-    return NULL;
-}
-
-/* allows devices to sleep till next system tick */
-void wait_system_tick( int clocks )
-{
-    while (clocks--) assert(!pthread_cond_wait(&system_tick_notify, &system_tick_mutex));
 }
 
 void timer_reset( struct timer *timer )
@@ -96,30 +85,12 @@ void timer_reset( struct timer *timer )
     }
 }
 
-void *task_timers( void *ignore )
+void init_timers( void ) { }
+void task_timers( void )
 {
-    printf("SYSTEM TIMER: %ld\n", pthread_self());
-    while ( running )
-    {
-#ifdef DEBUG
-        /* the gdb debugging stub needs to control the timer,   *
-         * this will allow the stub to control the wider system *
-         * as all of the components are being controlled by the *
-         * timers                                               */
-        if ( gdb_stub_pause )
-        {
-            wait_gdb_stub();
-        }
+    //usleep(20);
 
-#endif // DEBUG
-
-        //usleep(20);
-
-        timers.t0.current_count++; timer_reset(&timers.t0);
-        timers.t1.current_count++; timer_reset(&timers.t1);
-        timers.t2.current_count++; timer_reset(&timers.t2);
-        
-        /* tell all devices to cycle */
-        assert(!pthread_cond_broadcast(&system_tick_notify));
-    }
+    timers.t0.current_count++; timer_reset(&timers.t0);
+    timers.t1.current_count++; timer_reset(&timers.t1);
+    timers.t2.current_count++; timer_reset(&timers.t2);
 }

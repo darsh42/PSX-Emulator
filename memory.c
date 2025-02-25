@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -22,8 +21,6 @@ static uint32_t segment_lookup[] = {
     (uint32_t) 0X1FFFFFFF,                                     // KSEG1
     (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF               // KSEG2
 };
-
-static pthread_rwlock_t memory_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 void memory_load_bios( const char *bios )
 {
@@ -49,8 +46,6 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 
     if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
     {
-        pthread_cond_t *notify = NULL;
-
         enum memory_map device_address = address;
 
         switch (device_address)
@@ -58,7 +53,7 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             /* INTERRUPT REGISTERS */
             case (i_stat):
             case (i_mask):
-                notify = write_interrupts(address, data);
+                write_interrupts(address, data);
                 break;
             /* DMA REGISTERS */
             case(dma0_mdec_in_madr ):
@@ -84,12 +79,12 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(dma6_otc_chcr     ):
             case(dpcr              ):
             case(dicr              ):
-                notify = write_dma(address, data);
+                write_dma(address, data);
                 break;
             /* GPU REGISTERS */
             case(gp0_gpu_read      ):
             case(gp1_gpu_stat      ):
-                notify = write_gpu(address, data);
+                write_gpu(address, data);
                 break;
             /* TIMER REGISTERS */
             case(timer_0_current_counter):
@@ -101,29 +96,28 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(timer_2_current_counter):
             case(timer_2_mode           ):
             case(timer_2_target         ):
-                notify = write_timers(address, data);
+                write_timers(address, data);
                 break;
             /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address): segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; goto memory_registers_write;
-            case(expansion_2_base_address): segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; goto memory_registers_write;
-            case(expansion_1_delay_size  ): segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; goto memory_registers_write;
-            case(expansion_3_delay_size  ): segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; goto memory_registers_write;
-            case(bios_rom_delay_size     ): segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; goto memory_registers_write;
-            case(spu_delay_size          ): segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; goto memory_registers_write;
-            case(cdrom_delay_size        ): segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; goto memory_registers_write;
-            case(expansion_2_delay_size  ): segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; goto memory_registers_write;
-            case(com_delay_size          ): segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; goto memory_registers_write;
+            case(expansion_1_base_address): 
+            case(expansion_2_base_address): 
+            case(expansion_1_delay_size  ): 
+            case(expansion_3_delay_size  ): 
+            case(bios_rom_delay_size     ): 
+            case(spu_delay_size          ): 
+            case(cdrom_delay_size        ): 
+            case(expansion_2_delay_size  ): 
+            case(com_delay_size          ): 
             /* CACHE CONTROL / KSEG2 */
-            case (cache_control          ): segment = (uint8_t *) &memory.cache_control           ; physical = 0; goto memory_registers_write;
+            case(cache_control           ):
+			   	goto memory_registers_write;
         }
-        
-        /* if the write triggers a change in state send a signal */
-        if (notify)
-            assert(!pthread_cond_signal(notify));
 
         return;
     }
 
+/* if the memory registers are accessed treat them as non-devices*/
+memory_registers_write: 
     if (physical >= 0x00000000 && physical < 0x00200000) 
     { 
         /* if cache is isolated do scratchpad, else do main ram */
@@ -138,14 +132,25 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
         }
     }
     else if (physical >= 0x1FC00000 && physical < 0x1FC80000) { segment = memory.bios; physical -= 0x1FC00000; }
-    else                                                      { return;                                        }
-
-/* if the memory registers are accessed treat them as non-devices*/
-memory_registers_write: 
+	/* internal memory registers */
+	else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
+	else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
+	else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
+	else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
+	else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
+	else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
+	else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
+	else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
+	else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
+	else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
+    else 
+	{
+			// assert(0 && "Unhandled memory address");
+            return;
+	}
 
     assert(segment);
-    assert(!pthread_rwlock_wrlock(&memory_lock));
-    
+
     switch ( size )
     {
         case 1:
@@ -162,8 +167,6 @@ memory_registers_write:
             *(segment + physical + 3) = (uint8_t) (data >> 24);
             break;
     }
-
-    assert(!pthread_rwlock_unlock(&memory_lock));
 }
 
 void memory_read(uint32_t address, uint32_t *data, uint32_t size)
@@ -171,16 +174,19 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
     assert(data);
     assert(size == 4 || size == 2 || size == 1);
     
-    /* clear data pointer */
-    *data = 0;
+	/* memory segment pointer */
+    uint8_t *segment = NULL;
 
     /* virtual to physical memory lookup */
     uint32_t physical = address & segment_lookup[address >> 29];
+
+    /* clear data pointer */
+    *data = 0;
     
     /* trace signals to memory */
     TRACE_MEM("memory_read ", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
-    if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
+    if ( (physical >= 0x1F801000 && physical < 0x1F802000) || physical == 0xFFFE0130 ) 
     {
         switch ((enum memory_map) address)
         {
@@ -233,17 +239,18 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
                 *data = read_timers(address);
                 break;
             /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address): *data = memory.expansion_1_base_address; break;
-            case(expansion_2_base_address): *data = memory.expansion_2_base_address; break;
-            case(expansion_1_delay_size  ): *data = memory.expansion_1_delay_size;   break;
-            case(expansion_3_delay_size  ): *data = memory.expansion_3_delay_size;   break;
-            case(bios_rom_delay_size     ): *data = memory.bios_rom_delay_size ;     break;
-            case(spu_delay_size          ): *data = memory.spu_delay_size;           break;
-            case(cdrom_delay_size        ): *data = memory.cdrom_delay_size;         break;
-            case(expansion_2_delay_size  ): *data = memory.expansion_2_delay_size;   break;
-            case(com_delay_size          ): *data = memory.com_delay_size;           break;
+            case(expansion_1_base_address): 
+            case(expansion_2_base_address): 
+            case(expansion_1_delay_size  ): 
+            case(expansion_3_delay_size  ): 
+            case(bios_rom_delay_size     ): 
+            case(spu_delay_size          ): 
+            case(cdrom_delay_size        ): 
+            case(expansion_2_delay_size  ): 
+            case(com_delay_size          ): 
             /* CACHE CONTROL / KSEG2 */
-            case(cache_control           ): *data = memory.cache_control;            break;
+            case(cache_control           ): 
+				goto memory_registers_read;
         }
 
         switch (size) 
@@ -256,7 +263,8 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
         return;
     }
 
-    uint8_t *segment = NULL;
+/* if the memory registers are accessed treat them as non-devices*/
+memory_registers_read:
 
     if (physical >= 0x00000000 && physical < 0x00200000) 
     { 
@@ -272,10 +280,24 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
         }
     }
     else if (physical >= 0x1FC00000 && physical < 0x1FC80000) { segment = memory.bios; physical -= 0x1FC00000; }
-    else                                                      { return;                                        }
+	/* internal memory registers */
+	else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
+	else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
+	else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
+	else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
+	else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
+	else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
+	else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
+	else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
+	else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
+	else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
+    else 
+	{
+			// assert(0 && "Unhandled memory address");
+            return;
+	}
 
     assert(segment);
-    assert(!pthread_rwlock_rdlock(&memory_lock));
     
     switch ( size )
     {
@@ -293,6 +315,54 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
             *data |= *(segment + physical + 3) << 24;
             break;
     }
+}
 
-    assert(!pthread_rwlock_unlock(&memory_lock));
+void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
+{
+    assert(address < VRAM_SIZE);
+    assert(size == 1 || size == 2 || size == 4);
+
+    switch ( size )
+    {
+        case 1:
+            *(memory.vram + address + 0)  = (data >>  0);
+            break;
+        case 2:
+            *(memory.vram + address + 0)  = (data >>  0);
+            *(memory.vram + address + 1)  = (data >>  8);
+            break;
+        case 4:
+            *(memory.vram + address + 0)  = (data >>  0);
+            *(memory.vram + address + 1)  = (data >>  8);
+            *(memory.vram + address + 2)  = (data >> 16);
+            *(memory.vram + address + 3)  = (data >> 24);
+            break;
+    }
+}
+
+void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
+{
+    assert(data);
+    assert(address < VRAM_SIZE);
+    assert(size == 1 || size == 2 || size == 4);
+    
+    /* clear data pointer */
+    *data = 0;
+
+    switch ( size )
+    {
+        case 1:
+            *data |= *(memory.vram + address + 0) <<  0;
+            break;
+        case 2:
+            *data |= *(memory.vram + address + 0) <<  0;
+            *data |= *(memory.vram + address + 1) <<  8;
+            break;
+        case 4:
+            *data |= *(memory.vram + address + 0) <<  0;
+            *data |= *(memory.vram + address + 1) <<  8;
+            *data |= *(memory.vram + address + 2) << 16;
+            *data |= *(memory.vram + address + 3) << 24;
+            break;
+    }
 }

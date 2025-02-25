@@ -54,4 +54,5 @@ dkms.conf
 # ROMS and MISC files
 *.BIN
 *.txt
+*.bin
 psx

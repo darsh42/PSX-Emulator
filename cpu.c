@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include <assert.h>
 #include <stdio.h>
 
@@ -1115,8 +1114,66 @@ static inline void cop2(void)
     }
 }   
 
-static inline void cpu_secondary( void )
+static inline void cpu_execute( void )
 {
+    /* handle branch delay */
+    switch (cpu.branch_s)
+    {
+        case DELAY:    
+            cpu.branch_s = TRANSFER;
+            break;
+        case TRANSFER: 
+            cpu.branch_s = UNUSED;
+
+            cpu.pc = cpu.branch_v;
+
+            cpu.branch_v = 0;
+            break;
+        case UNUSED:   
+            break;
+    }
+
+    /* read and increment program counter */
+    memory_read(cpu.pc, &cpu.cir, 4);
+
+    switch (OP) 
+    {
+        case 0X00: goto secondary_op;
+        case 0x01: goto branch_op;
+        case 0x02: j();                  break;
+        case 0x03: jal();                break;
+        case 0x04: beq();                break;
+        case 0x05: bne();                break;
+        case 0x06: blez();               break;
+        case 0x07: bgtz();               break;
+        case 0x08: addi();               break;
+        case 0x09: addiu();              break;
+        case 0x0a: slti();               break;
+        case 0x0b: sltiu();              break;
+        case 0x0c: andi();               break;
+        case 0x0d: ori();                break;
+        case 0x0e: xori();               break;
+        case 0x0f: lui();                break;
+        case 0x20: lb();                 break;
+        case 0x21: lh();                 break;
+        case 0x22: lwl();                break;
+        case 0x23: lw();                 break;
+        case 0x24: lbu();                break;
+        case 0x25: lhu();                break;
+        case 0x26: lwr();                break;
+        case 0x28: sb();                 break;
+        case 0x29: sh();                 break;
+        case 0x2a: swl();                break;
+        case 0x2b: sw();                 break;
+        case 0x2e: swr();                break;
+        case 0x10: cop0();               break;
+        case 0x12: cop2();               break;
+        default:
+            assert(0 && "Unhandled instruction\n");
+            break;
+    } goto cycle_complete;
+
+secondary_op:
     switch (FUNCT) 
     {
         case 0x00: sll();                break;
@@ -1150,11 +1207,9 @@ static inline void cpu_secondary( void )
         default:
             assert(0 && "Unhandled instruction\n");
             break;
-    } 
-}
+    } goto cycle_complete;
 
-static inline void cpu_branch_condition( void )
-{
+branch_op:
     switch (RT) 
     {
         case (0x00): bltz();             break;
@@ -1164,84 +1219,19 @@ static inline void cpu_branch_condition( void )
         default:
             assert(0 && "Unhandled instruction\n");
             break;
-    }
-}
+    } goto cycle_complete;
 
-static inline void cpu_execute( void )
-{
-    /* wait for system tick */
-    wait_system_tick( 1 );
-
-    /* handle branch delay */
-    switch (cpu.branch_s)
-    {
-        case DELAY:    
-            cpu.branch_s = TRANSFER;
-            break;
-        case TRANSFER: 
-            cpu.branch_s = UNUSED;
-
-            cpu.pc = cpu.branch_v;
-
-            cpu.branch_v = 0;
-            break;
-        case UNUSED:   
-            break;
-    }
-
-    /* read and increment program counter */
-    memory_read(cpu.pc, &cpu.cir, 4);
-
-    switch (OP) 
-    {
-        case 0X00: cpu_secondary();        break;
-        case 0x01: cpu_branch_condition(); break;
-        case 0x02: j();                    break;
-        case 0x03: jal();                  break;
-        case 0x04: beq();                  break;
-        case 0x05: bne();                  break;
-        case 0x06: blez();                 break;
-        case 0x07: bgtz();                 break;
-        case 0x08: addi();                 break;
-        case 0x09: addiu();                break;
-        case 0x0a: slti();                 break;
-        case 0x0b: sltiu();                break;
-        case 0x0c: andi();                 break;
-        case 0x0d: ori();                  break;
-        case 0x0e: xori();                 break;
-        case 0x0f: lui();                  break;
-        case 0x20: lb();                   break;
-        case 0x21: lh();                   break;
-        case 0x22: lwl();                  break;
-        case 0x23: lw();                   break;
-        case 0x24: lbu();                  break;
-        case 0x25: lhu();                  break;
-        case 0x26: lwr();                  break;
-        case 0x28: sb();                   break;
-        case 0x29: sh();                   break;
-        case 0x2a: swl();                  break;
-        case 0x2b: sw();                   break;
-        case 0x2e: swr();                  break;
-        case 0x10: cop0();                 break;
-        case 0x12: cop2();                 break;
-        default:
-            assert(0 && "Unhandled instruction\n");
-            break;
-    }
-    
+cycle_complete:
     cpu.pc  += 4;
     cpu.r[0] = 0;
 }
 
-void *task_cpu( void *ignore )
+void init_cpu( void )
 {
-    printf("CPU DEVICE: %ld\n", pthread_self());
     cpu.pc = 0xbfc00000;
+}
 
-    while (running)
-    {
-        cpu_execute();
-    }
-
-    return NULL;
+void task_cpu( void )
+{
+    cpu_execute();
 }

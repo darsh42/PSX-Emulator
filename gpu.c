@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include <assert.h>
 #include <stdio.h>
 
@@ -9,12 +8,6 @@
 #include "system.h"
 
 static struct gpu gpu;
-
-static pthread_cond_t  gpu_dma_notify = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t gpu_dma_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static pthread_cond_t  gpu_notify = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t gpu_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 uint32_t read_gpu( uint32_t address ) 
 { 
@@ -30,7 +23,7 @@ uint32_t read_gpu( uint32_t address )
     return data;
 }
 
-pthread_cond_t *write_gpu( uint32_t address, uint32_t data )
+void write_gpu( uint32_t address, uint32_t data )
 {
     switch ( address )
     {
@@ -39,26 +32,36 @@ pthread_cond_t *write_gpu( uint32_t address, uint32_t data )
     }
 
     TRACE_GPU("write_gpu", "address: %08x | data: %08x\n", address, data);
-
-    return &gpu_notify;
 }
 
-void wait_gpu_gpustat_dma_data_request( void )
+/* if gpu is transferring data to or from vram it computes next address */
+uint32_t gpu_get_vram_address( void )
 {
-    /* whenever the flag is changed, a signal must be sent to the pthread_cond_t to notify dma */
-    if ( !gpu.gpustat.dma_data_request )
-    {
-        assert(!pthread_cond_wait(&gpu_dma_notify, &gpu_dma_mutex));
-    }
+    assert(gpu.state == GPU_VRAM_TRANSFER);
+    
+    /* compute vram address */
+    uint32_t address = gpu.vram_direct_access_y * VRAM_WIDTH +
+                       gpu.vram_direct_access_x +
+                       gpu.vram_direct_access_c;
+    
+    /* increment count by number of bytes */
+    gpu.vram_direct_access_c += 4;
+    
+    /* if the address equal to the max coordinate end the transfer */
+    if (address == (gpu.vram_direct_access_x + gpu.vram_direct_access_w) +
+                   (gpu.vram_direct_access_y + gpu.vram_direct_access_h) * VRAM_WIDTH)
+        gpu.state = GPU_IDLE;
+    
+    return address;
 }
 
-void wait_gpu_gpustat_dma_ready_recieve_block( void )
+bool gpu_gpustat_dma_data_request( void ) 
 {
-    /* whenever the flag is changed, a signal must be sent to the pthread_cond_t to notify dma */
-    if ( !gpu.gpustat.ready_recieve_dma_block )
-    {
-        assert(!pthread_cond_wait(&gpu_dma_notify, &gpu_dma_mutex));
-    }
+    return (gpu.gpustat.dma_data_request);
+}
+bool gpu_gpustat_dma_ready_recieve_block( void )
+{
+    return (gpu.gpustat.ready_recieve_dma_block);
 }
 
 // gp0 instructions
@@ -67,17 +70,65 @@ static void gp0_nop( void )
     if (!fifo_has_length(&gpu.gp0, 1))
         return;
 
-    fifo_pop(&gpu.gp0);
+    (void) fifo_pop(&gpu.gp0);
+
+    gpu.state = GPU_IDLE;
 }
 
 static void vram_clear_cache( void ) {}
 static void vram_fill_rectangle( void ) {}
 static void vram_to_vram_copy_rectangle( void ) {}
-static void cpu_to_vram_copy_rectangle( void ) {}
-static void vram_to_cpu_copy_rectangle( void ) {}
+static void cpu_to_vram_copy_rectangle( void ) 
+{
+    if (!fifo_has_length(&gpu.gp0, 3))
+        return;
+    
+    /* pop command */
+    (void) fifo_pop(&gpu.gp0);
+
+    uint32_t destination = fifo_pop(&gpu.gp0);
+    uint32_t dimensions  = fifo_pop(&gpu.gp0);
+    
+    /* set the conditions */ 
+    gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
+    gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
+    gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
+    gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+    
+    /* set the counter to 0 */
+    gpu.vram_direct_access_c = 0;
+
+    /* set the gpu state */
+    gpu.state = GPU_VRAM_TRANSFER;
+}
+
+static void vram_to_cpu_copy_rectangle( void ) 
+{
+    if (!fifo_has_length(&gpu.gp0, 3))
+        return;
+    
+    /* pop command */
+    (void) fifo_pop(&gpu.gp0);
+
+    uint32_t destination = fifo_pop(&gpu.gp0);
+    uint32_t dimensions  = fifo_pop(&gpu.gp0);
+    
+    /* set the conditions */ 
+    gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
+    gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
+    gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
+    gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+    
+    /* set the counter to 0 */
+    gpu.vram_direct_access_c = 0;
+
+    /* set the gpu state */
+    gpu.state = GPU_VRAM_TRANSFER;
+}
 
 static void gp0_direct_vram_access( void ) 
 {
+    /* BUG: possible issue when transferring using non-dma */
     switch (fifo_peek(&gpu.gp0))
     {
         case 0x01: vram_clear_cache(); break;
@@ -440,6 +491,9 @@ static void gp0_render_polygons( void )
             break;
         }
     }
+
+    if (fifo_has_length(&gpu.gp0, 0))
+        gpu.state = GPU_IDLE;
 }
 static void gp0_render_lines( void ) {}
 static void gp0_render_rectangles( void ) {}
@@ -536,6 +590,8 @@ static void gp0_rendering_attributes( void )
             break;
         }
     }
+
+    gpu.state = GPU_IDLE;
 }
 
 // gp1 instructions
@@ -582,6 +638,8 @@ static void gp1_reset( void )
 
     gpu.display_vertical_start = 0X010;
     gpu.display_vertical_end   = 0X100;
+
+    gpu.state = GPU_IDLE;
 }
 static void gp1_reset_command_buffer( void ) 
 {
@@ -589,6 +647,8 @@ static void gp1_reset_command_buffer( void )
     // Clears the command FIFO, and aborts the current rendering command 
     // (eg. this may end up with an incompletely drawn triangle).
     
+    
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_acknowledge_interrupt( void ) {}
 static inline void gp1_display_enable( void ) 
@@ -596,20 +656,23 @@ static inline void gp1_display_enable( void )
     // 0     Display On/Off   (0=On, 1=Off)                         ;GPUSTAT.23
     // 1-23  Not used (zero)
     gpu.gpustat.display_enable = PARAMETER(gpu.gp1) & 0x1;
+
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_dma_direction_or_data_request( void ) 
 {
     // 0-1  DMA Direction (0=Off, 1=FIFO, 2=CPUtoGP0, 3=GPUREADtoCPU) ;GPUSTAT.29-30
     // 2-23 Not used (zero)
     gpu.gpustat.dma_direction = PARAMETER(gpu.gp1) & 0b11;
-    switch (PARAMETER(gpu.gp1) & 0b11) {
+    switch (PARAMETER(gpu.gp1) & 0b11) 
+    {
         case 0: gpu.gpustat.dma_data_request = 0; break;
         case 1: gpu.gpustat.dma_data_request = !fifo_full(&gpu.gp0); break;
         case 2: gpu.gpustat.dma_data_request = gpu.gpustat.ready_recieve_dma_block; break;
         case 3: gpu.gpustat.dma_data_request = gpu.gpustat.ready_send_vram_cpu; break;
     }
 
-    assert(!pthread_cond_signal(&gpu_dma_notify));
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_start_of_display_area_in_vram( void ) 
 {
@@ -621,6 +684,8 @@ static inline void gp1_start_of_display_area_in_vram( void )
     // screen is set via Display Range registers; target=X1,Y2; size=(X2-X1/cycles_per_pix), (Y2-Y1).
     gpu.display_vram_x_start = (PARAMETER(gpu.gp1) >>  0) & 0x3ff;
     gpu.display_vram_y_start = (PARAMETER(gpu.gp1) >> 10) & 0x1ff;
+
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_horiontal_display_range( void ) 
 {
@@ -628,6 +693,8 @@ static inline void gp1_horiontal_display_range( void )
     // 12-23  X2 (260h+320*8)   ;12bit       ;/relative to HSYNC
     gpu.display_horizontal_start = (PARAMETER(gpu.gp1) >>  0) & 0xfff;
     gpu.display_horizontal_end   = (PARAMETER(gpu.gp1) >> 12) & 0xfff;
+
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_vertical_display_range( void ) 
 {
@@ -636,6 +703,8 @@ static inline void gp1_vertical_display_range( void )
     // 20-23 Not used (zero)
     gpu.display_vertical_start = (PARAMETER(gpu.gp1) >>  0) & 0x3ff;
     gpu.display_vertical_end   = (PARAMETER(gpu.gp1) >> 10) & 0x3ff;
+
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_display_mode( void ) 
 {
@@ -654,6 +723,8 @@ static inline void gp1_display_mode( void )
     gpu.gpustat.vertical_interlace       = (PARAMETER(gpu.gp1) >> 5) & 0x1;
     gpu.gpustat.horizontal_resolution_2  = (PARAMETER(gpu.gp1) >> 6) & 0x1;
     gpu.gpustat.reverse_flag             = (PARAMETER(gpu.gp1) >> 7) & 0x1;
+
+    gpu.state = GPU_IDLE;
 }
 static inline void gp1_new_texture_disable( void ) {}
 static inline void gp1_special_or_prototype_texture_disable( void ) {}
@@ -702,7 +773,6 @@ void gpu_process_gp1( void )
         default:
             if (COMMAND(gpu.gp1) >> 4 == 0x01) 
                 gp1_display_info();
-
             break;
     }
 }
@@ -711,28 +781,32 @@ void gpu_render_frame( void )
 {
 }
 
-/* only used if external devices need to notify gpu without writing to it */
-void unlock_gpu( void )
+void init_gpu( void )
 {
-    assert(!pthread_cond_signal(&gpu_notify));
+    /* destroy gp0 fifo */
+    // fifo_destroy( &gpu.gp0 );
+
+    /* create gp0 fifo */
+	fifo_create( &gpu.gp0, 12 );
+    
+    /* clear stat register */
+    gpu.gpustat.value = 0;
+    
+    /* set default values */
+    gpu.gpustat.display_enable             = 1;
+    gpu.gpustat.ready_recieve_cmd_word     = 1;
+    gpu.gpustat.ready_recieve_dma_block    = 1;
+    gpu.gpustat.drawing_even_odd_interlace = 1;
 }
 
-void *task_gpu( void *ignore )
+void task_gpu( void )
 {
-    printf("GPU DEVICE: %ld\n", pthread_self());
-    
-    fifo_create( &gpu.gp0, 12 );
-
-    while (running)
+    switch (gpu.state)
     {
-        switch (gpu.state)
-        {
-            case GPU_IDLE:        
-                assert(!pthread_cond_wait(&gpu_notify, &gpu_mutex)); 
-                break;
-            case GPU_RENDERING:   gpu_render_frame(); break;
-            case GPU_PROCESS_GP0: gpu_process_gp0();  break;
-            case GPU_PROCESS_GP1: gpu_process_gp1();  break;
-        }
+    	case GPU_RENDERING:   gpu_render_frame(); break;
+    	case GPU_PROCESS_GP0: gpu_process_gp0();  break;
+    	case GPU_PROCESS_GP1: gpu_process_gp1();  break;
+		default:
+			break;
     }
 }

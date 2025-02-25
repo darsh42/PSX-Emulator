@@ -6,6 +6,7 @@
 
 #ifdef GPU_PRIVATE
 
+#include "fifo.h"
 #include "trace.h"
 
 #ifdef ENABLE_GPU_TRACE
@@ -14,16 +15,17 @@
 #define TRACE_GPU(function, format, ...) 
 #endif
 
-#include "fifo.h"
-
 #define COMMAND(c)   (c >> 24)
 #define PARAMETER(c) (c & 0x00FFFFFF)
+
+#define VRAM_WIDTH 1024
 
 enum gpu_state {
     GPU_IDLE,
     GPU_RENDERING,
     GPU_PROCESS_GP0,
     GPU_PROCESS_GP1,
+    GPU_VRAM_TRANSFER,
 };
 
 union GPUSTAT {
@@ -58,13 +60,19 @@ union GPUSTAT {
 };
 
 struct gpu {
+    enum gpu_state state;
+
     struct fifo gp0;
     uint32_t    gp1;
 
     union GPUSTAT gpustat;
     uint32_t      gpuread;
     
-    enum gpu_state state;
+    uint32_t vram_direct_access_x; // minimum x
+    uint32_t vram_direct_access_y; // minimum y
+    uint32_t vram_direct_access_c; // access cursor - where in vram is accessed
+    uint32_t vram_direct_access_w; // access width
+    uint32_t vram_direct_access_h; // access height
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
@@ -89,16 +97,16 @@ struct gpu {
     bool texture_rectangle_x_flip; // if texture is flipped in x direction
     bool texture_rectangle_y_flip; // if texture is flipped in y direction
 };
-#endif
+#endif // GPU_PRIVATE
 
-extern uint32_t         read_gpu( uint32_t address);
-extern pthread_cond_t *write_gpu( uint32_t address, uint32_t data );
+extern bool gpu_gpustat_dma_data_request( void );
+extern bool gpu_gpustat_dma_ready_recieve_block( void );
+extern uint32_t gpu_get_vram_address( void );
 
-extern void unlock_gpu( void );
+extern uint32_t  read_gpu( uint32_t address);
+extern void     write_gpu( uint32_t address, uint32_t data );
 
-extern void wait_gpu_gpustat_dma_data_request( void );
-extern void wait_gpu_gpustat_dma_ready_recieve_block( void );
-
-extern void *task_gpu( void *ignore );
+extern void init_gpu( void );
+extern void task_gpu( void );
 
 #endif //  GPU_H_INCLUDED

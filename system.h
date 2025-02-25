@@ -7,8 +7,8 @@
 #ifdef PRIVATE_SYSTEM
 
 #define NAME "psx"
-#define W 1920 - 640
-#define H 0
+#define W 640
+#define H 480
 #define X 0
 #define Y 0
 

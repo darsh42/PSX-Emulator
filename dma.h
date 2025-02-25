@@ -1,23 +1,17 @@
 #ifndef DMA_H_INCLUDED
 #define DMA_H_INCLUDED
 
-#include <pthread.h>
 #include <stdint.h>
 
 #ifdef DMA_PRIVATE
 
 #include "trace.h"
+
 #ifdef ENABLE_DMA_TRACE
 #define TRACE_DMA(function, format, ...) trace("dma.c", function, format, __VA_ARGS__)
 #else
 #define TRACE_DMA(function, format, ...) 
 #endif
-
-enum dma_commands 
-{
-    END = 0x0,
-    START_TRANSFER = 0x1,
-};
 
 enum dma_channels 
 {
@@ -43,13 +37,6 @@ enum dma_direction
     RAM_TO_DEVICE = 1
 };
 
-enum dma_state 
-{
-    DMA_IDLE,
-    DMA_TRANSFER,
-    DMA_CHECK_CHANNEL
-};
-
 union madr
 {
     uint32_t value;
@@ -64,6 +51,7 @@ union brc
     struct 
     {
         uint32_t bc: 16;
+        uint32_t   : 16;
     };
     struct 
     {
@@ -121,15 +109,13 @@ struct dma
     uint32_t dicr;
     
     enum dma_channels channel;
-    enum dma_state state;
 };
-#endif
+#endif // DMA_PRIVATE
 
-extern uint32_t         read_dma( uint32_t address );
-extern pthread_cond_t *write_dma( uint32_t address, uint32_t data );
+extern uint32_t  read_dma( uint32_t address );
+extern void     write_dma( uint32_t address, uint32_t data );
 
-extern void unlock_dma( void );
-
-extern void *task_dma( void *ignore );
+extern void init_dma( void );
+extern void task_dma( void );
 
 #endif // DMA_H_INCLUDED
