@@ -15,13 +15,15 @@
 
 enum dma_channels 
 {
-    DMA0_MDEC_IN,
-    DMA1_MDEC_OUT,
-    DMA2_GPU,
-    DMA3_CDROM,
-    DMA4_SPU,
-    DMA5_PIO,
-    DMA6_OTC
+    DMA0_MDEC_IN  = 0,
+    DMA1_MDEC_OUT = 1,
+    DMA2_GPU      = 2,
+    DMA3_CDROM    = 3,
+    DMA4_SPU      = 4,
+    DMA5_PIO      = 5,
+    DMA6_OTC      = 6,
+
+    DMAX_UNUSED = -1
 };
 
 enum dma_sync_mode 

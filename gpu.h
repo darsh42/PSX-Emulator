@@ -20,6 +20,31 @@
 
 #define VRAM_WIDTH 1024
 
+#define CYCLES_PER_DOT_256PIX 10
+#define CYCLES_PER_DOT_320PIX  8
+#define CYCLES_PER_DOT_368PIX  7
+#define CYCLES_PER_DOT_512PIX  5
+#define CYCLES_PER_DOT_640PIX  4
+
+#define NTSC_DOTS_PER_SCANLINE_256PIX 341
+#define NTSC_DOTS_PER_SCANLINE_320PIX 426
+#define NTSC_DOTS_PER_SCANLINE_368PIX 487
+#define NTSC_DOTS_PER_SCANLINE_512PIX 628
+#define NTSC_DOTS_PER_SCANLINE_640PIX 853
+
+#define  PAL_DOTS_PER_SCANLINE_256PIX 340
+#define  PAL_DOTS_PER_SCANLINE_320PIX 426
+#define  PAL_DOTS_PER_SCANLINE_368PIX 486
+#define  PAL_DOTS_PER_SCANLINE_512PIX 621
+#define  PAL_DOTS_PER_SCANLINE_640PIX 851
+
+#define NTSC_CYCLES_PER_SCANLINE 3413
+#define NTSC_SCANLINES_PER_FRAME  263
+
+#define  PAL_CYCLES_PER_SCANLINE 3406
+#define  PAL_SCANLINES_PER_FRAME  314
+
+
 enum gpu_state {
     GPU_IDLE,
     GPU_RENDERING,
@@ -67,6 +92,13 @@ struct gpu {
 
     union GPUSTAT gpustat;
     uint32_t      gpuread;
+
+    uint32_t cycles;    // gpu cycles 
+    uint32_t dots;      // gpu dots (horizontal pixels)
+    uint32_t scanlines; // gpu scanlines (vertical pixels)
+
+    uint32_t vblank;    // vertical blank (outside vertical resolution)
+    uint32_t hblank;    // horizontal blank (outside horizontal resolution)
     
     uint32_t vram_direct_access_x; // minimum x
     uint32_t vram_direct_access_y; // minimum y
@@ -101,6 +133,8 @@ struct gpu {
 
 extern bool gpu_gpustat_dma_data_request( void );
 extern bool gpu_gpustat_dma_ready_recieve_block( void );
+extern bool gpu_gpustat_read_send_vram_cpu( void );
+extern void gpu_notify_dma_block_end( void );
 extern uint32_t gpu_get_vram_address( void );
 
 extern uint32_t  read_gpu( uint32_t address);

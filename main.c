@@ -41,10 +41,22 @@ void *task_core( void * )
         ticks_till_cpu++;
         ticks_till_gpu++;
         
-        if (ticks_till_cpu == 11) { task_cpu(); ticks_till_cpu = 0; }
-        if (ticks_till_gpu ==  7) { task_gpu(); ticks_till_gpu = 0; }
+        /* devices synched to cpu clock */
+        if (ticks_till_cpu == 11) 
+        { 
+            ticks_till_cpu = 0; 
 
-        task_dma();
+            task_cpu(); 
+            task_dma();
+        }
+
+        /* devices synched to gpu clock */
+        if (ticks_till_gpu ==  7) 
+        { 
+            ticks_till_gpu = 0; 
+
+            task_gpu();
+        }
     }
 
     return NULL;

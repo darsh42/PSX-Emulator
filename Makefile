@@ -7,7 +7,7 @@ TARGET  := psx
 
 LIBRARY := -lpthread -lSDL2
 
-CFLAGS := -g -Wall -Wextra -Wpedantic -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes -Wstrict-overflow=5 -pthread # -DDEBUG
+CFLAGS := -g -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes -Wstrict-overflow=5 -pthread -fsanitize=address # -DDEBUG -Wpedantic 
 
 $(TARGET): $(OBJECTS) trace.h
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBRARY) -I.

@@ -1036,11 +1036,11 @@ static inline void LWCn(int cop_n) { running = 0; }
 static inline void SWCn(int cop_n) { running = 0; }
 
 // COP0
-static inline void TLBR()  { running = 0; }
-static inline void TLBWI() { running = 0; }
-static inline void TLBWR() { running = 0; }
-static inline void TLBP()  { running = 0; }
-static inline void RFE()   
+static inline void TLBR(void)  { running = 0; }
+static inline void TLBWI(void) { running = 0; }
+static inline void TLBWR(void) { running = 0; }
+static inline void TLBP(void)  { running = 0; }
+static inline void RFE(void)   
 {
     // Return From Exception
     cpu_trace_instruction("RFE");

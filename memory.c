@@ -183,9 +183,6 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
     /* clear data pointer */
     *data = 0;
     
-    /* trace signals to memory */
-    TRACE_MEM("memory_read ", "address: %08x | data: %08x | size: %d\n", address, data, size);
-
     if ( (physical >= 0x1F801000 && physical < 0x1F802000) || physical == 0xFFFE0130 ) 
     {
         switch ((enum memory_map) address)
@@ -315,12 +312,19 @@ memory_registers_read:
             *data |= *(segment + physical + 3) << 24;
             break;
     }
+
+
+    /* trace signals to memory */
+    TRACE_MEM("memory_read ", "address: %08x | data: %08x | size: %d\n", address, *data, size);
 }
 
 void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
 {
     assert(address < VRAM_SIZE);
     assert(size == 1 || size == 2 || size == 4);
+
+    /* trace signals to memory */
+    TRACE_MEM("memory_write_vram", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
     switch ( size )
     {
@@ -365,4 +369,7 @@ void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
             *data |= *(memory.vram + address + 3) << 24;
             break;
     }
+
+    /* trace signals to memory */
+    TRACE_MEM("memory_read_vram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
 }

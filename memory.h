@@ -54,7 +54,8 @@ struct memory {
 };
 #endif // MEMORY_PRIVATE
 
-enum memory_map {
+enum memory_map 
+{
     /* general registers */
     expansion_1_base_address = 0x1F801000,
     expansion_2_base_address = 0x1F801004,

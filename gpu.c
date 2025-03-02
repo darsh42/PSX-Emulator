@@ -27,7 +27,7 @@ void write_gpu( uint32_t address, uint32_t data )
 {
     switch ( address )
     {
-        case( gp0_gpu_read ): fifo_push(&gpu.gp0, data); gpu.state = GPU_PROCESS_GP0; break;
+        case( gp0_gpu_read ): fifo_push(&gpu.gp0, data); break;
         case( gp1_gpu_stat ): gpu.gp1 = data;            gpu.state = GPU_PROCESS_GP1; break;
     }
 
@@ -37,7 +37,7 @@ void write_gpu( uint32_t address, uint32_t data )
 /* if gpu is transferring data to or from vram it computes next address */
 uint32_t gpu_get_vram_address( void )
 {
-    assert(gpu.state == GPU_VRAM_TRANSFER);
+    assert(gpu.gpustat.ready_send_vram_cpu);
     
     /* compute vram address */
     uint32_t address = gpu.vram_direct_access_y * VRAM_WIDTH +
@@ -50,15 +50,26 @@ uint32_t gpu_get_vram_address( void )
     /* if the address equal to the max coordinate end the transfer */
     if (address == (gpu.vram_direct_access_x + gpu.vram_direct_access_w) +
                    (gpu.vram_direct_access_y + gpu.vram_direct_access_h) * VRAM_WIDTH)
-        gpu.state = GPU_IDLE;
+        gpu.gpustat.ready_send_vram_cpu = 0;
     
     return address;
+}
+
+void gpu_notify_dma_block_end( void )
+{
+    gpu.gpustat.ready_recieve_dma_block = 0;
 }
 
 bool gpu_gpustat_dma_data_request( void ) 
 {
     return (gpu.gpustat.dma_data_request);
 }
+
+bool gpu_gpustat_ready_send_vram_cpu( void )
+{
+    return (gpu.gpustat.ready_send_vram_cpu);
+}
+
 bool gpu_gpustat_dma_ready_recieve_block( void )
 {
     return (gpu.gpustat.ready_recieve_dma_block);
@@ -67,15 +78,13 @@ bool gpu_gpustat_dma_ready_recieve_block( void )
 // gp0 instructions
 static void gp0_nop( void ) 
 {
-    if (!fifo_has_length(&gpu.gp0, 1))
-        return;
-
     (void) fifo_pop(&gpu.gp0);
-
-    gpu.state = GPU_IDLE;
 }
 
-static void vram_clear_cache( void ) {}
+static void vram_clear_cache( void ) 
+{
+    (void) fifo_pop(&gpu.gp0);
+}
 static void vram_fill_rectangle( void ) {}
 static void vram_to_vram_copy_rectangle( void ) {}
 static void cpu_to_vram_copy_rectangle( void ) 
@@ -99,7 +108,7 @@ static void cpu_to_vram_copy_rectangle( void )
     gpu.vram_direct_access_c = 0;
 
     /* set the gpu state */
-    gpu.state = GPU_VRAM_TRANSFER;
+    gpu.gpustat.ready_send_vram_cpu = 1;
 }
 
 static void vram_to_cpu_copy_rectangle( void ) 
@@ -123,13 +132,13 @@ static void vram_to_cpu_copy_rectangle( void )
     gpu.vram_direct_access_c = 0;
 
     /* set the gpu state */
-    gpu.state = GPU_VRAM_TRANSFER;
+    gpu.gpustat.ready_send_vram_cpu = 1;
 }
 
 static void gp0_direct_vram_access( void ) 
 {
     /* BUG: possible issue when transferring using non-dma */
-    switch (fifo_peek(&gpu.gp0))
+    switch (COMMAND(fifo_peek(&gpu.gp0)))
     {
         case 0x01: vram_clear_cache(); break;
         case 0x02: vram_fill_rectangle(); break;
@@ -491,9 +500,6 @@ static void gp0_render_polygons( void )
             break;
         }
     }
-
-    if (fifo_has_length(&gpu.gp0, 0))
-        gpu.state = GPU_IDLE;
 }
 static void gp0_render_lines( void ) {}
 static void gp0_render_rectangles( void ) {}
@@ -590,8 +596,6 @@ static void gp0_rendering_attributes( void )
             break;
         }
     }
-
-    gpu.state = GPU_IDLE;
 }
 
 // gp1 instructions
@@ -638,17 +642,13 @@ static void gp1_reset( void )
 
     gpu.display_vertical_start = 0X010;
     gpu.display_vertical_end   = 0X100;
-
-    gpu.state = GPU_IDLE;
 }
 static void gp1_reset_command_buffer( void ) 
 {
     // 0-23  Not used (zero)
     // Clears the command FIFO, and aborts the current rendering command 
     // (eg. this may end up with an incompletely drawn triangle).
-    
-    
-    gpu.state = GPU_IDLE;
+    fifo_reset(&gpu.gp0);
 }
 static inline void gp1_acknowledge_interrupt( void ) {}
 static inline void gp1_display_enable( void ) 
@@ -656,8 +656,6 @@ static inline void gp1_display_enable( void )
     // 0     Display On/Off   (0=On, 1=Off)                         ;GPUSTAT.23
     // 1-23  Not used (zero)
     gpu.gpustat.display_enable = PARAMETER(gpu.gp1) & 0x1;
-
-    gpu.state = GPU_IDLE;
 }
 static inline void gp1_dma_direction_or_data_request( void ) 
 {
@@ -671,8 +669,6 @@ static inline void gp1_dma_direction_or_data_request( void )
         case 2: gpu.gpustat.dma_data_request = gpu.gpustat.ready_recieve_dma_block; break;
         case 3: gpu.gpustat.dma_data_request = gpu.gpustat.ready_send_vram_cpu; break;
     }
-
-    gpu.state = GPU_IDLE;
 }
 static inline void gp1_start_of_display_area_in_vram( void ) 
 {
@@ -684,8 +680,6 @@ static inline void gp1_start_of_display_area_in_vram( void )
     // screen is set via Display Range registers; target=X1,Y2; size=(X2-X1/cycles_per_pix), (Y2-Y1).
     gpu.display_vram_x_start = (PARAMETER(gpu.gp1) >>  0) & 0x3ff;
     gpu.display_vram_y_start = (PARAMETER(gpu.gp1) >> 10) & 0x1ff;
-
-    gpu.state = GPU_IDLE;
 }
 static inline void gp1_horiontal_display_range( void ) 
 {
@@ -693,8 +687,6 @@ static inline void gp1_horiontal_display_range( void )
     // 12-23  X2 (260h+320*8)   ;12bit       ;/relative to HSYNC
     gpu.display_horizontal_start = (PARAMETER(gpu.gp1) >>  0) & 0xfff;
     gpu.display_horizontal_end   = (PARAMETER(gpu.gp1) >> 12) & 0xfff;
-
-    gpu.state = GPU_IDLE;
 }
 static inline void gp1_vertical_display_range( void ) 
 {
@@ -703,8 +695,6 @@ static inline void gp1_vertical_display_range( void )
     // 20-23 Not used (zero)
     gpu.display_vertical_start = (PARAMETER(gpu.gp1) >>  0) & 0x3ff;
     gpu.display_vertical_end   = (PARAMETER(gpu.gp1) >> 10) & 0x3ff;
-
-    gpu.state = GPU_IDLE;
 }
 static inline void gp1_display_mode( void ) 
 {
@@ -723,15 +713,20 @@ static inline void gp1_display_mode( void )
     gpu.gpustat.vertical_interlace       = (PARAMETER(gpu.gp1) >> 5) & 0x1;
     gpu.gpustat.horizontal_resolution_2  = (PARAMETER(gpu.gp1) >> 6) & 0x1;
     gpu.gpustat.reverse_flag             = (PARAMETER(gpu.gp1) >> 7) & 0x1;
-
-    gpu.state = GPU_IDLE;
 }
 static inline void gp1_new_texture_disable( void ) {}
 static inline void gp1_special_or_prototype_texture_disable( void ) {}
 static inline void gp1_display_info( void ) {}
 
-void gpu_process_gp0( void )
+static void gpu_process_gp0( void )
 {
+    if (fifo_empty(&gpu.gp0))
+    {
+        /* if the block has been consumed request another block */
+        gpu.gpustat.ready_recieve_dma_block = 1;
+        return;
+    }
+
     switch ( COMMAND(fifo_peek(&gpu.gp0)) )
     {
         case 0X00: gp0_nop(); break;
@@ -740,7 +735,7 @@ void gpu_process_gp0( void )
         case 0X80: 
         case 0XA0: 
         case 0XC0: gp0_direct_vram_access(); break;
-        case 0X1F: gp0_interrupt_request(); break;
+        case 0X1F: gp0_interrupt_request();  break;
         case 0X03: break;
         default:
             switch ( COMMAND(fifo_peek(&gpu.gp0)) >> 4 ) 
@@ -756,9 +751,10 @@ void gpu_process_gp0( void )
     }
 }
 
-void gpu_process_gp1( void )
+static void gpu_process_gp1( void )
 {
-    switch ( COMMAND(gpu.gp1) ) {
+    switch ( COMMAND(gpu.gp1) ) 
+    {
         case 0x00: gp1_reset(); break;
         case 0x01: gp1_reset_command_buffer(); break;
         case 0x02: gp1_acknowledge_interrupt(); break;
@@ -775,9 +771,106 @@ void gpu_process_gp1( void )
                 gp1_display_info();
             break;
     }
+
+    gpu.state = GPU_PROCESS_GP0;
 }
 
-void gpu_render_frame( void )
+static void gpu_tick( void )
+{
+    /* calculate dots and scanlines, interlace for bi31 in gpustat */
+    static uint32_t cycles_since_last_dot = 0, interlace = 0;
+
+    gpu.cycles++; cycles_since_last_dot++;
+    
+    /* increment the dot counter depending on the horizontal resolution */
+    if (cycles_since_last_dot > ((gpu.gpustat.horizontal_resolution_1 == 0) ? CYCLES_PER_DOT_256PIX:
+                                 (gpu.gpustat.horizontal_resolution_1 == 1) ? CYCLES_PER_DOT_320PIX:
+                                 (gpu.gpustat.horizontal_resolution_1 == 2) ? CYCLES_PER_DOT_512PIX:
+                                                                              CYCLES_PER_DOT_640PIX))
+    {
+        gpu.dots++; cycles_since_last_dot = 0;
+    }
+
+    /* set HBLANK when outside horizontal drawing region */
+    if (gpu.hblank == 0 && gpu.dots > ((gpu.gpustat.horizontal_resolution_1 == 0) ? 256:
+                                       (gpu.gpustat.horizontal_resolution_1 == 1) ? 320:
+                                       (gpu.gpustat.horizontal_resolution_1 == 2) ? 512:
+                                                                                    640))
+    {
+        gpu.hblank = 1;
+    }
+
+    /* if the video mode is NTSC, increment the scanline counter depending on *
+     * the horizontal resolution                                              */ 
+    if (gpu.gpustat.video_mode == 0 && gpu.dots > ((gpu.gpustat.horizontal_resolution_1 == 0) ? NTSC_DOTS_PER_SCANLINE_256PIX:
+                                                   (gpu.gpustat.horizontal_resolution_1 == 1) ? NTSC_DOTS_PER_SCANLINE_320PIX:
+                                                   (gpu.gpustat.horizontal_resolution_1 == 2) ? NTSC_DOTS_PER_SCANLINE_512PIX:
+                                                                                                NTSC_DOTS_PER_SCANLINE_640PIX))
+    {
+        gpu.scanlines++;
+
+        gpu.hblank = 0;
+        gpu.dots   = 0;
+    
+        /* when in 240pix vertical resolution, even_odd_interlace (b31) changes *
+         * per scanline.                                                        */
+        if (gpu.gpustat.vertical_interlace && !gpu.gpustat.vertical_resolution && !gpu.vblank)
+        {
+            gpu.gpustat.drawing_even_odd_interlace = interlace;
+            interlace = ~interlace;
+        }
+    }
+
+    /* if the video mode is PAL, increment the scanline counter depending on  *
+     * the horizontal resolution                                              */ 
+    if (gpu.gpustat.video_mode == 1 && gpu.dots > ((gpu.gpustat.horizontal_resolution_1 == 0) ?  PAL_DOTS_PER_SCANLINE_256PIX:
+                                                   (gpu.gpustat.horizontal_resolution_1 == 1) ?  PAL_DOTS_PER_SCANLINE_320PIX:
+                                                   (gpu.gpustat.horizontal_resolution_1 == 2) ?  PAL_DOTS_PER_SCANLINE_512PIX:
+                                                                                                 PAL_DOTS_PER_SCANLINE_640PIX))
+    {
+        gpu.scanlines++;
+
+        gpu.hblank = 0;
+        gpu.cycles = 0;
+        gpu.dots   = 0;
+
+        /* when in 240pix vertical resolution, even_odd_interlace (b31) changes *
+         * per scanline.                                                        */
+        if (gpu.gpustat.vertical_interlace && !gpu.gpustat.vertical_resolution && !gpu.vblank)
+        {
+            gpu.gpustat.drawing_even_odd_interlace = interlace;
+            interlace = ~interlace;
+        }
+    }
+    
+    /* set VBLANK when outside vertical drawing region */
+    if (gpu.vblank == 0 && gpu.scanlines > 240)
+    {
+        gpu.vblank = 1;
+        
+        /* even odd interlace is always 0 during vblank */
+        if (gpu.gpustat.vertical_interlace)
+        {
+            gpu.gpustat.drawing_even_odd_interlace = 0;
+        }
+    }
+
+    /* check for scanline max */
+    if (gpu.scanlines > ((gpu.gpustat.video_mode) ? NTSC_SCANLINES_PER_FRAME: 
+                                                     PAL_SCANLINES_PER_FRAME))
+    {
+        gpu.scanlines = 0; 
+        gpu.vblank    = 0;
+
+        if (gpu.gpustat.vertical_interlace && gpu.gpustat.vertical_resolution)
+        {
+            gpu.gpustat.drawing_even_odd_interlace = interlace;
+            interlace = ~interlace;
+        }
+    }
+}
+
+static void gpu_render_frame( void )
 {
 }
 
@@ -796,11 +889,17 @@ void init_gpu( void )
     gpu.gpustat.display_enable             = 1;
     gpu.gpustat.ready_recieve_cmd_word     = 1;
     gpu.gpustat.ready_recieve_dma_block    = 1;
-    gpu.gpustat.drawing_even_odd_interlace = 1;
+    gpu.gpustat.drawing_even_odd_interlace = 0;
+
+    gpu.state = GPU_PROCESS_GP0;
 }
 
 void task_gpu( void )
 {
+    /* tick the gpu internal clock */
+    gpu_tick();
+
+    /* process gpu commands */
     switch (gpu.state)
     {
     	case GPU_RENDERING:   gpu_render_frame(); break;
