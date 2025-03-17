@@ -7,6 +7,7 @@
 #include "cpu.h"
 #include "gpu.h"
 #include "dma.h"
+#include "bios.h"
 #include "timer.h"
 #include "memory.h"
 #include "system.h"
@@ -20,15 +21,28 @@
 
 uint32_t running = 1;
 
-void *task_core( void * )
+struct task_core_args
+{
+    const char *bios;
+    const char *exe;
+    const char *tty;
+};
+
+void *task_core( void *_args )
 {
     printf("CORE: %ld\n", pthread_self());
+    
+    struct task_core_args *args = (struct task_core_args *) _args;
 
 	init_cpu();
 	init_gpu();
 	init_dma();
 	init_timers();
 	init_interrupts();
+
+    init_bios(args->bios, 
+              args->exe, 
+              args->tty);
 		
     uint32_t ticks_till_cpu = 0;
     uint32_t ticks_till_gpu = 0;
@@ -45,18 +59,18 @@ void *task_core( void * )
         if (ticks_till_cpu == 11) 
         { 
             ticks_till_cpu = 0; 
+        }
 
             task_cpu(); 
             task_dma();
-        }
 
         /* devices synched to gpu clock */
         if (ticks_till_gpu ==  7) 
         { 
             ticks_till_gpu = 0; 
 
-            task_gpu();
         }
+            task_gpu();
     }
 
     return NULL;
@@ -82,19 +96,23 @@ int main( int argc , char **argv )
 {
     // char *bios = "SCPH1001.BIN";
     char *bios = NULL;
+    char *exe  = NULL;
+    char *tty  = NULL;
     char *game = NULL;
     uint32_t debug = 0;
 
     char opt;
 
-    while ((opt = getopt(argc, argv, "b:g:h")) != -1)
+    while ((opt = getopt(argc, argv, "b:e:g:h")) != -1)
     {
         switch (opt)
         {
             case 'b': bios = optarg; break;
             case 'g': game = optarg; break;
+            case 'e': exe  = optarg; break;
             case 'h': 
-                usage();
+            default:
+                usage(); 
                 break;
         }
     }
@@ -104,16 +122,23 @@ int main( int argc , char **argv )
     
     if (!game)
         usage();
+
+    struct task_core_args core_args = {
+        .bios = bios,
+        .exe  = exe,
+        .tty  = tty
+    };
     
-    memory_load_bios( bios );
-	
     pthread_t thread_core;
     pthread_t thread_debug;
     pthread_t thread_system;
 
     assert(!pthread_create(&thread_system, NULL, task_system, NULL));
     assert(!pthread_create(&thread_debug, NULL, task_debug, NULL));
-    assert(!pthread_create(&thread_core, NULL, task_core, NULL));
+
+    wait_system_ready();
+
+    assert(!pthread_create(&thread_core, NULL, task_core, (void *) &core_args));
 
     pthread_join(thread_core, NULL);
     pthread_join(thread_debug, NULL);

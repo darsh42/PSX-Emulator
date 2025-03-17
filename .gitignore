@@ -55,4 +55,5 @@ dkms.conf
 *.BIN
 *.txt
 *.bin
+.gdb_history
 psx

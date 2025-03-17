@@ -5,14 +5,21 @@
 #define MEMORY_PRIVATE
 #include "memory.h"
 
+#define PSX_EXE_FORMAT
+#include "fileformats.h"
+
 // devices
 #include "cpu.h"
 #include "gpu.h"
+#include "spu.h"
 #include "dma.h"
 #include "timer.h"
 #include "interrupts.h"
 
 static struct memory memory;
+
+/* for sdl texture streaming */
+uint32_t *get_vram_pointer( void ) { return memory.vram; }
 
 /* virtual to physical memory lookup table */
 static uint32_t segment_lookup[] = {
@@ -22,12 +29,37 @@ static uint32_t segment_lookup[] = {
     (uint32_t) 0XFFFFFFFF, (uint32_t) 0XFFFFFFFF               // KSEG2
 };
 
+void memory_load_exe( const char *exe )
+{
+    FILE *fp;
+
+    struct psx_exe_header header;
+    
+    /* load the header */
+    assert((fp = fopen(exe, "rb")));
+    assert(fread((void *) &header, 1, sizeof(header), fp) == sizeof(header));
+
+    /* set the cpu registers */
+    cpu_load_initial_exe_registers(header.initial_pc,
+                                   header.initial_gp,
+                                   header.initial_sp_fp_base,
+                                   header.initial_sp_fp_offset);
+
+    /* seek to first data section */
+    assert(!fseek(fp, 0x800, SEEK_SET));
+    /* load the exe contents into ram based on header information */
+    assert(fread(memory.ram + (header.destination_address & 0x1fffffff),
+                1, header.filesize, fp) == header.filesize);
+    /* close the file */
+    assert(!fclose(fp));
+}
+
 void memory_load_bios( const char *bios )
 {
     FILE *fp;
 
     assert((fp = fopen(bios, "rb")));
-    assert(fread(memory.bios, 1, sizeof(memory.bios), fp));
+    assert(fread(memory.bios, 1, sizeof(memory.bios), fp) == sizeof(memory.bios));
     assert(!fclose(fp));
 }
 
@@ -97,6 +129,33 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(timer_2_mode           ):
             case(timer_2_target         ):
                 write_timers(address, data);
+                break;
+            /* SPU */
+            case(spu_voice_volume_left_right_base            ):
+            case(spu_voice_adpcm_sample_rate_base            ):
+            case(spu_voice_adpcm_start_address_base          ):
+            case(spu_voice_adsr_base                         ):
+            case(spu_voice_adsr_current_volume_base          ):
+            case(spu_voice_adpcm_repeat_address_base         ):
+            case(spu_main_volume_left_right                  ):
+            case(spu_reverb_output_volume_left_right         ):
+            case(spu_voice_key_on                            ):
+            case(spu_voice_key_off                           ):
+            case(spu_channel_fm                              ):
+            case(spu_channel_noise                           ):
+            case(spu_channel_reverb                          ):
+            case(spu_channel_status                          ):
+            case(spu_sound_ram_reverb_work_area_start_address):
+            case(spu_sound_ram_irq_address                   ):
+            case(spu_sound_ram_data_transfer_address         ):
+            case(spu_sound_ram_data_transfer_fifo            ):
+            case(spucnt                                      ):
+            case(spu_sound_ram_data_transfer_control         ):
+            case(spustat                                     ):
+            case(spu_cd_volume_left_right                    ):
+            case(spu_extern_volume_left_right                ):
+            case(spu_current_main_volume_left_right          ):
+                write_spu(address, data);
                 break;
             /* MEMORY CONTROL 1 */
             case(expansion_1_base_address): 
@@ -235,6 +294,33 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
             case(timer_2_target         ):
                 *data = read_timers(address);
                 break;
+            /* SPU */
+            case(spu_voice_volume_left_right_base            ):
+            case(spu_voice_adpcm_sample_rate_base            ):
+            case(spu_voice_adpcm_start_address_base          ):
+            case(spu_voice_adsr_base                         ):
+            case(spu_voice_adsr_current_volume_base          ):
+            case(spu_voice_adpcm_repeat_address_base         ):
+            case(spu_main_volume_left_right                  ):
+            case(spu_reverb_output_volume_left_right         ):
+            case(spu_voice_key_on                            ):
+            case(spu_voice_key_off                           ):
+            case(spu_channel_fm                              ):
+            case(spu_channel_noise                           ):
+            case(spu_channel_reverb                          ):
+            case(spu_channel_status                          ):
+            case(spu_sound_ram_reverb_work_area_start_address):
+            case(spu_sound_ram_irq_address                   ):
+            case(spu_sound_ram_data_transfer_address         ):
+            case(spu_sound_ram_data_transfer_fifo            ):
+            case(spucnt                                      ):
+            case(spu_sound_ram_data_transfer_control         ):
+            case(spustat                                     ):
+            case(spu_cd_volume_left_right                    ):
+            case(spu_extern_volume_left_right                ):
+            case(spu_current_main_volume_left_right          ):
+                *data = read_spu(address);
+                break;
             /* MEMORY CONTROL 1 */
             case(expansion_1_base_address): 
             case(expansion_2_base_address): 
@@ -329,17 +415,35 @@ void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
     switch ( size )
     {
         case 1:
-            *(memory.vram + address + 0)  = (data >>  0);
+            memory.vram[address + 0][0]  = (data >>  0);
+            memory.vram[address + 0][1]  = (data >>  0);
+            memory.vram[address + 0][2]  = (data >>  0);
             break;
         case 2:
-            *(memory.vram + address + 0)  = (data >>  0);
-            *(memory.vram + address + 1)  = (data >>  8);
+            memory.vram[address + 0][0]  = (data >>  0);
+            memory.vram[address + 0][1]  = (data >>  0);
+            memory.vram[address + 0][2]  = (data >>  0);
+
+            memory.vram[address + 1][0]  = (data >>  8);
+            memory.vram[address + 1][1]  = (data >>  8);
+            memory.vram[address + 1][2]  = (data >>  8);
             break;
         case 4:
-            *(memory.vram + address + 0)  = (data >>  0);
-            *(memory.vram + address + 1)  = (data >>  8);
-            *(memory.vram + address + 2)  = (data >> 16);
-            *(memory.vram + address + 3)  = (data >> 24);
+            memory.vram[address + 0][0]  = (data >>  0);
+            memory.vram[address + 0][1]  = (data >>  0);
+            memory.vram[address + 0][2]  = (data >>  0);
+
+            memory.vram[address + 1][0]  = (data >>  8);
+            memory.vram[address + 1][1]  = (data >>  8);
+            memory.vram[address + 1][2]  = (data >>  8);
+
+            memory.vram[address + 2][0]  = (data >> 16);
+            memory.vram[address + 2][1]  = (data >> 16);
+            memory.vram[address + 2][2]  = (data >> 16);
+
+            memory.vram[address + 3][0]  = (data >> 24);
+            memory.vram[address + 3][1]  = (data >> 24);
+            memory.vram[address + 3][2]  = (data >> 24);
             break;
     }
 }
@@ -356,20 +460,76 @@ void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
     switch ( size )
     {
         case 1:
-            *data |= *(memory.vram + address + 0) <<  0;
+            *data |= memory.vram[address + 0][0] <<  0;
             break;
         case 2:
-            *data |= *(memory.vram + address + 0) <<  0;
-            *data |= *(memory.vram + address + 1) <<  8;
+            *data |= memory.vram[address + 0][0] <<  0;
+            *data |= memory.vram[address + 1][0] <<  8;
             break;
         case 4:
-            *data |= *(memory.vram + address + 0) <<  0;
-            *data |= *(memory.vram + address + 1) <<  8;
-            *data |= *(memory.vram + address + 2) << 16;
-            *data |= *(memory.vram + address + 3) << 24;
+            *data |= memory.vram[address + 0][0] <<  0;
+            *data |= memory.vram[address + 1][0] <<  8;
+            *data |= memory.vram[address + 2][0] << 16;
+            *data |= memory.vram[address + 3][0] << 24;
             break;
     }
 
     /* trace signals to memory */
     TRACE_MEM("memory_read_vram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
+}
+
+void memory_write_sound_ram( uint32_t address, uint32_t data, uint32_t size )
+{
+    assert(address < SOUND_RAM_SIZE);
+    assert(size == 1 || size == 2 || size == 4);
+
+    /* trace signals to memory */
+    TRACE_MEM("memory_write_sound_ram", "address: %08x | data: %08x | size: %d\n", address, data, size);
+
+    switch ( size )
+    {
+        case 1:
+            *(memory.sound_ram + address + 0)  = (data >>  0);
+            break;
+        case 2:
+            *(memory.sound_ram + address + 0)  = (data >>  0);
+            *(memory.sound_ram + address + 1)  = (data >>  8);
+            break;
+        case 4:
+            *(memory.sound_ram + address + 0)  = (data >>  0);
+            *(memory.sound_ram + address + 1)  = (data >>  8);
+            *(memory.sound_ram + address + 2)  = (data >> 16);
+            *(memory.sound_ram + address + 3)  = (data >> 24);
+            break;
+    }
+}
+
+void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
+{
+    assert(data);
+    assert(address < SOUND_RAM_SIZE);
+    assert(size == 1 || size == 2 || size == 4);
+    
+    /* clear data pointer */
+    *data = 0;
+
+    switch ( size )
+    {
+        case 1:
+            *data |= *(memory.sound_ram + address + 0) <<  0;
+            break;
+        case 2:
+            *data |= *(memory.sound_ram + address + 0) <<  0;
+            *data |= *(memory.sound_ram + address + 1) <<  8;
+            break;
+        case 4:
+            *data |= *(memory.sound_ram + address + 0) <<  0;
+            *data |= *(memory.sound_ram + address + 1) <<  8;
+            *data |= *(memory.sound_ram + address + 2) << 16;
+            *data |= *(memory.sound_ram + address + 3) << 24;
+            break;
+    }
+
+    /* trace signals to memory */
+    TRACE_MEM("memory_read_sound_ram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
 }

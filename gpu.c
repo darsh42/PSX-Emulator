@@ -75,6 +75,16 @@ bool gpu_gpustat_dma_ready_recieve_block( void )
     return (gpu.gpustat.ready_recieve_dma_block);
 }
 
+bool gpu_hblank( void )
+{
+    return (gpu.hblank);
+}
+
+bool gpu_vblank( void )
+{
+    return (gpu.vblank);
+}
+
 // gp0 instructions
 static void gp0_nop( void ) 
 {
@@ -107,6 +117,9 @@ static void cpu_to_vram_copy_rectangle( void )
     /* set the counter to 0 */
     gpu.vram_direct_access_c = 0;
 
+    /* set the direction to cpu to vram */
+    gpu.vram_direct_access_d = 0;
+
     /* set the gpu state */
     gpu.gpustat.ready_send_vram_cpu = 1;
 }
@@ -130,6 +143,9 @@ static void vram_to_cpu_copy_rectangle( void )
     
     /* set the counter to 0 */
     gpu.vram_direct_access_c = 0;
+
+    /* set the direction to vram to cpu */
+    gpu.vram_direct_access_d = 1;
 
     /* set the gpu state */
     gpu.gpustat.ready_send_vram_cpu = 1;
@@ -720,34 +736,42 @@ static inline void gp1_display_info( void ) {}
 
 static void gpu_process_gp0( void )
 {
-    if (fifo_empty(&gpu.gp0))
+    if (gpu.gpustat.dma_data_request && fifo_empty(&gpu.gp0))
     {
-        /* if the block has been consumed request another block */
+        /* if a request dma transfer is initiated and the block has been consumed, request another block */
         gpu.gpustat.ready_recieve_dma_block = 1;
-        return;
     }
-
-    switch ( COMMAND(fifo_peek(&gpu.gp0)) )
+    else if (gpu.gpustat.ready_send_vram_cpu)
     {
-        case 0X00: gp0_nop(); break;
-        case 0X01: 
-        case 0X02: 
-        case 0X80: 
-        case 0XA0: 
-        case 0XC0: gp0_direct_vram_access(); break;
-        case 0X1F: gp0_interrupt_request();  break;
-        case 0X03: break;
-        default:
-            switch ( COMMAND(fifo_peek(&gpu.gp0)) >> 4 ) 
-            {
-                case 0x02: case 0x03: gp0_render_polygons(); break;
-                case 0x04: case 0x05: gp0_render_lines(); break;
-                case 0x06: case 0x07: gp0_render_rectangles(); break;
-                case 0x0e:            gp0_rendering_attributes(); break;
-                default:
-                    break;
-            }
-            break;
+        /* if the vram to cpu or cpu to vram transfer is non-dma */
+             if (gpu.vram_direct_access_d) memory_read_vram (gpu_get_vram_address(), &gpu.gpuread,       4);
+        else if (!fifo_empty(&gpu.gp0))    memory_write_vram(gpu_get_vram_address(), fifo_pop(&gpu.gp0), 4);
+    }
+    else if (!fifo_empty(&gpu.gp0))
+    {
+        /* otherwise treat as a basic gp0 command */
+        switch ( COMMAND(fifo_peek(&gpu.gp0)) )
+        {
+            case 0X00: gp0_nop(); break;
+            case 0X01: 
+            case 0X02: 
+            case 0X80: 
+            case 0XA0: 
+            case 0XC0: gp0_direct_vram_access(); break;
+            case 0X1F: gp0_interrupt_request();  break;
+            case 0X03: break;
+            default:
+                switch ( COMMAND(fifo_peek(&gpu.gp0)) >> 4 ) 
+                {
+                    case 0x02: case 0x03: gp0_render_polygons(); break;
+                    case 0x04: case 0x05: gp0_render_lines(); break;
+                    case 0x06: case 0x07: gp0_render_rectangles(); break;
+                    case 0x0e:            gp0_rendering_attributes(); break;
+                    default:
+                        break;
+                }
+                break;
+        }
     }
 }
 
@@ -777,97 +801,139 @@ static void gpu_process_gp1( void )
 
 static void gpu_tick( void )
 {
+
     /* calculate dots and scanlines, interlace for bi31 in gpustat */
     static uint32_t cycles_since_last_dot = 0, interlace = 0;
 
     gpu.cycles++; cycles_since_last_dot++;
     
     /* increment the dot counter depending on the horizontal resolution */
-    if (cycles_since_last_dot > ((gpu.gpustat.horizontal_resolution_1 == 0) ? CYCLES_PER_DOT_256PIX:
-                                 (gpu.gpustat.horizontal_resolution_1 == 1) ? CYCLES_PER_DOT_320PIX:
-                                 (gpu.gpustat.horizontal_resolution_1 == 2) ? CYCLES_PER_DOT_512PIX:
-                                                                              CYCLES_PER_DOT_640PIX))
+    if (cycles_since_last_dot >= ((gpu.gpustat.horizontal_resolution_2 == 1) ? CYCLES_PER_DOT_368PIX:
+                                  (gpu.gpustat.horizontal_resolution_1 == 0) ? CYCLES_PER_DOT_256PIX:
+                                  (gpu.gpustat.horizontal_resolution_1 == 1) ? CYCLES_PER_DOT_320PIX:
+                                  (gpu.gpustat.horizontal_resolution_1 == 2) ? CYCLES_PER_DOT_512PIX:
+                                                                               CYCLES_PER_DOT_640PIX))
     {
         gpu.dots++; cycles_since_last_dot = 0;
     }
 
     /* set HBLANK when outside horizontal drawing region */
-    if (gpu.hblank == 0 && gpu.dots > ((gpu.gpustat.horizontal_resolution_1 == 0) ? 256:
-                                       (gpu.gpustat.horizontal_resolution_1 == 1) ? 320:
-                                       (gpu.gpustat.horizontal_resolution_1 == 2) ? 512:
+    if (gpu.hblank == 0 && gpu.dots >= ((gpu.gpustat.horizontal_resolution_2 == 1) ? 368:
+                                        (gpu.gpustat.horizontal_resolution_1 == 0) ? 256:
+                                        (gpu.gpustat.horizontal_resolution_1 == 1) ? 320:
+                                        (gpu.gpustat.horizontal_resolution_1 == 2) ? 512:
                                                                                     640))
     {
         gpu.hblank = 1;
     }
-
-    /* if the video mode is NTSC, increment the scanline counter depending on *
-     * the horizontal resolution                                              */ 
-    if (gpu.gpustat.video_mode == 0 && gpu.dots > ((gpu.gpustat.horizontal_resolution_1 == 0) ? NTSC_DOTS_PER_SCANLINE_256PIX:
-                                                   (gpu.gpustat.horizontal_resolution_1 == 1) ? NTSC_DOTS_PER_SCANLINE_320PIX:
-                                                   (gpu.gpustat.horizontal_resolution_1 == 2) ? NTSC_DOTS_PER_SCANLINE_512PIX:
-                                                                                                NTSC_DOTS_PER_SCANLINE_640PIX))
-    {
-        gpu.scanlines++;
-
-        gpu.hblank = 0;
-        gpu.dots   = 0;
     
-        /* when in 240pix vertical resolution, even_odd_interlace (b31) changes *
-         * per scanline.                                                        */
-        if (gpu.gpustat.vertical_interlace && !gpu.gpustat.vertical_resolution && !gpu.vblank)
-        {
-            gpu.gpustat.drawing_even_odd_interlace = interlace;
-            interlace = ~interlace;
-        }
-    }
-
-    /* if the video mode is PAL, increment the scanline counter depending on  *
-     * the horizontal resolution                                              */ 
-    if (gpu.gpustat.video_mode == 1 && gpu.dots > ((gpu.gpustat.horizontal_resolution_1 == 0) ?  PAL_DOTS_PER_SCANLINE_256PIX:
-                                                   (gpu.gpustat.horizontal_resolution_1 == 1) ?  PAL_DOTS_PER_SCANLINE_320PIX:
-                                                   (gpu.gpustat.horizontal_resolution_1 == 2) ?  PAL_DOTS_PER_SCANLINE_512PIX:
-                                                                                                 PAL_DOTS_PER_SCANLINE_640PIX))
+    switch (gpu.gpustat.video_mode)
     {
-        gpu.scanlines++;
+        case 0:
+            if (gpu.cycles >= NTSC_CYCLES_PER_SCANLINE)
+                gpu.cycles = 0;
 
-        gpu.hblank = 0;
-        gpu.cycles = 0;
-        gpu.dots   = 0;
+            /* if the video mode is NTSC, increment the scanline counter depending on *
+             * the horizontal resolution                                              */ 
+            if (gpu.dots >= ((gpu.gpustat.horizontal_resolution_2 == 1) ? NTSC_DOTS_PER_SCANLINE_368PIX:
+                             (gpu.gpustat.horizontal_resolution_1 == 0) ? NTSC_DOTS_PER_SCANLINE_256PIX:
+                             (gpu.gpustat.horizontal_resolution_1 == 1) ? NTSC_DOTS_PER_SCANLINE_320PIX:
+                             (gpu.gpustat.horizontal_resolution_1 == 2) ? NTSC_DOTS_PER_SCANLINE_512PIX:
+                                                                          NTSC_DOTS_PER_SCANLINE_640PIX))
+            {
+                gpu.scanlines++;
 
-        /* when in 240pix vertical resolution, even_odd_interlace (b31) changes *
-         * per scanline.                                                        */
-        if (gpu.gpustat.vertical_interlace && !gpu.gpustat.vertical_resolution && !gpu.vblank)
-        {
-            gpu.gpustat.drawing_even_odd_interlace = interlace;
-            interlace = ~interlace;
-        }
+                gpu.hblank = 0;
+                gpu.dots   = 0;
+            
+                /* when in 240pix vertical resolution, even_odd_interlace (b31) changes *
+                 * per scanline.                                                        */
+                if (gpu.gpustat.vertical_interlace && !gpu.gpustat.vertical_resolution && !gpu.vblank)
+                {
+                    gpu.gpustat.drawing_even_odd_interlace = interlace;
+                    interlace = ~interlace;
+                }
+
+                /* set VBLANK when outside vertical drawing region */
+                if (gpu.vblank == 0 && gpu.scanlines >=  240)
+                {
+                    gpu.vblank = 1;
+                    
+                    /* even odd interlace is always 0 during vblank */
+                    if (gpu.gpustat.vertical_interlace)
+                        gpu.gpustat.drawing_even_odd_interlace = 0;
+                }
+
+                /* check for scanline max */
+                if (gpu.scanlines >= NTSC_SCANLINES_PER_FRAME)
+                {
+                    gpu.scanlines = 0; 
+                    gpu.vblank    = 0;
+
+                    system_render();
+
+                    if (gpu.gpustat.vertical_interlace && gpu.gpustat.vertical_resolution)
+                    {
+                        gpu.gpustat.drawing_even_odd_interlace = interlace;
+                        interlace = ~interlace;
+                    }
+                }
+            }
+            break;
+
+        case 1:
+            if (gpu.cycles >=  PAL_CYCLES_PER_SCANLINE)
+                gpu.cycles = 0;
+
+            /* if the video mode is PAL, increment the scanline counter depending on  *
+             * the horizontal resolution                                              */ 
+            if (gpu.dots >= ((gpu.gpustat.horizontal_resolution_2 == 1) ?  PAL_DOTS_PER_SCANLINE_368PIX:
+                             (gpu.gpustat.horizontal_resolution_1 == 0) ?  PAL_DOTS_PER_SCANLINE_256PIX:
+                             (gpu.gpustat.horizontal_resolution_1 == 1) ?  PAL_DOTS_PER_SCANLINE_320PIX:
+                             (gpu.gpustat.horizontal_resolution_1 == 2) ?  PAL_DOTS_PER_SCANLINE_512PIX:
+                                                                           PAL_DOTS_PER_SCANLINE_640PIX))
+            {
+                gpu.scanlines++;
+
+                gpu.hblank = 0;
+                gpu.dots   = 0;
+
+                /* when in 240pix vertical resolution, even_odd_interlace (b31) changes *
+                 * per scanline.                                                        */
+                if (gpu.gpustat.vertical_interlace && !gpu.gpustat.vertical_resolution && !gpu.vblank)
+                {
+                    gpu.gpustat.drawing_even_odd_interlace = interlace;
+                    interlace = ~interlace;
+                }
+
+                /* set VBLANK when outside vertical drawing region */
+                if (gpu.vblank == 0 && gpu.scanlines >= 240)
+                {
+                    gpu.vblank = 1;
+                    
+                    /* even odd interlace is always 0 during vblank */
+                    if (gpu.gpustat.vertical_interlace)
+                        gpu.gpustat.drawing_even_odd_interlace = 0;
+                }
+
+                /* check for scanline max */
+                if (gpu.scanlines >=  PAL_SCANLINES_PER_FRAME)
+                {
+                    gpu.scanlines = 0; 
+                    gpu.vblank    = 0;
+                    
+                    system_render();
+
+                    if (gpu.gpustat.vertical_interlace && gpu.gpustat.vertical_resolution)
+                    {
+                        gpu.gpustat.drawing_even_odd_interlace = interlace;
+                        interlace = ~interlace;
+                    }
+                }
+            }
+            break;
     }
-    
-    /* set VBLANK when outside vertical drawing region */
-    if (gpu.vblank == 0 && gpu.scanlines > 240)
-    {
-        gpu.vblank = 1;
-        
-        /* even odd interlace is always 0 during vblank */
-        if (gpu.gpustat.vertical_interlace)
-        {
-            gpu.gpustat.drawing_even_odd_interlace = 0;
-        }
-    }
 
-    /* check for scanline max */
-    if (gpu.scanlines > ((gpu.gpustat.video_mode) ? NTSC_SCANLINES_PER_FRAME: 
-                                                     PAL_SCANLINES_PER_FRAME))
-    {
-        gpu.scanlines = 0; 
-        gpu.vblank    = 0;
-
-        if (gpu.gpustat.vertical_interlace && gpu.gpustat.vertical_resolution)
-        {
-            gpu.gpustat.drawing_even_odd_interlace = interlace;
-            interlace = ~interlace;
-        }
-    }
 }
 
 static void gpu_render_frame( void )

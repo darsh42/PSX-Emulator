@@ -1,33 +1,183 @@
-# cpu debugging features
+# tui layout
+tui new-layout psx {-horizontal src 1 cmd 2} 2
+tui layout psx
+tui focus cmd
 
+set pagination off
+
+# cpu debugging features
 define FUNCT
-    printf("%x\n", (($(arg0) >>  0) & 0x3F))
+    p/x ((cpu.cir >>  0) & 0x3F)
 end
 define SHAMT    
-    hex (($(arg0) >>  6) & 0x1F)
+    p/x ((cpu.cir >>  6) & 0x1F)
 end
 define RD       
-    hex (($(arg0) >> 11) & 0x1F)
+    p/x ((cpu.cir >> 11) & 0x1F)
 end
 define RT       
-    hex (($(arg0) >> 16) & 0x1F)
+    p/x ((cpu.cir >> 16) & 0x1F)
 end
 define RS       
-    hex (($(arg0) >> 21) & 0x1F)
+    p/x ((cpu.cir >> 21) & 0x1F)
 end
 define OP       
-    hex (($arg0 >> 26) & 0x3F)
+    p/x ((cpu.cir >> 26) & 0x3F)
 end
 define TARGET    
-    hex ($(arg0) & ((1 << 26) - 1))
+    p/x (cpu.cir & ((1 << 26) - 1))
 end
 define IMM16     
-    hex ($(arg0) & ((1 << 16) - 1))
+    p/x (cpu.cir & ((1 << 16) - 1))
 end
 define IMM25     
-    hex ($(arg0) & ((1 << 25) - 1))
+    p/x (cpu.cir & ((1 << 25) - 1))
+end
+define RELATIVE  
+    p/x (cpu.cir & ((1 << 16) - 1))
 end
 
-define RELATIVE  
-    hex ($(arg0) & ((1 << 16) - 1))
+# gpu debugging features
+
+define gpu_misc
+    printf "gpu_misc\n"
+    printf "    cycles:    %d\n", gpu.cycles
+    printf "    dots:      %d\n", gpu.dots
+    printf "    scanlines: %d\n", gpu.scanlines
+    printf "    vblank:    %d\n", gpu.vblank
+    printf "    hblank:    %d\n", gpu.hblank
+    printf "\n"
+    printf "    vram_direct_access_x: %d\n", gpu.vram_direct_access_x
+    printf "    vram_direct_access_y: %d\n", gpu.vram_direct_access_y
+    printf "    vram_direct_access_w: %d\n", gpu.vram_direct_access_w
+    printf "    vram_direct_access_h: %d\n", gpu.vram_direct_access_h
+    printf "    vram_direct_access_c: %d\n", gpu.vram_direct_access_c
+    printf "\n"
+    printf "    texture_window_mask_x:    %d\n", gpu.texture_window_mask_x   
+    printf "    texture_window_mask_y:    %d\n", gpu.texture_window_mask_y   
+    printf "    texture_window_offset_x:  %d\n", gpu.texture_window_offset_x 
+    printf "    texture_window_offset_y:  %d\n", gpu.texture_window_offset_y 
+    printf "\n"
+    printf "    drawing_area_top:         %d\n", gpu.drawing_area_top        
+    printf "    drawing_area_left:        %d\n", gpu.drawing_area_left       
+    printf "    drawing_area_right:       %d\n", gpu.drawing_area_right      
+    printf "    drawing_area_bottom:      %d\n", gpu.drawing_area_bottom     
+    printf "\n"
+    printf "    drawing_offset_x:         %d\n", gpu.drawing_offset_x        
+    printf "    drawing_offset_y:         %d\n", gpu.drawing_offset_y        
+    printf "\n"
+    printf "    display_vram_x_start:     %d\n", gpu.display_vram_x_start    
+    printf "    display_vram_y_start:     %d\n", gpu.display_vram_y_start    
+    printf "    display_horizontal_start: %d\n", gpu.display_horizontal_start
+    printf "    display_horizontal_end:   %d\n", gpu.display_horizontal_end  
+    printf "    display_vertical_start:   %d\n", gpu.display_vertical_start  
+    printf "    display_vertical_end:     %d\n", gpu.display_vertical_end    
 end
+
+define gpustat
+    printf "gpustat\n"
+    printf "    texture_page_x_base        %d\n", gpu.gpustat.texture_page_x_base         
+    printf "    texture_page_y_base        %d\n", gpu.gpustat.texture_page_y_base         
+    printf "    semi_transparency          %d\n", gpu.gpustat.semi_transparency           
+    printf "    texture_page_colors        %d\n", gpu.gpustat.texture_page_colors         
+    printf "    dither                     %d\n", gpu.gpustat.dither                      
+    printf "    draw_to_display_area       %d\n", gpu.gpustat.draw_to_display_area        
+    printf "    set_mask_when_drawing      %d\n", gpu.gpustat.set_mask_when_drawing       
+    printf "    draw_pixels                %d\n", gpu.gpustat.draw_pixels                 
+    printf "    interlace_field            %d\n", gpu.gpustat.interlace_field             
+    printf "    reverse_flag               %d\n", gpu.gpustat.reverse_flag                
+    printf "    texture_disable            %d\n", gpu.gpustat.texture_disable             
+    printf "    horizontal_resolution_2    %d\n", gpu.gpustat.horizontal_resolution_2     
+    printf "    horizontal_resolution_1    %d\n", gpu.gpustat.horizontal_resolution_1     
+    printf "    vertical_resolution        %d\n", gpu.gpustat.vertical_resolution         
+    printf "    video_mode                 %d\n", gpu.gpustat.video_mode                  
+    printf "    display_area_color_depth   %d\n", gpu.gpustat.display_area_color_depth    
+    printf "    vertical_interlace         %d\n", gpu.gpustat.vertical_interlace          
+    printf "    display_enable             %d\n", gpu.gpustat.display_enable              
+    printf "    interrupt_request          %d\n", gpu.gpustat.interrupt_request           
+    printf "    dma_data_request           %d\n", gpu.gpustat.dma_data_request            
+    printf "    ready_recieve_cmd_word     %d\n", gpu.gpustat.ready_recieve_cmd_word      
+    printf "    ready_send_vram_cpu        %d\n", gpu.gpustat.ready_send_vram_cpu         
+    printf "    ready_recieve_dma_block    %d\n", gpu.gpustat.ready_recieve_dma_block     
+    printf "    dma_direction              %d\n", gpu.gpustat.dma_direction               
+    printf "    drawing_even_odd_interlace %d\n", gpu.gpustat.drawing_even_odd_interlace  
+end
+
+define gp0
+    printf "gp0\n"
+    printf "    size:   %d\n", gpu.gp0.size
+    printf "    head:   %d\n", gpu.gp0.head
+    printf "    tail:   %d\n", gpu.gp0.tail  
+    printf "    length: %d\n", gpu.gp0.length
+    printf "\n"
+    printf "    commands:\n"
+    set $d = gpu.gp0.head
+    while $d != gpu.gp0.tail
+        printf "    %x\n", gpu.gp0.data[$d]
+        set $d = $d + 1
+    end
+end
+
+# dma debugging features
+
+define chcr
+    p (union chcr) $arg0
+end
+
+define madr
+    p (union madr) $arg0
+end
+
+define brc
+    p (union brc)  $arg0
+end
+
+# timer debugging features
+
+define timers
+    printf "timer0:\n"
+    printf "    current count: %d\n", timers.t0.current_count
+    printf "    target count:  %d\n", timers.t0.target_count
+    printf "    mode:\n"
+    printf "        sync_enable         : %d\n", timers.t0.mode.sync_enable         
+    printf "        sync_mode           : %d\n", timers.t0.mode.sync_mode           
+    printf "        reset_after         : %d\n", timers.t0.mode.reset_after         
+    printf "        irq_when_target     : %d\n", timers.t0.mode.irq_when_target     
+    printf "        irq_when_max        : %d\n", timers.t0.mode.irq_when_max        
+    printf "        irq_once_or_repeat  : %d\n", timers.t0.mode.irq_once_or_repeat  
+    printf "        irq_pulse_or_toggle : %d\n", timers.t0.mode.irq_pulse_or_toggle 
+    printf "        clock_source        : %d\n", timers.t0.mode.clock_source        
+    printf "        interrupt_request   : %d\n", timers.t0.mode.interrupt_request   
+    printf "        hit_target          : %d\n", timers.t0.mode.hit_target          
+    printf "        hit_max             : %d\n", timers.t0.mode.hit_max             
+    printf "timer1:\n"
+    printf "    current count: %d\n", timers.t1.current_count
+    printf "    target count:  %d\n", timers.t1.target_count
+    printf "    mode:\n"
+    printf "        sync_enable         : %d\n", timers.t1.mode.sync_enable         
+    printf "        sync_mode           : %d\n", timers.t1.mode.sync_mode           
+    printf "        reset_after         : %d\n", timers.t1.mode.reset_after         
+    printf "        irq_when_target     : %d\n", timers.t1.mode.irq_when_target     
+    printf "        irq_when_max        : %d\n", timers.t1.mode.irq_when_max        
+    printf "        irq_once_or_repeat  : %d\n", timers.t1.mode.irq_once_or_repeat  
+    printf "        irq_pulse_or_toggle : %d\n", timers.t1.mode.irq_pulse_or_toggle 
+    printf "        clock_source        : %d\n", timers.t1.mode.clock_source        
+    printf "        interrupt_request   : %d\n", timers.t1.mode.interrupt_request   
+    printf "        hit_target          : %d\n", timers.t1.mode.hit_target          
+    printf "        hit_max             : %d\n", timers.t1.mode.hit_max             
+    printf "timer2:\n"
+    printf "    current count: %d\n", timers.t2.current_count
+    printf "    target count:  %d\n", timers.t2.target_count
+    printf "    mode:\n"
+    printf "        sync_enable         : %d\n", timers.t2.mode.sync_enable         
+    printf "        sync_mode           : %d\n", timers.t2.mode.sync_mode           
+    printf "        reset_after         : %d\n", timers.t2.mode.reset_after         
+    printf "        irq_when_target     : %d\n", timers.t2.mode.irq_when_target     
+    printf "        irq_when_max        : %d\n", timers.t2.mode.irq_when_max        
+    printf "        irq_once_or_repeat  : %d\n", timers.t2.mode.irq_once_or_repeat  
+    printf "        irq_pulse_or_toggle : %d\n", timers.t2.mode.irq_pulse_or_toggle 
+    printf "        clock_source        : %d\n", timers.t2.mode.clock_source        
+    printf "        interrupt_request   : %d\n", timers.t2.mode.interrupt_request   
+    printf "        hit_target          : %d\n", timers.t2.mode.hit_target          
+    printf "        hit_max             : %d\n", timers.t2.mode.hit_max             
+end             

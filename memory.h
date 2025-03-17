@@ -13,7 +13,6 @@
 #define DEV_END    0x1F802000
 #define BIOS_START 0x1FC00000
 #define BIOS_END   0x1FC80000
-
 #ifdef MEMORY_PRIVATE
 
 // utilities
@@ -28,13 +27,33 @@
 #define RAM_SIZE 0x200000
 #define SCRPD_SIZE 0x400
 #define BIOS_SIZE 0x80000
-#define VRAM_SIZE 0x10000
+#define VRAM_SIZE 0x80000
+#define SOUND_RAM_SIZE 0x8000
+
+/* file formats */
+struct psx_exe_header
+{
+    uint8_t ascii_id[8];
+    uint8_t zerofill[8];
+
+    uint32_t initial_pc;
+    uint32_t initial_gp;
+    uint32_t destination_address;
+    uint32_t filesize;
+    uint32_t data_section_start;
+    uint32_t data_section_end;
+    uint32_t bss_section_start;
+    uint32_t bss_section_end;
+    uint32_t initial_sp_fp_base;
+    uint32_t initial_sp_fp_offset;
+};
 
 struct memory {
     uint8_t        ram[RAM_SIZE];
     uint8_t scratchpad[SCRPD_SIZE];
     uint8_t       bios[BIOS_SIZE];
-    uint8_t       vram[VRAM_SIZE];
+    uint8_t       vram[VRAM_SIZE][3];
+    uint8_t  sound_ram[SOUND_RAM_SIZE];
     
     /* memory control 1 */
     uint32_t expansion_1_base_address;
@@ -110,17 +129,48 @@ enum memory_map
     /* gpu registers */
     gp0_gpu_read             = 0x1F801810,
     gp1_gpu_stat             = 0x1F801814,
+    
+    /* spu registers */
+    spu_voice_volume_left_right_base             = 0x1F801C00, // base, base + N * 0x10 for each voice
+    spu_voice_adpcm_sample_rate_base             = 0x1F801C04, // base, base + N * 0x10 for each voice 
+    spu_voice_adpcm_start_address_base           = 0x1F801C06, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_base                          = 0x1F801C08, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_current_volume_base           = 0x1F801C0C, // base, base + N * 0x10 for each voice 
+    spu_voice_adpcm_repeat_address_base          = 0x1F801C0E, // base, base + N * 0x10 for each voice 
+    spu_main_volume_left_right                   = 0x1F801D80,
+    spu_reverb_output_volume_left_right          = 0x1F801D84,
+    spu_voice_key_on                             = 0x1F801D88,
+    spu_voice_key_off                            = 0x1F801D8C,
+    spu_channel_fm                               = 0x1F801D90,
+    spu_channel_noise                            = 0x1F801D94,
+    spu_channel_reverb                           = 0x1F801D98,
+    spu_channel_status                           = 0x1F801D9C,
+    spu_sound_ram_reverb_work_area_start_address = 0x1F801DA2,
+    spu_sound_ram_irq_address                    = 0x1F801DA4,
+    spu_sound_ram_data_transfer_address          = 0x1F801DA6,
+    spu_sound_ram_data_transfer_fifo             = 0x1F801DA8,
+    spucnt                                       = 0x1F801DAA,
+    spu_sound_ram_data_transfer_control          = 0x1F801DAC,
+    spustat                                      = 0x1F801DAE,
+    spu_cd_volume_left_right                     = 0x1F801DB0,
+    spu_extern_volume_left_right                 = 0x1F801DB4,
+    spu_current_main_volume_left_right           = 0x1F801DB8,
 
     /* cache control */
     cache_control            = 0xFFFE0130,
 };
 
+extern uint32_t *get_vram_pointer( void );
+
+extern void memory_load_exe( const char *exe );
 extern void memory_load_bios( const char *bios );
 
 extern void memory_write(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read(uint32_t address, uint32_t *data, uint32_t size);
 extern void memory_write_vram(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read_vram(uint32_t address, uint32_t *data, uint32_t size);
+extern void memory_write_sound_ram(uint32_t address, uint32_t data, uint32_t size);
+extern void memory_read_sound_ram(uint32_t address, uint32_t *data, uint32_t size);
 
 extern uint32_t running;
 

@@ -153,6 +153,12 @@ struct cpu
 #endif // CPU_PRIVATE
 
 extern uint32_t cpu_cop0_sr_isc( void );
+extern uint32_t cpu_get_general_register( uint32_t _register );
+extern void cpu_load_initial_exe_registers(uint32_t initial_pc,
+                                           uint32_t initial_gp,
+                                           uint32_t initial_sp_fp_base,
+                                           uint32_t initial_sp_fp_offset);
+extern uint32_t cpu_get_pc( void );
 
 extern void init_cpu( void );
 extern void task_cpu( void );

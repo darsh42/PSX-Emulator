@@ -39,6 +39,8 @@ uint32_t read_dma( uint32_t address )
         case(dma6_otc_chcr     ): data = dma.dma6_otc_chcr     ; break;
         case(dpcr              ): data = dma.dpcr              ; break;
         case(dicr              ): data = dma.dicr              ; break;
+        default:
+            assert(0 && "Unhandled DMA register read");
     }
 
     TRACE_DMA("read_dma ", "address: %08x | data: %08x\n", address, data);
@@ -73,6 +75,8 @@ void write_dma( uint32_t address, uint32_t data )
         case(dma6_otc_chcr     ): dma.dma6_otc_chcr      = data; break;
         case(dpcr              ): dma.dpcr               = data; break;
         case(dicr              ): dma.dicr               = data; break;
+        default:
+            assert(0 && "Unhandled DMA register write");
     }
 
     TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
@@ -135,7 +139,8 @@ void dma_transfer_request_mdec_out( void )
 }
 void dma_transfer_request_gpu( void )
 {
-    if ( !gpu_gpustat_ready_send_vram_cpu() )
+     if (!gpu_gpustat_dma_data_request() ||
+         !gpu_gpustat_ready_send_vram_cpu())
         return;
 
     TRACE_DMA("dma_transfer_request_gpu", "request transfer gpu\n", 0);
@@ -148,7 +153,7 @@ void dma_transfer_request_gpu( void )
     /* dma transfer variables */
     uint32_t data;
     uint32_t ram_address = madr.base_address;
-    uint32_t gpu_address = 0;
+    uint32_t vram_address = 0;
     uint32_t block_count = brc.ba;
     uint32_t block_size  = brc.bs;
     uint32_t step = (chcr.address_step) ? -4: +4;
@@ -163,11 +168,11 @@ void dma_transfer_request_gpu( void )
         }
         
         /* get next gpu address */
-        gpu_address = gpu_get_vram_address();
+        vram_address = gpu_get_vram_address();
 
         /* copy from source to destination depending on transfer direction */
-        if ( chcr.transfer_direction == RAM_TO_DEVICE) { memory_read( ram_address, &data, 4); memory_write_vram( gpu_address,  data, 4); }
-        else                                           { memory_read_vram( gpu_address, &data, 4); memory_write( ram_address,  data, 4); }
+        if ( chcr.transfer_direction == RAM_TO_DEVICE) { memory_read( ram_address, &data, 4); memory_write_vram( vram_address,  data, 4); }
+        else                                           { memory_read_vram( vram_address, &data, 4); memory_write( ram_address,  data, 4); }
 
         block_size--;
         ram_address += step;
@@ -183,11 +188,9 @@ void dma_transfer_request_spu( void )
 void dma_transfer_linkedlist_gpu( void )
 {
     /* wait for gpustat dma data request bit    */
-    if ( !gpu_gpustat_dma_data_request() )
-        return;
-
     /* wait for gpustat dma ready recieve block */
-    if ( !gpu_gpustat_dma_ready_recieve_block() )
+    if (!gpu_gpustat_dma_data_request() ||
+        !gpu_gpustat_dma_ready_recieve_block())
         return;
 
     TRACE_DMA("dma_transfer_linkedlist_gpu", "linked list transfer gpu\n", 0);

@@ -13,6 +13,9 @@
 pthread_cond_t renderer_notify = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t renderer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+pthread_cond_t system_notify = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t system_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 struct system sys;
 
 void render_three_point_polygon_monochrome(
@@ -93,8 +96,18 @@ static inline void system_input( void )
     }
 }
 
-static inline void system_render( void )
+void system_render( void )
 {
+    SDL_UpdateTexture(sys.screen, NULL, get_vram_pointer(), 1024*3);
+    SDL_SetRenderDrawColor(sys.renderer, 0xff, 0xff, 0xff, 0xff);
+    SDL_RenderClear(sys.renderer);
+    SDL_RenderCopy(sys.renderer, sys.screen, NULL, &sys.scale);
+    SDL_RenderPresent(sys.renderer);
+}
+
+void wait_system_ready( void )
+{
+    assert(!pthread_cond_wait(&system_notify, &system_mutex));
 }
 
 void *task_system( void *ignore )
@@ -102,24 +115,23 @@ void *task_system( void *ignore )
     printf("SYSTEM: %ld\n", pthread_self());
 
     SDL_CHECK_RET(SDL_Init(INITIALIZE_FLAGS));
-    SDL_CHECK_PTR(sys.window = SDL_CreateWindow(NAME, X, Y, W, H, 0));
+    SDL_CHECK_PTR(sys.window   = SDL_CreateWindow(NAME, X, Y, W, H, WINDOW_FLAGS));
     SDL_CHECK_PTR(sys.renderer = SDL_CreateRenderer(sys.window, -1, SDL_RENDERER_ACCELERATED));
+    SDL_CHECK_PTR(sys.screen   = SDL_CreateTexture(sys.renderer, SDL_PIXELFORMAT_BGR555, SDL_TEXTUREACCESS_STREAMING, W, H));
+    
+    sys.scale = (SDL_Rect) {0, 0, 1024, 512};
 
-    while ( true )
+    assert(!pthread_cond_broadcast(&system_notify));
+
+    while ( running )
     {
-        if ( !running ) 
-            goto cleanup;
-
         system_input();
-
-        if ( sys.render_next_frame )
-        {
-            system_render();
-        }
     }
 
 cleanup:
     SDL_DestroyRenderer(sys.renderer);
     SDL_DestroyWindow(sys.window);
     SDL_Quit();
+
+    return NULL;
 }

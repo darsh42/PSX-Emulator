@@ -3,6 +3,7 @@
 
 #define CPU_PRIVATE
 #include "cpu.h"
+#include "bios.h"
 #include "timer.h"
 #include "memory.h"
 
@@ -23,6 +24,32 @@ struct cpu cpu;
 uint32_t cpu_cop0_sr_isc( void ) 
 { 
     union cop0_sr sr  = { .value = cpu.cop0[COP0_SR] }; return sr.Isc; 
+}
+
+uint32_t cpu_get_general_register( uint32_t _register )
+{
+    assert(_register >= 0 && _register < 32);
+    return cpu.r[_register];
+}
+
+uint32_t cpu_get_pc( void )
+{
+    return cpu.pc;
+}
+
+void cpu_load_initial_exe_registers(uint32_t initial_pc,
+                                    uint32_t initial_gp,
+                                    uint32_t initial_sp_fp_base,
+                                    uint32_t initial_sp_fp_offset)
+{
+    cpu.pc    = initial_pc;
+    cpu.r[28] = initial_gp;
+
+    if (initial_sp_fp_base != 0)
+    {
+        cpu.r[29] = initial_sp_fp_base + initial_sp_fp_offset;
+        cpu.r[30] = initial_sp_fp_base + initial_sp_fp_offset;
+    }
 }
 
 static const char *cpu_register_names[] = 
@@ -1128,6 +1155,7 @@ static inline void cpu_execute( void )
             cpu.pc = cpu.branch_v;
 
             cpu.branch_v = 0;
+
             break;
         case UNUSED:   
             break;
@@ -1222,6 +1250,8 @@ branch_op:
     } goto cycle_complete;
 
 cycle_complete:
+    task_bios();
+
     cpu.pc  += 4;
     cpu.r[0] = 0;
 }

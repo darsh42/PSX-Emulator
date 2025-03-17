@@ -102,9 +102,10 @@ struct gpu {
     
     uint32_t vram_direct_access_x; // minimum x
     uint32_t vram_direct_access_y; // minimum y
-    uint32_t vram_direct_access_c; // access cursor - where in vram is accessed
     uint32_t vram_direct_access_w; // access width
     uint32_t vram_direct_access_h; // access height
+    uint32_t vram_direct_access_c; // access cursor - where in vram is accessed
+    uint32_t vram_direct_access_d; // access direction
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)
@@ -131,13 +132,15 @@ struct gpu {
 };
 #endif // GPU_PRIVATE
 
+extern bool gpu_hblank( void );
+extern bool gpu_vblank( void );
 extern bool gpu_gpustat_dma_data_request( void );
 extern bool gpu_gpustat_dma_ready_recieve_block( void );
-extern bool gpu_gpustat_read_send_vram_cpu( void );
+extern bool gpu_gpustat_ready_send_vram_cpu( void );
 extern void gpu_notify_dma_block_end( void );
 extern uint32_t gpu_get_vram_address( void );
 
-extern uint32_t  read_gpu( uint32_t address);
+extern uint32_t  read_gpu( uint32_t address );
 extern void     write_gpu( uint32_t address, uint32_t data );
 
 extern void init_gpu( void );

@@ -7,6 +7,7 @@
 #define TIMER_PRIVATE
 #include "timer.h"
 #include "memory.h"
+#include "gpu.h"
 
 #ifdef DEBUG
 #include "stub.h"
@@ -53,7 +54,7 @@ void write_timers( uint32_t address, uint32_t _data )
     TRACE_TIMERS("write_timers", "address: %08x | data: %08x\n", address, data);
 }
 
-void timer_reset( struct timer *timer )
+static void timer_reset( struct timer *timer )
 {
     if ( timer->mode.reset_after )
     {
@@ -85,12 +86,83 @@ void timer_reset( struct timer *timer )
     }
 }
 
+static void timers_increment_timer0( void )
+{
+    if (timers.t0.mode.sync_enable)
+    {
+        // 0 = Pause counter during Hblank(s)
+        // 1 = Reset counter to 0000h at Hblank(s)
+        // 2 = Reset counter to 0000h at Hblank(s) and pause outside of Hblank
+        // 3 = Pause until Hblank occurs once, then switch to Free Run
+        
+        if (gpu_hblank())
+        {
+            /* clear counter to 0000 at HBLANK for modes 1 and 2 */
+            if (timers.t0.mode.sync_mode == 1 || timers.t0.mode.sync_mode == 2)
+                timers.t0.current_count = 0;
+            
+            /* switch to free running after HBLANK for mode 3 */
+            if (timers.t0.mode.sync_mode == 3)
+                timers.t0.mode.sync_enable = 0;
+        }
+        else
+        {
+            /* pause counter until HBLANK (covers outside HBLANK aswell) */
+            if (timers.t0.mode.sync_mode != 1)
+                return;
+        }
+    }
+
+    timers.t0.current_count++;
+}
+
+static void timers_increment_timer1( void )
+{
+    if (timers.t1.mode.sync_enable)
+    {
+        // 0 = Pause counter during Vblank(s)
+        // 1 = Reset counter to 0000h at Vblank(s)
+        // 2 = Reset counter to 0000h at Vblank(s) and pause outside of Vblank
+        // 3 = Pause until Vblank occurs once, then switch to Free Run
+        
+        if (gpu_vblank())
+        {
+            /* clear counter to 0000 at VBLANK for modes 1 and 2 */
+            if (timers.t1.mode.sync_mode == 1 || timers.t1.mode.sync_mode == 2)
+                timers.t1.current_count = 0;
+            
+            /* switch to free running after VBLANK for mode 3 */
+            if (timers.t1.mode.sync_mode == 3)
+                timers.t1.mode.sync_enable = 0;
+        }
+        else
+        {
+            /* pause counter until VBLANK (covers outside VBLANK aswell) */
+            if (timers.t1.mode.sync_mode != 1)
+                return;
+        }
+    }
+
+    timers.t1.current_count++;
+}
+
+static void timers_increment_timer2( void )
+{
+    if (timers.t2.mode.sync_enable)
+    {
+        if (timers.t2.mode.sync_mode == 0 || timers.t2.mode.sync_mode == 3)
+            return;
+    }
+
+    timers.t2.current_count++;
+}
+
 void init_timers( void ) { }
 void task_timers( void )
 {
     //usleep(20);
 
-    timers.t0.current_count++; timer_reset(&timers.t0);
-    timers.t1.current_count++; timer_reset(&timers.t1);
-    timers.t2.current_count++; timer_reset(&timers.t2);
+    timers_increment_timer0(); timer_reset(&timers.t0);
+    timers_increment_timer1(); timer_reset(&timers.t1);
+    timers_increment_timer2(); timer_reset(&timers.t2);
 }
