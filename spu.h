@@ -108,7 +108,90 @@ struct spu
     /* spu control and status */
     union SPUCNT  spucnt;
     union SPUSTAT spustat;
+
+    /*
+
+   1F801D84h spu   vLOUT   volume  Reverb Output Volume Left
+   1F801D86h spu   vROUT   volume  Reverb Output Volume Right
+   1F801DA2h spu   mBASE   base    Reverb Work Area Start Address in Sound RAM
+   1F801DC0h rev00 dAPF1   disp    Reverb APF Offset 1
+   1F801DC2h rev01 dAPF2   disp    Reverb APF Offset 2
+   1F801DC4h rev02 vIIR    volume  Reverb Reflection Volume 1
+   1F801DC6h rev03 vCOMB1  volume  Reverb Comb Volume 1
+   1F801DC8h rev04 vCOMB2  volume  Reverb Comb Volume 2
+   1F801DCAh rev05 vCOMB3  volume  Reverb Comb Volume 3
+   1F801DCCh rev06 vCOMB4  volume  Reverb Comb Volume 4
+   1F801DCEh rev07 vWALL   volume  Reverb Reflection Volume 2
+   1F801DD0h rev08 vAPF1   volume  Reverb APF Volume 1
+   1F801DD2h rev09 vAPF2   volume  Reverb APF Volume 2
+   1F801DD4h rev0A mLSAME  src/dst Reverb Same Side Reflection Address 1 Left
+   1F801DD6h rev0B mRSAME  src/dst Reverb Same Side Reflection Address 1 Right
+   1F801DD8h rev0C mLCOMB1 src     Reverb Comb Address 1 Left
+   1F801DDAh rev0D mRCOMB1 src     Reverb Comb Address 1 Right
+   1F801DDCh rev0E mLCOMB2 src     Reverb Comb Address 2 Left
+   1F801DDEh rev0F mRCOMB2 src     Reverb Comb Address 2 Right
+   1F801DE0h rev10 dLSAME  src     Reverb Same Side Reflection Address 2 Left
+   1F801DE2h rev11 dRSAME  src     Reverb Same Side Reflection Address 2 Right
+   1F801DE4h rev12 mLDIFF  src/dst Reverb Different Side Reflect Address 1 Left
+   1F801DE6h rev13 mRDIFF  src/dst Reverb Different Side Reflect Address 1 Right
+   1F801DE8h rev14 mLCOMB3 src     Reverb Comb Address 3 Left
+   1F801DEAh rev15 mRCOMB3 src     Reverb Comb Address 3 Right
+   1F801DECh rev16 mLCOMB4 src     Reverb Comb Address 4 Left
+   1F801DEEh rev17 mRCOMB4 src     Reverb Comb Address 4 Right
+   1F801DF0h rev18 dLDIFF  src     Reverb Different Side Reflect Address 2 Left
+   1F801DF2h rev19 dRDIFF  src     Reverb Different Side Reflect Address 2 Right
+   1F801DF4h rev1A mLAPF1  src/dst Reverb APF Address 1 Left
+   1F801DF6h rev1B mRAPF1  src/dst Reverb APF Address 1 Right
+   1F801DF8h rev1C mLAPF2  src/dst Reverb APF Address 2 Left
+   1F801DFAh rev1D mRAPF2  src/dst Reverb APF Address 2 Right
+   1F801DFCh rev1E vLIN    volume  Reverb Input Volume Left
+   1F801DFEh rev1F vRIN    volume  Reverb Input Volume Right  
+
+   */
+
+    uint16_t spu_vLOUT     // volume  Reverb Output Volume Left
+    uint16_t spu_vROUT     // volume  Reverb Output Volume Right
+    uint16_t spu_mBASE     // base    Reverb Work Area Start Address in Sound RAM
+    uint16_t rev00_dAPF1   // disp    Reverb APF Offset 1
+    uint16_t rev01_dAPF2   // disp    Reverb APF Offset 2
+    uint16_t rev02_vIIR    // volume  Reverb Reflection Volume 1
+    uint16_t rev03_vCOMB1  // volume  Reverb Comb Volume 1
+    uint16_t rev04_vCOMB2  // volume  Reverb Comb Volume 2
+    uint16_t rev05_vCOMB3  // volume  Reverb Comb Volume 3
+    uint16_t rev06_vCOMB4  // volume  Reverb Comb Volume 4
+    uint16_t rev07_vWALL   // volume  Reverb Reflection Volume 2
+    uint16_t rev08_vAPF1   // volume  Reverb APF Volume 1
+    uint16_t rev09_vAPF2   // volume  Reverb APF Volume 2
+    uint16_t rev0A_mLSAME  // src/dst Reverb Same Side Reflection Address 1 Left
+    uint16_t rev0B_mRSAME  // src/dst Reverb Same Side Reflection Address 1 Right
+    uint16_t rev0C_mLCOMB1 // src     Reverb Comb Address 1 Left
+    uint16_t rev0D_mRCOMB1 // src     Reverb Comb Address 1 Right
+    uint16_t rev0E_mLCOMB2 // src     Reverb Comb Address 2 Left
+    uint16_t rev0F_mRCOMB2 // src     Reverb Comb Address 2 Right
+    uint16_t rev10_dLSAME  // src     Reverb Same Side Reflection Address 2 Left
+    uint16_t rev11_dRSAME  // src     Reverb Same Side Reflection Address 2 Right
+    uint16_t rev12_mLDIFF  // src/dst Reverb Different Side Reflect Address 1 Left
+    uint16_t rev13_mRDIFF  // src/dst Reverb Different Side Reflect Address 1 Right
+    uint16_t rev14_mLCOMB3 // src     Reverb Comb Address 3 Left
+    uint16_t rev15_mRCOMB3 // src     Reverb Comb Address 3 Right
+    uint16_t rev16_mLCOMB4 // src     Reverb Comb Address 4 Left
+    uint16_t rev17_mRCOMB4 // src     Reverb Comb Address 4 Right
+    uint16_t rev18_dLDIFF  // src     Reverb Different Side Reflect Address 2 Left
+    uint16_t rev19_dRDIFF  // src     Reverb Different Side Reflect Address 2 Right
+    uint16_t rev1A_mLAPF1  // src/dst Reverb APF Address 1 Left
+    uint16_t rev1B_mRAPF1  // src/dst Reverb APF Address 1 Right
+    uint16_t rev1C_mLAPF2  // src/dst Reverb APF Address 2 Left
+    uint16_t rev1D_mRAPF2  // src/dst Reverb APF Address 2 Right
+    uint16_t rev1E_vLIN    // volume  Reverb Input Volume Left
+    uint16_t rev1F_vRIN    // volume  Reverb Input Volume Right  
+
     
+    /* decoded samples from a sector
+     * 
+     * contains 18 portions of 8 blocks for each of the 28 voices contained
+     * within a sector
+     */
+    uint16_t decoded_samples[18][8][];
 };
 
 #endif // SPU_PRIVATE
