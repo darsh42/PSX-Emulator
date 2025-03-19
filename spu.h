@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-union SPUCNT
+union spucnt
 {
     uint16_t value;
 
@@ -25,7 +25,7 @@ union SPUCNT
     };
 };
 
-union SPUSTAT
+union spustat
 {
     uint16_t value;
 
@@ -41,7 +41,7 @@ union SPUSTAT
     };
 };
 
-struct ADSR
+struct adsr
 {
     uint32_t sustain_level     : 4;
     uint32_t decay_shift       : 4;
@@ -58,7 +58,7 @@ struct ADSR
     uint32_t sustain_mode      : 1;
 };
 
-union VOLUME
+union volume
 {
     uint16_t value;
 
@@ -78,21 +78,39 @@ union VOLUME
     };
 };
 
+struct spu_adpcm_sector
+{
+    uint8_t shift : 4;
+    uint8_t filter: 2;
+    uint8_t       : 2;
+
+    uint8_t loop_start : 1;
+    uint8_t loop_repeat: 1;
+    uint8_t loop_end   : 1;
+    uint8_t            : 5;
+    
+    uint8_t data[14];
+};
+
 struct spu
 {
-    /* adpcm samples */
+    /* voice sample decode buffer */
+    int16_t voice_decode_buffers[24][28];
+
+    /* adpcm */
+    uint32_t pitch_modulation_enable;
+    uint16_t adpcm_sample_rate[24];
     uint16_t adpcm_start_address[24];
     uint16_t adpcm_repeat_address[24];
-
-    /* adpcm pitch */
-    uint16_t adpcm_sample_rate[24];
-    uint32_t pitch_modulation_enable;
-
-    /* volume and adsr generator */
+    uint16_t adpcm_current_address[24];
+    
+    /* adsr generator */
     uint32_t adsr[24];
-    uint32_t main_volume;
-    uint32_t voice_volume[24];
     uint16_t adsr_current_volume[24];
+
+    /* volume */
+    uint32_t voice_volume[24];
+    uint32_t main_volume;
 
     /* voice flags */
     uint32_t kon;
@@ -106,8 +124,8 @@ struct spu
     uint32_t eon;
 
     /* spu control and status */
-    union SPUCNT  spucnt;
-    union SPUSTAT spustat;
+    union spucnt  spucnt;
+    union spustat spustat;
 
     /*
 
@@ -184,14 +202,6 @@ struct spu
     uint16_t rev1D_mRAPF2  // src/dst Reverb APF Address 2 Right
     uint16_t rev1E_vLIN    // volume  Reverb Input Volume Left
     uint16_t rev1F_vRIN    // volume  Reverb Input Volume Right  
-
-    
-    /* decoded samples from a sector
-     * 
-     * contains 18 portions of 8 blocks for each of the 28 voices contained
-     * within a sector
-     */
-    uint16_t decoded_samples[18][8][];
 };
 
 #endif // SPU_PRIVATE

@@ -13,6 +13,8 @@
 #include "gpu.h"
 #include "spu.h"
 #include "dma.h"
+#define CDROM_SECTORS
+#include "cdrom.h"
 #include "timer.h"
 #include "interrupts.h"
 
@@ -532,4 +534,9 @@ void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
 
     /* trace signals to memory */
     TRACE_MEM("memory_read_sound_ram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
+}
+
+void memory_read_sound_ram_sector(uint32_t address, struct cdrom_sector_empty **sector)
+{
+
 }
