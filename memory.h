@@ -1,6 +1,9 @@
 #ifndef MEMORY_H_INCLUDED
 #define MEMORY_H_INCLUDED
 
+#define SPU_SECTORS
+#include "spu.h"
+
 #include <pthread.h>
 #include <stdint.h>
 
@@ -171,6 +174,7 @@ extern void memory_write_vram(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read_vram(uint32_t address, uint32_t *data, uint32_t size);
 extern void memory_write_sound_ram(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read_sound_ram(uint32_t address, uint32_t *data, uint32_t size);
+extern void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **sector);
 
 extern uint32_t running;
 

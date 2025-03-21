@@ -11,6 +11,7 @@
 // devices
 #include "cpu.h"
 #include "gpu.h"
+#define SPU_SECTORS
 #include "spu.h"
 #include "dma.h"
 #define CDROM_SECTORS
@@ -536,7 +537,10 @@ void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
     TRACE_MEM("memory_read_sound_ram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
 }
 
-void memory_read_sound_ram_sector(uint32_t address, struct cdrom_sector_empty **sector)
+void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **sector)
 {
-
+    assert(sector);
+    assert(address < SOUND_RAM_SIZE - sizeof(struct cdrom_sector_empty));
+    
+    *sector = (struct spu_adpcm_sector *) &memory.sound_ram[address];
 }

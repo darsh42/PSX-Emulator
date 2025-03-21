@@ -1,6 +1,8 @@
 #ifndef CDROM_H_INCLUDED
 #define CDROM_H_INCLUDED
 
+#include <stdint.h>
+
 #ifdef CDROM_SECTORS
 /* header */
 struct cdrom_sector_header 
@@ -63,7 +65,7 @@ struct cdrom_sector_original // original cdrom
     uint8_t       data[2048];
     uint8_t        edc[   4];
     uint8_t zerofilled[   8];
-    uint8_t        ecc[ 276]
+    uint8_t        ecc[ 276];
 };
 
 struct cdrom_sector_cd_xa_1 // CD XA
@@ -76,7 +78,7 @@ struct cdrom_sector_cd_xa_1 // CD XA
 
     uint8_t       data[2048];
     uint8_t        edc[   4];
-    uint8_t        ecc[ 276]
+    uint8_t        ecc[ 276];
 };
 
 struct cdrom_sector_cd_xa_2 // CD XA

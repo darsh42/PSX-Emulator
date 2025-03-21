@@ -46,31 +46,41 @@ void *task_core( void *_args )
 		
     uint32_t ticks_till_cpu = 0;
     uint32_t ticks_till_gpu = 0;
+    uint32_t ticks_till_spu = 0;
 
     while (running)
     {
         /* clock */
         task_timers();
 
-        ticks_till_cpu++;
-        ticks_till_gpu++;
-        
-        /* devices synched to cpu clock */
-        if (ticks_till_cpu == 11) 
-        { 
-            ticks_till_cpu = 0; 
-        }
+        // ticks_till_cpu++;
+        // ticks_till_gpu++;
+        // 
+        // /* devices synched to cpu clock */
+        // if (ticks_till_cpu == 11) 
+        // { 
+        //     task_cpu(); 
+        //     task_dma();
 
-            task_cpu(); 
-            task_dma();
+        //     if (ticks_till_spu == 768)
+        //         task_spu();
 
-        /* devices synched to gpu clock */
-        if (ticks_till_gpu ==  7) 
-        { 
-            ticks_till_gpu = 0; 
+        //     ticks_till_cpu = 0; 
+        //     ticks_till_spu++;
+        // }
 
-        }
-            task_gpu();
+
+        // /* devices synched to gpu clock */
+        // if (ticks_till_gpu ==  7) 
+        // { 
+        //     ticks_till_gpu = 0; 
+
+        //     task_gpu();
+        // }
+        task_cpu(); 
+        task_dma();
+        task_spu();
+        task_gpu();
     }
 
     return NULL;

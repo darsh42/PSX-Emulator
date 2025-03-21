@@ -1,7 +1,14 @@
 #ifndef SPU_H_INCLUDED
 #define SPU_H_INCLUDED
 
+
 #ifdef SPU_PRIVATE
+
+#ifdef ENABLE_SPU_TRACE
+#define TRACE_SPU(function, format, ...) trace("spu.c", function, format, __VA_ARGS__)
+#else
+#define TRACE_SPU(function, format, ...) 
+#endif
 
 #include <stdint.h>
 
@@ -78,31 +85,21 @@ union volume
     };
 };
 
-struct spu_adpcm_sector
-{
-    uint8_t shift : 4;
-    uint8_t filter: 2;
-    uint8_t       : 2;
-
-    uint8_t loop_start : 1;
-    uint8_t loop_repeat: 1;
-    uint8_t loop_end   : 1;
-    uint8_t            : 5;
-    
-    uint8_t data[14];
-};
-
 struct spu
 {
     /* voice sample decode buffer */
-    int16_t voice_decode_buffers[24][28];
+    int16_t decode_buffers[24][28];
+    int16_t decode_buffers_index[24];
 
     /* adpcm */
-    uint32_t pitch_modulation_enable;
     uint16_t adpcm_sample_rate[24];
     uint16_t adpcm_start_address[24];
     uint16_t adpcm_repeat_address[24];
     uint16_t adpcm_current_address[24];
+    
+    /* pitch */
+    uint32_t pmon;
+    uint16_t pitch_counter[24];
     
     /* adsr generator */
     uint32_t adsr[24];
@@ -167,46 +164,64 @@ struct spu
 
    */
 
-    uint16_t spu_vLOUT     // volume  Reverb Output Volume Left
-    uint16_t spu_vROUT     // volume  Reverb Output Volume Right
-    uint16_t spu_mBASE     // base    Reverb Work Area Start Address in Sound RAM
-    uint16_t rev00_dAPF1   // disp    Reverb APF Offset 1
-    uint16_t rev01_dAPF2   // disp    Reverb APF Offset 2
-    uint16_t rev02_vIIR    // volume  Reverb Reflection Volume 1
-    uint16_t rev03_vCOMB1  // volume  Reverb Comb Volume 1
-    uint16_t rev04_vCOMB2  // volume  Reverb Comb Volume 2
-    uint16_t rev05_vCOMB3  // volume  Reverb Comb Volume 3
-    uint16_t rev06_vCOMB4  // volume  Reverb Comb Volume 4
-    uint16_t rev07_vWALL   // volume  Reverb Reflection Volume 2
-    uint16_t rev08_vAPF1   // volume  Reverb APF Volume 1
-    uint16_t rev09_vAPF2   // volume  Reverb APF Volume 2
-    uint16_t rev0A_mLSAME  // src/dst Reverb Same Side Reflection Address 1 Left
-    uint16_t rev0B_mRSAME  // src/dst Reverb Same Side Reflection Address 1 Right
-    uint16_t rev0C_mLCOMB1 // src     Reverb Comb Address 1 Left
-    uint16_t rev0D_mRCOMB1 // src     Reverb Comb Address 1 Right
-    uint16_t rev0E_mLCOMB2 // src     Reverb Comb Address 2 Left
-    uint16_t rev0F_mRCOMB2 // src     Reverb Comb Address 2 Right
-    uint16_t rev10_dLSAME  // src     Reverb Same Side Reflection Address 2 Left
-    uint16_t rev11_dRSAME  // src     Reverb Same Side Reflection Address 2 Right
-    uint16_t rev12_mLDIFF  // src/dst Reverb Different Side Reflect Address 1 Left
-    uint16_t rev13_mRDIFF  // src/dst Reverb Different Side Reflect Address 1 Right
-    uint16_t rev14_mLCOMB3 // src     Reverb Comb Address 3 Left
-    uint16_t rev15_mRCOMB3 // src     Reverb Comb Address 3 Right
-    uint16_t rev16_mLCOMB4 // src     Reverb Comb Address 4 Left
-    uint16_t rev17_mRCOMB4 // src     Reverb Comb Address 4 Right
-    uint16_t rev18_dLDIFF  // src     Reverb Different Side Reflect Address 2 Left
-    uint16_t rev19_dRDIFF  // src     Reverb Different Side Reflect Address 2 Right
-    uint16_t rev1A_mLAPF1  // src/dst Reverb APF Address 1 Left
-    uint16_t rev1B_mRAPF1  // src/dst Reverb APF Address 1 Right
-    uint16_t rev1C_mLAPF2  // src/dst Reverb APF Address 2 Left
-    uint16_t rev1D_mRAPF2  // src/dst Reverb APF Address 2 Right
-    uint16_t rev1E_vLIN    // volume  Reverb Input Volume Left
-    uint16_t rev1F_vRIN    // volume  Reverb Input Volume Right  
+    // uint16_t spu_vLOUT     // volume  Reverb Output Volume Left
+    // uint16_t spu_vROUT     // volume  Reverb Output Volume Right
+    // uint16_t spu_mBASE     // base    Reverb Work Area Start Address in Sound RAM
+    // uint16_t rev00_dAPF1   // disp    Reverb APF Offset 1
+    // uint16_t rev01_dAPF2   // disp    Reverb APF Offset 2
+    // uint16_t rev02_vIIR    // volume  Reverb Reflection Volume 1
+    // uint16_t rev03_vCOMB1  // volume  Reverb Comb Volume 1
+    // uint16_t rev04_vCOMB2  // volume  Reverb Comb Volume 2
+    // uint16_t rev05_vCOMB3  // volume  Reverb Comb Volume 3
+    // uint16_t rev06_vCOMB4  // volume  Reverb Comb Volume 4
+    // uint16_t rev07_vWALL   // volume  Reverb Reflection Volume 2
+    // uint16_t rev08_vAPF1   // volume  Reverb APF Volume 1
+    // uint16_t rev09_vAPF2   // volume  Reverb APF Volume 2
+    // uint16_t rev0A_mLSAME  // src/dst Reverb Same Side Reflection Address 1 Left
+    // uint16_t rev0B_mRSAME  // src/dst Reverb Same Side Reflection Address 1 Right
+    // uint16_t rev0C_mLCOMB1 // src     Reverb Comb Address 1 Left
+    // uint16_t rev0D_mRCOMB1 // src     Reverb Comb Address 1 Right
+    // uint16_t rev0E_mLCOMB2 // src     Reverb Comb Address 2 Left
+    // uint16_t rev0F_mRCOMB2 // src     Reverb Comb Address 2 Right
+    // uint16_t rev10_dLSAME  // src     Reverb Same Side Reflection Address 2 Left
+    // uint16_t rev11_dRSAME  // src     Reverb Same Side Reflection Address 2 Right
+    // uint16_t rev12_mLDIFF  // src/dst Reverb Different Side Reflect Address 1 Left
+    // uint16_t rev13_mRDIFF  // src/dst Reverb Different Side Reflect Address 1 Right
+    // uint16_t rev14_mLCOMB3 // src     Reverb Comb Address 3 Left
+    // uint16_t rev15_mRCOMB3 // src     Reverb Comb Address 3 Right
+    // uint16_t rev16_mLCOMB4 // src     Reverb Comb Address 4 Left
+    // uint16_t rev17_mRCOMB4 // src     Reverb Comb Address 4 Right
+    // uint16_t rev18_dLDIFF  // src     Reverb Different Side Reflect Address 2 Left
+    // uint16_t rev19_dRDIFF  // src     Reverb Different Side Reflect Address 2 Right
+    // uint16_t rev1A_mLAPF1  // src/dst Reverb APF Address 1 Left
+    // uint16_t rev1B_mRAPF1  // src/dst Reverb APF Address 1 Right
+    // uint16_t rev1C_mLAPF2  // src/dst Reverb APF Address 2 Left
+    // uint16_t rev1D_mRAPF2  // src/dst Reverb APF Address 2 Right
+    // uint16_t rev1E_vLIN    // volume  Reverb Input Volume Left
+    // uint16_t rev1F_vRIN    // volume  Reverb Input Volume Right  
 };
 
 #endif // SPU_PRIVATE
 
+#ifdef SPU_SECTORS
+struct spu_adpcm_sector
+{
+    uint8_t shift : 4;
+    uint8_t filter: 2;
+    uint8_t       : 2;
+
+    uint8_t loop_start : 1;
+    uint8_t loop_repeat: 1;
+    uint8_t loop_end   : 1;
+    uint8_t            : 5;
+    
+    uint8_t data[14];
+};
+#endif
+
 extern uint32_t  read_spu( uint32_t address );
 extern void     write_spu( uint32_t address, uint32_t data );
+
+extern void task_spu( void );
 
 #endif // SPU_H_INCLUDED
