@@ -143,10 +143,10 @@ int main( int argc , char **argv )
     pthread_t thread_debug;
     pthread_t thread_system;
 
-    assert(!pthread_create(&thread_system, NULL, task_system, NULL));
+    // assert(!pthread_create(&thread_system, NULL, task_system, NULL));
     assert(!pthread_create(&thread_debug, NULL, task_debug, NULL));
 
-    wait_system_ready();
+    // wait_system_ready();
 
     assert(!pthread_create(&thread_core, NULL, task_core, (void *) &core_args));
 

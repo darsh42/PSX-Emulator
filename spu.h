@@ -221,6 +221,8 @@ struct spu_adpcm_sector
 
 extern uint32_t  read_spu( uint32_t address );
 extern void     write_spu( uint32_t address, uint32_t data );
+extern uint32_t  read_spu_voice( uint32_t address );
+extern void     write_spu_voice( uint32_t address, uint32_t data );
 
 extern void task_spu( void );
 

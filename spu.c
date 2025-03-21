@@ -10,6 +10,48 @@
 
 struct spu spu;
 
+uint32_t read_spu_voice( uint32_t address )
+{
+    uint32_t data, voice = (address & 0x000000F0) >> 4;
+
+    switch (address & 0xFFFFFF0F)
+    {
+        case (spu_voice_volume_left_right_base   ): break;
+        case (spu_voice_adpcm_sample_rate_base   ): data = spu.adpcm_sample_rate[voice];    break;
+        case (spu_voice_adpcm_start_address_base ): data = spu.adpcm_start_address[voice];  break;
+        case (spu_voice_adsr_base                ): break;
+        case (spu_voice_adsr_current_volume_base ): break;
+        case (spu_voice_adpcm_repeat_address_base): data = spu.adpcm_repeat_address[voice]; break;
+        default:
+            break;
+    }
+
+    TRACE_SPU("read_spu_voice", "address: %08x | data: %08x\n", address, data);
+
+    return data;
+}
+
+void write_spu_voice( uint32_t address, uint32_t data)
+{
+    /* check for voice registers */
+    
+    uint32_t voice = (address & 0x000000F0) >> 4;
+
+    switch (address & 0xFFFFFF0F)
+    {
+        case (spu_voice_volume_left_right_base   ): break;
+        case (spu_voice_adpcm_sample_rate_base   ): spu.adpcm_sample_rate[voice]   = data;  break;
+        case (spu_voice_adpcm_start_address_base ): spu.adpcm_start_address[voice] = data;  break;
+        case (spu_voice_adsr_base                ): break;
+        case (spu_voice_adsr_current_volume_base ): break;
+        case (spu_voice_adpcm_repeat_address_base): spu.adpcm_repeat_address[voice] = data; break;
+        default:
+            break;
+    }
+
+    TRACE_SPU("write_spu_voice", "address: %08x | data: %08x\n", address, data);
+}
+
 uint32_t read_spu( uint32_t address )
 {
     uint32_t data = 0;
@@ -34,25 +76,8 @@ uint32_t read_spu( uint32_t address )
         case (spu_cd_volume_left_right                    ): break;
         case (spu_extern_volume_left_right                ): break;
         case (spu_current_main_volume_left_right          ): break;
-        default: {
-            /* check for voice registers */
-            
-            uint32_t voice = (address & 0x000000F0) >> 4;
-
-            switch (address & 0xFFFFFF0F)
-            {
-                case (spu_voice_volume_left_right_base   ): break;
-                case (spu_voice_adpcm_sample_rate_base   ): data = spu.adpcm_sample_rate[voice];    break;
-                case (spu_voice_adpcm_start_address_base ): data = spu.adpcm_start_address[voice];  break;
-                case (spu_voice_adsr_base                ): break;
-                case (spu_voice_adsr_current_volume_base ): break;
-                case (spu_voice_adpcm_repeat_address_base): data = spu.adpcm_repeat_address[voice]; break;
-                default:
-                    break;
-            }
-
+        default: 
             break;
-        }
     }
 
     TRACE_SPU("read_spu ", "address: %08x | data: %08x\n", address, data);
@@ -82,25 +107,8 @@ void write_spu( uint32_t address, uint32_t data )
         case (spu_cd_volume_left_right                    ): break;
         case (spu_extern_volume_left_right                ): break;
         case (spu_current_main_volume_left_right          ): break;
-        default: {
-            /* check for voice registers */
-            
-            uint32_t voice = (address & 0x000000F0) >> 4;
-
-            switch (address & 0xFFFFFF0F)
-            {
-                case (spu_voice_volume_left_right_base   ): break;
-                case (spu_voice_adpcm_sample_rate_base   ): spu.adpcm_sample_rate[voice]   = data;  break;
-                case (spu_voice_adpcm_start_address_base ): spu.adpcm_start_address[voice] = data;  break;
-                case (spu_voice_adsr_base                ): break;
-                case (spu_voice_adsr_current_volume_base ): break;
-                case (spu_voice_adpcm_repeat_address_base): spu.adpcm_repeat_address[voice] = data; break;
-                default:
-                    break;
-            }
-
+        default:
             break;
-        }
     }
 
     TRACE_SPU("write_spu", "address: %08x | data: %08x\n", address, data);

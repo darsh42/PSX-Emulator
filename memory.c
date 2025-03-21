@@ -81,15 +81,14 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 
     if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
     {
-        enum memory_map device_address = address;
-
-        switch (device_address)
+        switch ((enum memory_map) address)
         {
+            default: break;
             /* INTERRUPT REGISTERS */
             case (i_stat):
             case (i_mask):
                 write_interrupts(address, data);
-                break;
+                return;
             /* DMA REGISTERS */
             case(dma0_mdec_in_madr ):
             case(dma0_mdec_in_brc  ):
@@ -115,12 +114,12 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(dpcr              ):
             case(dicr              ):
                 write_dma(address, data);
-                break;
+                return;
             /* GPU REGISTERS */
             case(gp0_gpu_read      ):
             case(gp1_gpu_stat      ):
                 write_gpu(address, data);
-                break;
+                return;
             /* TIMER REGISTERS */
             case(timer_0_current_counter):
             case(timer_0_mode           ):
@@ -132,14 +131,8 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(timer_2_mode           ):
             case(timer_2_target         ):
                 write_timers(address, data);
-                break;
+                return;
             /* SPU */
-            case(spu_voice_volume_left_right_base            ):
-            case(spu_voice_adpcm_sample_rate_base            ):
-            case(spu_voice_adpcm_start_address_base          ):
-            case(spu_voice_adsr_base                         ):
-            case(spu_voice_adsr_current_volume_base          ):
-            case(spu_voice_adpcm_repeat_address_base         ):
             case(spu_main_volume_left_right                  ):
             case(spu_reverb_output_volume_left_right         ):
             case(spu_voice_key_on                            ):
@@ -159,7 +152,7 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
             case(spu_extern_volume_left_right                ):
             case(spu_current_main_volume_left_right          ):
                 write_spu(address, data);
-                break;
+                return;
             /* MEMORY CONTROL 1 */
             case(expansion_1_base_address): 
             case(expansion_2_base_address): 
@@ -175,7 +168,24 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 			   	goto memory_registers_write;
         }
 
-        return;
+        /* spu voice registers */
+        if (address >= 0x1F801C00 && address <= 0x1F801D7E)
+        {
+            printf("actuall address: %08x | base address: %08x\n", address, address & 0xFFFFFE0F);
+
+            switch (address & 0xFFFFFE0F)
+            {
+                case (spu_voice_volume_left_right_base   ):
+                case (spu_voice_adpcm_sample_rate_base   ):
+                case (spu_voice_adpcm_start_address_base ):
+                case (spu_voice_adsr_base                ):
+                case (spu_voice_adsr_current_volume_base ):
+                case (spu_voice_adpcm_repeat_address_base):
+                    write_spu_voice(address , data);
+                    return;
+            }
+        }
+
     }
 
 /* if the memory registers are accessed treat them as non-devices*/
@@ -249,6 +259,7 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
     {
         switch ((enum memory_map) address)
         {
+            default: return;
             /* INTERRUPT REGISTERS */
             case (i_stat):
             case (i_mask):
@@ -298,12 +309,6 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
                 *data = read_timers(address);
                 break;
             /* SPU */
-            case(spu_voice_volume_left_right_base            ):
-            case(spu_voice_adpcm_sample_rate_base            ):
-            case(spu_voice_adpcm_start_address_base          ):
-            case(spu_voice_adsr_base                         ):
-            case(spu_voice_adsr_current_volume_base          ):
-            case(spu_voice_adpcm_repeat_address_base         ):
             case(spu_main_volume_left_right                  ):
             case(spu_reverb_output_volume_left_right         ):
             case(spu_voice_key_on                            ):
@@ -337,6 +342,22 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
             /* CACHE CONTROL / KSEG2 */
             case(cache_control           ): 
 				goto memory_registers_read;
+        }
+
+        if (address >= 0x1F801C00 && address <= 0x1F801D7E)
+        {
+            /* spu voice registers */
+            switch (address & 0xFFFFFE0F)
+            {
+                case (spu_voice_volume_left_right_base   ):
+                case (spu_voice_adpcm_sample_rate_base   ):
+                case (spu_voice_adpcm_start_address_base ):
+                case (spu_voice_adsr_base                ):
+                case (spu_voice_adsr_current_volume_base ):
+                case (spu_voice_adpcm_repeat_address_base):
+                    *data = read_spu_voice(address);
+                    break;
+            }
         }
 
         switch (size) 
