@@ -171,14 +171,14 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
         /* spu voice registers */
         if (address >= 0x1F801C00 && address <= 0x1F801D7E)
         {
-            printf("actuall address: %08x | base address: %08x\n", address, address & 0xFFFFFE0F);
-
             switch (address & 0xFFFFFE0F)
             {
-                case (spu_voice_volume_left_right_base   ):
+                case (spu_voice_volume_left_base         ):
+                case (spu_voice_volume_right_base        ):
                 case (spu_voice_adpcm_sample_rate_base   ):
                 case (spu_voice_adpcm_start_address_base ):
-                case (spu_voice_adsr_base                ):
+                case (spu_voice_adsr_lower_base          ):
+                case (spu_voice_adsr_upper_base          ):
                 case (spu_voice_adsr_current_volume_base ):
                 case (spu_voice_adpcm_repeat_address_base):
                     write_spu_voice(address , data);
@@ -349,10 +349,12 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
             /* spu voice registers */
             switch (address & 0xFFFFFE0F)
             {
-                case (spu_voice_volume_left_right_base   ):
+                case (spu_voice_volume_left_base         ):
+                case (spu_voice_volume_right_base        ):
                 case (spu_voice_adpcm_sample_rate_base   ):
                 case (spu_voice_adpcm_start_address_base ):
-                case (spu_voice_adsr_base                ):
+                case (spu_voice_adsr_lower_base          ):
+                case (spu_voice_adsr_upper_base          ):
                 case (spu_voice_adsr_current_volume_base ):
                 case (spu_voice_adpcm_repeat_address_base):
                     *data = read_spu_voice(address);
@@ -439,35 +441,17 @@ void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
     switch ( size )
     {
         case 1:
-            memory.vram[address + 0][0]  = (data >>  0);
-            memory.vram[address + 0][1]  = (data >>  0);
-            memory.vram[address + 0][2]  = (data >>  0);
+            *(memory.vram + address + 0)  = (data >>  0);
             break;
         case 2:
-            memory.vram[address + 0][0]  = (data >>  0);
-            memory.vram[address + 0][1]  = (data >>  0);
-            memory.vram[address + 0][2]  = (data >>  0);
-
-            memory.vram[address + 1][0]  = (data >>  8);
-            memory.vram[address + 1][1]  = (data >>  8);
-            memory.vram[address + 1][2]  = (data >>  8);
+            *(memory.vram + address + 0)  = (data >>   0);
+            *(memory.vram + address + 1)  = (data >>   8);
             break;
         case 4:
-            memory.vram[address + 0][0]  = (data >>  0);
-            memory.vram[address + 0][1]  = (data >>  0);
-            memory.vram[address + 0][2]  = (data >>  0);
-
-            memory.vram[address + 1][0]  = (data >>  8);
-            memory.vram[address + 1][1]  = (data >>  8);
-            memory.vram[address + 1][2]  = (data >>  8);
-
-            memory.vram[address + 2][0]  = (data >> 16);
-            memory.vram[address + 2][1]  = (data >> 16);
-            memory.vram[address + 2][2]  = (data >> 16);
-
-            memory.vram[address + 3][0]  = (data >> 24);
-            memory.vram[address + 3][1]  = (data >> 24);
-            memory.vram[address + 3][2]  = (data >> 24);
+            *(memory.vram + address + 0)  = (data >>   0);
+            *(memory.vram + address + 1)  = (data >>   8);
+            *(memory.vram + address + 2)  = (data >>  16);
+            *(memory.vram + address + 3)  = (data >>  32);
             break;
     }
 }
@@ -484,17 +468,17 @@ void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
     switch ( size )
     {
         case 1:
-            *data |= memory.vram[address + 0][0] <<  0;
+            *data |= *(memory.vram + address + 0) <<  0;
             break;
         case 2:
-            *data |= memory.vram[address + 0][0] <<  0;
-            *data |= memory.vram[address + 1][0] <<  8;
+            *data |= *(memory.vram + address + 0) <<  0;
+            *data |= *(memory.vram + address + 1) <<  8;
             break;
         case 4:
-            *data |= memory.vram[address + 0][0] <<  0;
-            *data |= memory.vram[address + 1][0] <<  8;
-            *data |= memory.vram[address + 2][0] << 16;
-            *data |= memory.vram[address + 3][0] << 24;
+            *data |= *(memory.vram + address + 0) <<  0;
+            *data |= *(memory.vram + address + 1) <<  8;
+            *data |= *(memory.vram + address + 2) << 16;
+            *data |= *(memory.vram + address + 3) << 24;
             break;
     }
 
@@ -513,8 +497,10 @@ void memory_write_sound_ram( uint32_t address, uint32_t data, uint32_t size )
     switch ( size )
     {
         case 1:
-            *(memory.sound_ram + address + 0)  = (data >>  0);
-            break;
+            /* ODD  8 bit writes are ignored                  *
+             * EVEN 8 bit writes are treated as 16 bit writes */
+            if (address % 2 > 0)
+                break;
         case 2:
             *(memory.sound_ram + address + 0)  = (data >>  0);
             *(memory.sound_ram + address + 1)  = (data >>  8);
@@ -561,7 +547,7 @@ void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
 void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **sector)
 {
     assert(sector);
-    assert(address < SOUND_RAM_SIZE - sizeof(struct cdrom_sector_empty));
+    assert(address < SOUND_RAM_SIZE - sizeof(struct spu_adpcm_sector));
     
     *sector = (struct spu_adpcm_sector *) &memory.sound_ram[address];
 }

@@ -148,6 +148,9 @@ struct cpu
     /* branch delay value */
     uint32_t branch_v;
     enum cpu_load_delay branch_s;
+
+    /* sideloading exe */
+    const char *sideload_exe;
 };
 
 #endif // CPU_PRIVATE
@@ -160,7 +163,8 @@ extern void cpu_load_initial_exe_registers(uint32_t initial_pc,
                                            uint32_t initial_sp_fp_offset);
 extern uint32_t cpu_get_pc( void );
 
-extern void init_cpu( void );
+extern void init_cpu(const char *file_bios,
+                     const char *file_exe);
 extern void task_cpu( void );
 
 #endif // CPU_H_INCLUDED

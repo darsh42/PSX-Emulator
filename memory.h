@@ -7,31 +7,22 @@
 #include <pthread.h>
 #include <stdint.h>
 
-#define _STR(x) #x
-#define MMRY_CTRL_ENUM_ACCESS(e) memory.##_STR(e)
-
-#define RAM_START  0x00000000
-#define RAM_END    0x1F000000
-#define DEV_START  0x1F801000
-#define DEV_END    0x1F802000
-#define BIOS_START 0x1FC00000
-#define BIOS_END   0x1FC80000
 #ifdef MEMORY_PRIVATE
 
 // utilities
-#include "trace.h"
-
-#ifdef ENABLE_MEMORY_TRACE
-#define TRACE_MEM(function, format, ...) trace("memory.c", function, format, __VA_ARGS__)
-#else
 #define TRACE_MEM(function, format, ...) 
+
+#include "trace.h"
+#ifdef ENABLE_MEMORY_TRACE
+#undef  TRACE_MEM(function, format, ...)
+#define TRACE_MEM(function, format, ...) trace("memory.c", function, format, __VA_ARGS__)
 #endif
 
-#define RAM_SIZE 0x200000
-#define SCRPD_SIZE 0x400
-#define BIOS_SIZE 0x80000
-#define VRAM_SIZE 0x80000
-#define SOUND_RAM_SIZE 0x8000
+#define RAM_SIZE       0x200000
+#define SCRPD_SIZE     0x400
+#define BIOS_SIZE      0x80000
+#define VRAM_SIZE      0x100000
+#define SOUND_RAM_SIZE 0x80000
 
 /* file formats */
 struct psx_exe_header
@@ -52,10 +43,10 @@ struct psx_exe_header
 };
 
 struct memory {
-    uint8_t        ram[RAM_SIZE];
-    uint8_t scratchpad[SCRPD_SIZE];
-    uint8_t       bios[BIOS_SIZE];
-    uint8_t       vram[VRAM_SIZE][3];
+    uint8_t        ram[      RAM_SIZE];
+    uint8_t scratchpad[    SCRPD_SIZE];
+    uint8_t       bios[     BIOS_SIZE];
+    uint8_t       vram[     VRAM_SIZE];
     uint8_t  sound_ram[SOUND_RAM_SIZE];
     
     /* memory control 1 */
@@ -134,12 +125,15 @@ enum memory_map
     gp1_gpu_stat             = 0x1F801814,
     
     /* spu registers */
-    spu_voice_volume_left_right_base             = 0x1F801C00, // base, base + N * 0x10 for each voice
+    spu_voice_volume_left_base                   = 0x1F801C00, // base, base + N * 0x10 for each voice
+    spu_voice_volume_right_base                  = 0x1F801C02, // base, base + N * 0x10 for each voice
     spu_voice_adpcm_sample_rate_base             = 0x1F801C04, // base, base + N * 0x10 for each voice 
     spu_voice_adpcm_start_address_base           = 0x1F801C06, // base, base + N * 0x10 for each voice 
-    spu_voice_adsr_base                          = 0x1F801C08, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_lower_base                    = 0x1F801C08, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_upper_base                    = 0x1F801C0A, // base, base + N * 0x10 for each voice 
     spu_voice_adsr_current_volume_base           = 0x1F801C0C, // base, base + N * 0x10 for each voice 
     spu_voice_adpcm_repeat_address_base          = 0x1F801C0E, // base, base + N * 0x10 for each voice 
+
     spu_main_volume_left_right                   = 0x1F801D80,
     spu_reverb_output_volume_left_right          = 0x1F801D84,
     spu_voice_key_on                             = 0x1F801D88,

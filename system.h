@@ -6,23 +6,40 @@
 
 #ifdef PRIVATE_SYSTEM
 
+#include "trace.h"
+
+#define X(v) (((v) >>  0) & 0xffff)
+#define Y(v) (((v) >> 16) & 0xffff)
+#define TX(t) (((t) >> 0) & 0xff)
+#define TY(t) (((t) >> 8) & 0xff)
+#define R(c) (((c) >>  0) & 0x1f)
+#define G(c) (((c) >>  8) & 0x1f)
+#define B(c) (((c) >> 16) & 0x1f)
+
 #define NAME "psx"
-#define W 1024
-#define H 512
-#define X 0
-#define Y 0
+#define WIN_W 1024
+#define WIN_H 512
+#define WIN_X 0
+#define WIN_Y 0
 
 enum system_state {
     IDLE,
     RENDER
 };
 
+#define TRACE_SYS(function, format, ...)
+
 /* renderer type specific structures */
 #ifdef RENDERER_SDL
 
 #include <SDL2/SDL.h>
 
-#define INITIALIZE_FLAGS SDL_INIT_VIDEO
+#ifdef ENABLE_SYS_TRACE
+#undef  TRACE_SYS
+#define TRACE_SYS(function, format, ...) trace("system_sdl.c", function, format, __VA_ARGS__)
+#endif
+
+#define INITIALIZE_FLAGS SDL_INIT_VIDEO | SDL_INIT_AUDIO
 #define     WINDOW_FLAGS SDL_WINDOW_SHOWN
 
 #define SDL_CHECK_RET(expr) {assert((expr) == 0);}
@@ -30,10 +47,16 @@ enum system_state {
 
 struct system 
 {
+    /* VIDEO */
+    uint8_t frame_buffer[1024 * 512][3];
+
     SDL_Window   *window;
     SDL_Renderer *renderer;
     SDL_Texture  *screen;
     SDL_Rect      scale;
+    
+    /* AUDIO */
+    SDL_AudioStream *audio_stream;
 
     uint32_t render_next_frame;
 };
@@ -103,6 +126,7 @@ extern void render_four_point_polygon_shaded_textured(
 
 extern void wait_system_ready( void );
 extern void system_render( void );
+extern void system_write_audio_sample(int32_t sample);
 extern void *task_system( void *ignore );
 
 #endif // SYSTEM_H_INCLUDED

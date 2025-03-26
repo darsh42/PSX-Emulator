@@ -4,7 +4,7 @@
 
 #include "trace.h"
 
-FILE *trace_file = NULL;
+FILE *trace_file   = NULL;
 
 void trace( char *file, char *function_call, char *format_string, ... )
 {

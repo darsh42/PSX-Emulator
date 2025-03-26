@@ -37,6 +37,10 @@ define RELATIVE
     p/x (cpu.cir & ((1 << 16) - 1))
 end
 
+define instr
+    
+end
+
 # gpu debugging features
 
 define gpu_misc
@@ -51,7 +55,8 @@ define gpu_misc
     printf "    vram_direct_access_y: %d\n", gpu.vram_direct_access_y
     printf "    vram_direct_access_w: %d\n", gpu.vram_direct_access_w
     printf "    vram_direct_access_h: %d\n", gpu.vram_direct_access_h
-    printf "    vram_direct_access_c: %d\n", gpu.vram_direct_access_c
+    printf "    vram_direct_access_cx: %d\n", gpu.vram_direct_access_cx
+    printf "    vram_direct_access_cy: %d\n", gpu.vram_direct_access_cy
     printf "\n"
     printf "    texture_window_mask_x:    %d\n", gpu.texture_window_mask_x   
     printf "    texture_window_mask_y:    %d\n", gpu.texture_window_mask_y   
@@ -181,3 +186,45 @@ define timers
     printf "        hit_target          : %d\n", timers.t2.mode.hit_target          
     printf "        hit_max             : %d\n", timers.t2.mode.hit_max             
 end             
+
+# spu debugging features 
+
+define spu_voice
+    set $voice = 0
+    printf "spu voice registers:\n"
+    printf "adpcm_start_address:\n"
+    while ($voice < 24)
+        printf "    voice %02d: %08x\n", $voice, spu.adpcm_start_address[$voice]
+        set $voice = $voice + 1
+    end
+    set $voice = 0
+    printf "adpcm_repeat_address:\n"
+    while ($voice < 24)
+        printf "    voice %02d: %08x\n", $voice, spu.adpcm_repeat_address[$voice]
+        set $voice = $voice + 1
+    end
+    set $voice = 0
+    printf "adpcm_current_address:\n"
+    while ($voice < 24)
+        printf "    voice %02d: %08x\n", $voice, spu.adpcm_current_address[$voice]
+        set $voice = $voice + 1
+    end
+end
+
+define spu_registers
+    printf "spucnt\n"
+    printf "    cd_audio_enable         : %d\n", spu.spucnt.cd_audio_enable        
+    printf "    external_audio_enable   : %d\n", spu.spucnt.external_audio_enable  
+    printf "    cd_audio_reverb         : %d\n", spu.spucnt.cd_audio_reverb        
+    printf "    external_audio_reverb   : %d\n", spu.spucnt.external_audio_reverb  
+    printf "    sound_ram_transfer_mode : %d\n", spu.spucnt.sound_ram_transfer_mode
+    printf "    irq9_enable             : %d\n", spu.spucnt.irq9_enable            
+    printf "    reverb_master           : %d\n", spu.spucnt.reverb_master          
+    printf "    noise_frequency_step    : %d\n", spu.spucnt.noise_frequency_step   
+    printf "    noise_frequency_shift   : %d\n", spu.spucnt.noise_frequency_shift  
+    printf "    mute_spu                : %d\n", spu.spucnt.mute_spu               
+    printf "    spu_enable              : %d\n", spu.spucnt.spu_enable             
+end
+
+define spu_internal
+end

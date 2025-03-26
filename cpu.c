@@ -3,9 +3,10 @@
 
 #define CPU_PRIVATE
 #include "cpu.h"
-#include "bios.h"
 #include "timer.h"
 #include "memory.h"
+
+// #define ENABLE_SIDELOADING
 
 #define DO_LOAD_DELAY               \
 {                                   \
@@ -18,6 +19,7 @@
     cpu.load_d = 0;                 \
 }
 
+int cpu_trace_enabled = 1;
 
 struct cpu cpu;
 
@@ -86,8 +88,9 @@ static const char *cop0_register_names[] =
 
 static void cpu_trace_instruction( char *mneumonic )
 {
-    TRACE_CPU("cpu_execute", "pc: %08x | op: %08x rs(%04s): %08x rt(%04s): %08x rd(%04s): %08x shamt: %08x funct: %08x | imm16: %08x imm25: %08x | %s\n",
-            cpu.pc, OP, cpu_register_names[RS], reg(RS), cpu_register_names[RT], reg(RT), cpu_register_names[RD], reg(RD), SHAMT, FUNCT, IMM16, IMM25, mneumonic);
+    if (cpu_trace_enabled)
+        TRACE_CPU("cpu_execute", "pc: %08x | op: %08x rs(%04s): %08x rt(%04s): %08x rd(%04s): %08x shamt: %08x funct: %08x | imm16: %08x imm25: %08x | %s\n",
+                cpu.pc, OP, cpu_register_names[RS], reg(RS), cpu_register_names[RT], reg(RT), cpu_register_names[RD], reg(RD), SHAMT, FUNCT, IMM16, IMM25, mneumonic);
 }
 
 static void cpu_branch( void )
@@ -1146,20 +1149,23 @@ static inline void cpu_execute( void )
     /* handle branch delay */
     switch (cpu.branch_s)
     {
-        case DELAY:    
+        case DELAY:   
             cpu.branch_s = TRANSFER;
             break;
         case TRANSFER: 
+            cpu.pc       = cpu.branch_v;
             cpu.branch_s = UNUSED;
-
-            cpu.pc = cpu.branch_v;
-
             cpu.branch_v = 0;
-
             break;
-        case UNUSED:   
+        case UNUSED: 
             break;
     }
+
+#ifdef ENABLE_SIDELOADING
+    /* check for side loading */
+    if (cpu.sideload_exe && (cpu.pc & 0xFFFF0000) == 0x80030000)
+        memory_load_exe( cpu.sideload_exe );
+#endif
 
     /* read and increment program counter */
     memory_read(cpu.pc, &cpu.cir, 4);
@@ -1240,25 +1246,34 @@ secondary_op:
 branch_op:
     switch (RT) 
     {
-        case (0x00): bltz();             break;
-        case (0x01): bgez();             break;
-        case (0x16): bltzal();           break;
-        case (0x17): bgezal();           break;
+        case 0x00: bltz();               break;
+        case 0x01: bgez();               break;
+        case 0x16: bltzal();             break;
+        case 0x17: bgezal();             break;
         default:
             assert(0 && "Unhandled instruction\n");
             break;
     } goto cycle_complete;
 
 cycle_complete:
-    task_bios();
+    /* write tty */
+#ifdef TRACE_TTY
+    if (((cpu.pc & 0x1fffffff) == 0xa0 && cpu.r[9] == 0x3c) ||
+        ((cpu.pc & 0x1fffffff) == 0xb0 && cpu.r[9] == 0x3d))
+        if (cpu.r[4] != 0) putchar((char) (cpu.r[4]));
+#endif
 
     cpu.pc  += 4;
     cpu.r[0] = 0;
 }
 
-void init_cpu( void )
+void init_cpu(const char *file_bios,
+              const char *file_exe)
 {
-    cpu.pc = 0xbfc00000;
+    cpu.pc           = 0xbfc00000;
+    cpu.sideload_exe = file_exe;
+
+    memory_load_bios(file_bios);
 }
 
 void task_cpu( void )

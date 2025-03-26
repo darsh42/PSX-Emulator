@@ -158,7 +158,7 @@ void dma_transfer_request_gpu( void )
     uint32_t block_size  = brc.bs;
     uint32_t step = (chcr.address_step) ? -4: +4;
     
-    while (block_count != 0 && block_size != 0)
+    while (!(block_count == 0 && block_size == 0))
     {
         /* if end of block go to next block */
         if (block_size == 0)
@@ -166,7 +166,6 @@ void dma_transfer_request_gpu( void )
             block_size = brc.bs;
             block_count--;
         }
-        
         /* get next gpu address */
         vram_address = gpu_get_vram_address();
 
@@ -174,9 +173,15 @@ void dma_transfer_request_gpu( void )
         if ( chcr.transfer_direction == RAM_TO_DEVICE) { memory_read( ram_address, &data, 4); memory_write_vram( vram_address,  data, 4); }
         else                                           { memory_read_vram( vram_address, &data, 4); memory_write( ram_address,  data, 4); }
 
-        block_size--;
         ram_address += step;
+        block_size--;
     }
+
+#error BUG: incorrect dma transfer request for gpu
+    /* finish dma transfer */
+    chcr.start_busy   = 0;
+    gpu_notify_dma_block_end();
+    dma.dma2_gpu_chcr = chcr.value;
 }
 void dma_transfer_request_spu( void )
 {

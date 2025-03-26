@@ -54,18 +54,20 @@ void write_timers( uint32_t address, uint32_t _data )
     TRACE_TIMERS("write_timers", "address: %08x | data: %08x\n", address, data);
 }
 
-static void timer_reset( struct timer *timer )
+static void timer_reset( struct timer *_timer )
 {
-    if ( timer->mode.reset_after )
+    struct timer timer = *_timer;
+
+    if ( timer.mode.reset_after )
     {
         /* counter reset when target reached */
-        if ( timer->current_count >= timer->target_count )
+        if ( timer.current_count >= timer.target_count )
         {
-            timer->current_count   = 0;
-            timer->mode.hit_target = 1;
+            timer.current_count   = 0;
+            timer.mode.hit_target = 1;
 
             /* handle interrupt */
-            if ( timer->mode.irq_when_target )
+            if ( timer.mode.irq_when_target )
             {
             }
         }
@@ -73,13 +75,13 @@ static void timer_reset( struct timer *timer )
     else
     {
         /* counter reset on overflow         */
-        if ( timer->current_count >= 0xFFFF )
+        if ( timer.current_count >= 0xFFFF )
         {
-            timer->current_count = 0;
-            timer->mode.hit_max  = 1;
+            timer.current_count = 0;
+            timer.mode.hit_max  = 1;
 
             /* handle interrupt */
-            if ( timer->mode.irq_when_max )
+            if ( timer.mode.irq_when_max )
             {
             }
         }

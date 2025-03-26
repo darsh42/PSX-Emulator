@@ -4,6 +4,8 @@
 
 #ifdef SPU_PRIVATE
 
+#include "trace.h"
+
 #ifdef ENABLE_SPU_TRACE
 #define TRACE_SPU(function, format, ...) trace("spu.c", function, format, __VA_ARGS__)
 #else
@@ -124,6 +126,11 @@ struct spu
     union spucnt  spucnt;
     union spustat spustat;
 
+    /* spu memory control registers */
+    uint16_t sound_ram_data_transfer_current_address;
+    uint16_t sound_ram_data_transfer_address;
+    uint16_t sound_ram_data_transfer_control;
+
     /*
 
    1F801D84h spu   vLOUT   volume  Reverb Output Volume Left
@@ -207,8 +214,8 @@ struct spu
 struct spu_adpcm_sector
 {
     uint8_t shift : 4;
-    uint8_t filter: 2;
-    uint8_t       : 2;
+    uint8_t filter: 3;
+    uint8_t       : 1;
 
     uint8_t loop_start : 1;
     uint8_t loop_repeat: 1;

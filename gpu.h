@@ -104,7 +104,8 @@ struct gpu {
     uint32_t vram_direct_access_y; // minimum y
     uint32_t vram_direct_access_w; // access width
     uint32_t vram_direct_access_h; // access height
-    uint32_t vram_direct_access_c; // access cursor - where in vram is accessed
+    uint32_t vram_direct_access_cx; // access cursor - where in vram is accessed
+    uint32_t vram_direct_access_cy; // access cursor - where in vram is accessed
     uint32_t vram_direct_access_d; // access direction
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)

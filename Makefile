@@ -7,7 +7,7 @@ TARGET  := psx
 
 LIBRARY := -lpthread -lSDL2
 
-CFLAGS := -g -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes -Wstrict-overflow=5 -pthread # -fsanitize=address  -DDEBUG -Wpedantic 
+CFLAGS := -g -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes -Wstrict-overflow=5 -pthread # -fsanitize=address  # -DDEBUG -Wpedantic 
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBRARY) -I.
@@ -17,7 +17,7 @@ $(TARGET): $(OBJECTS)
 
 .PHONY: clean run debug stub run_debug all
 
-BIOS := scph1001.bin
+BIOS := SCPH1001.BIN
 GAME := .
 CPU_TEST := psxtest_cpu.exe
 
@@ -31,6 +31,4 @@ cputest: $(TARGET)
 	./$< -b $(BIOS) -e $(CPU_TEST) -g .$(GAME)
 
 debug: $(TARGET)
-	gdb -iex "set auto-load safe-path $(shell pwd)" --args ./$< -b $(BIOS) -e $(CPU_TEST) -g .$(GAME)
-
-
+	gdb -iex "set auto-load safe-path $(shell pwd)" --args ./$< -b $(BIOS) -g .$(GAME) # -e $(CPU_TEST) 
