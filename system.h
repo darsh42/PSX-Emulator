@@ -8,13 +8,13 @@
 
 #include "trace.h"
 
-#define X(v) (((v) >>  0) & 0xffff)
-#define Y(v) (((v) >> 16) & 0xffff)
-#define TX(t) (((t) >> 0) & 0xff)
-#define TY(t) (((t) >> 8) & 0xff)
-#define R(c) (((c) >>  0) & 0x1f)
-#define G(c) (((c) >>  8) & 0x1f)
-#define B(c) (((c) >> 16) & 0x1f)
+#define X(v)  (((v) >>  0) & 0xffff)
+#define Y(v)  (((v) >> 16) & 0xffff)
+#define TX(t) (((t) >>  0) & 0xff)
+#define TY(t) (((t) >>  8) & 0xff)
+#define R(c)  (((c) >>  0) & 0x1f)
+#define G(c)  (((c) >>  8) & 0x1f)
+#define B(c)  (((c) >> 16) & 0x1f)
 
 #define NAME "psx"
 #define WIN_W 1024
@@ -70,6 +70,43 @@ struct system
 #endif // RENDERER_VULKAN
 
 #endif // PRIVATE_SYSTEM
+
+#include "fifo.h"
+
+/* 
+ * Parameters to gpu rendering functions 
+ *      c<num> -> color 
+ *      v<num> -> vertex
+ *      t<num> -> tex coord + (clut/page) 
+ *      s      -> size (rectangle only) 
+ */
+extern void render_line_monochrome(
+        uint32_t c, uint32_t v1,
+                    uint32_t v2,
+        bool semi_transparent
+);
+extern void render_line_shaded(
+        uint32_t c1, uint32_t v1,
+        uint32_t c2, uint32_t v2,
+        bool semi_transparent
+);
+extern void render_polyline_monochrome(
+        struct fifo gp0,
+        bool semi_transparent
+);
+extern void render_polyline_shaded(
+        struct fifo gp0,
+        bool semi_transparent
+);
+
+extern void render_rectangle_monochrome(
+        uint32_t c, uint32_t v, uint32_t s,
+        bool semi_transparent
+);
+extern void render_rectangle_textured(
+        uint32_t c, uint32_t v, uint32_t t_clut, uint32_t s,
+        bool semi_transparent, bool texture_blending
+);
 
 extern void render_three_point_polygon_monochrome(
     uint32_t c1, uint32_t v1, 

@@ -18,7 +18,7 @@ uint32_t read_gpu( uint32_t address )
         case( gp1_gpu_stat ): data = gpu.gpustat.value; break;
     }
 
-    TRACE_GPU("read_gpu ", "address: %08x | data: %08x\n", address, data);
+    TRACE_DEVMEM("gpu.c", "read_gpu ", "address: %08x | data: %08x\n", address, data);
 
     return data;
 }
@@ -31,20 +31,20 @@ void write_gpu( uint32_t address, uint32_t data )
         case( gp1_gpu_stat ): gpu.gp1 = data;            gpu.state = GPU_PROCESS_GP1; break;
     }
 
-    TRACE_GPU("write_gpu", "address: %08x | data: %08x\n", address, data);
+    TRACE_DEVMEM("gpu.c", "write_gpu ", "address: %08x | data: %08x\n", address, data);
 }
 
 /* if gpu is transferring data to or from vram it computes next address */
 uint32_t gpu_get_vram_address( void )
 {
-    #error BUG: computing correct vram memory addresses
+    // #error BUG: computing correct vram memory addresses
     assert(gpu.gpustat.ready_send_vram_cpu);
     
     /* compute vram address */
     uint32_t address = 2 * ((gpu.vram_direct_access_y + gpu.vram_direct_access_cy) * VRAM_WIDTH +
                             (gpu.vram_direct_access_x + gpu.vram_direct_access_cx));
     
-    /* increment count by number of bytes */
+    /* increment count by number of pixels */
     gpu.vram_direct_access_cx += 2;
 
     if (gpu.vram_direct_access_cx == gpu.vram_direct_access_w)
@@ -52,7 +52,7 @@ uint32_t gpu_get_vram_address( void )
         gpu.vram_direct_access_cy++;
         gpu.vram_direct_access_cx = 0;
         
-        if (gpu.vram_direct_access_cy > gpu.vram_direct_access_h)
+        if (gpu.vram_direct_access_cy == gpu.vram_direct_access_h)
         {
             /* if the address equal to the max coordinate end the transfer */
             gpu.gpustat.ready_send_vram_cpu = 0;
@@ -73,332 +73,705 @@ bool gpu_hblank( void ) { return (gpu.hblank); }
 bool gpu_vblank( void ) { return (gpu.vblank); }
 
 // gp0 instructions
-static void gp0_nop( void ) 
-{
-    (void) fifo_pop(&gpu.gp0);
-}
-
-static void vram_clear_cache( void ) 
-{
-    (void) fifo_pop(&gpu.gp0);
-}
-static void vram_fill_rectangle( void ) {}
-static void vram_to_vram_copy_rectangle( void ) {}
-static void cpu_to_vram_copy_rectangle( void ) 
-{
-    if (!fifo_has_length(&gpu.gp0, 3))
-        return;
-    
-    /* pop command */
-    (void) fifo_pop(&gpu.gp0);
-
-    uint32_t destination = fifo_pop(&gpu.gp0);
-    uint32_t dimensions  = fifo_pop(&gpu.gp0);
-    
-    /* set the conditions */ 
-    gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
-    gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
-    gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
-    gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
-    
-    /* set the counter to 0 */
-    gpu.vram_direct_access_cx = 0;
-    gpu.vram_direct_access_cy = 0;
-
-    /* set the direction to cpu to vram */
-    gpu.vram_direct_access_d = 0;
-
-    /* set the gpu state */
-    gpu.gpustat.ready_send_vram_cpu = 1;
-}
-
-static void vram_to_cpu_copy_rectangle( void ) 
-{
-    if (!fifo_has_length(&gpu.gp0, 3))
-        return;
-    
-    /* pop command */
-    (void) fifo_pop(&gpu.gp0);
-
-    uint32_t destination = fifo_pop(&gpu.gp0);
-    uint32_t dimensions  = fifo_pop(&gpu.gp0);
-    
-    /* set the conditions */ 
-    gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
-    gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
-    gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
-    gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
-    
-    /* set the counter to 0 */
-    gpu.vram_direct_access_cx = 0;
-    gpu.vram_direct_access_cy = 0;
-
-    /* set the direction to vram to cpu */
-    gpu.vram_direct_access_d = 1;
-
-    /* set the gpu state */
-    gpu.gpustat.ready_send_vram_cpu = 1;
-}
-
+static void gp0_nop( void ) { TRACE_GPU("gp0_nop", "command: %08x\n", fifo_pop(&gpu.gp0)); }
 static void gp0_direct_vram_access( void ) 
 {
     /* BUG: possible issue when transferring using non-dma */
     switch (COMMAND(fifo_peek(&gpu.gp0)))
     {
-        case 0x01: vram_clear_cache(); break;
-        case 0x02: vram_fill_rectangle(); break;
-        case 0x80: vram_to_vram_copy_rectangle(); break;
-        case 0xa0: cpu_to_vram_copy_rectangle(); break;
-        case 0xc0: vram_to_cpu_copy_rectangle(); break;
+        case 0x01: /* vram clear vram */
+        case 0x02: /* fill rectangle in vram */
+        case 0x80: /* copy vram to vram */
+            /* pop command */
+            TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
+            break;
+        case 0xa0: /* copy cpu to vram */
+        {
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            
+            /* pop command */
+            TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
+
+            uint32_t destination = fifo_pop(&gpu.gp0);
+            uint32_t dimensions  = fifo_pop(&gpu.gp0);
+            
+            /* set the conditions */ 
+            gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
+            gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
+            gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
+            gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+            
+            /* set the counter to 0 */
+            gpu.vram_direct_access_cx = 0;
+            gpu.vram_direct_access_cy = 0;
+
+            /* set the direction to cpu to vram */
+            gpu.vram_direct_access_d = 0;
+
+            /* set the gpu state */
+            gpu.gpustat.ready_send_vram_cpu = 1;
+            break;
+        }
+        case 0xc0: /* copy vram to cpu */
+        {
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            
+            /* pop command */
+            TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
+
+            uint32_t destination = fifo_pop(&gpu.gp0);
+            uint32_t dimensions  = fifo_pop(&gpu.gp0);
+            
+            /* set the conditions */ 
+            gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
+            gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
+            gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
+            gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+            
+            /* set the counter to 0 */
+            gpu.vram_direct_access_cx = 0;
+            gpu.vram_direct_access_cy = 0;
+
+            /* set the direction to vram to cpu */
+            gpu.vram_direct_access_d = 1;
+
+            /* set the gpu state */
+            gpu.gpustat.ready_send_vram_cpu = 1;
+            break;
+        }
     }
 }
 static void gp0_interrupt_request( void ) {}
 static void gp0_render_polygons( void ) 
 {
+    uint32_t c1,      c2,      c3, c4;
+    uint32_t v1,      v2,      v3, v4;
+    uint32_t t1_clut, t2_page, t3, t4;
+
     switch (COMMAND(fifo_peek(&gpu.gp0))) {
-        case 0X20:
-            if (!fifo_has_length(&gpu.gp0, 4))
-                return;
-            render_three_point_polygon_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                    false);
+
+        /* 
+         * Monochrome Polygon
+         *    1st  Color+Command     (CcBbGgRrh)
+         *    2nd  Vertex1           (YyyyXxxxh)
+         *    3rd  Vertex2           (YyyyXxxxh)
+         *    4th  Vertex3           (YyyyXxxxh)
+         *   (5th) Vertex4           (YyyyXxxxh) (if any)
+         */
+
+        case 0X20: // GP0(20h) - Monochrome three-point polygon, opaque
+            if (!fifo_has_length(&gpu.gp0, 4)) return;
+
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            v3 = fifo_pop(&gpu.gp0);
+
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+
+            render_three_point_polygon_monochrome(c1, v1,
+                                                      v2,
+                                                      v3,
+                                                  false);
             break;
-        case 0X22:
-            if (!fifo_has_length(&gpu.gp0, 4))
-                return;
-            render_three_point_polygon_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                    true);
+        case 0X22: // GP0(22h) - Monochrome three-point polygon, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 4)) return;
+
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            v3 = fifo_pop(&gpu.gp0);
+
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+
+            render_three_point_polygon_monochrome(c1, v1,
+                                                      v2,
+                                                      v3,
+                                                  true);
             break;
-        case 0X28:
+        case 0X28: // GP0(28h) - Monochrome four-point polygon, opaque
+            if (!fifo_has_length(&gpu.gp0, 5)) return;
+
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            v3 = fifo_pop(&gpu.gp0); v4 = fifo_pop(&gpu.gp0);
+
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+
+            render_four_point_polygon_monochrome(c1, v1, 
+                                                     v2, 
+                                                     v3, 
+                                                     v4, 
+                                                 false);
+            break;
+        case 0X2A: // GP0(2Ah) - Monochrome four-point polygon, semi-transparent
             if (!fifo_has_length(&gpu.gp0, 5))
                 return;
-            render_four_point_polygon_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                    false);
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            v3 = fifo_pop(&gpu.gp0); v4 = fifo_pop(&gpu.gp0);
+
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+
+            render_four_point_polygon_monochrome(c1, v1, 
+                                                     v2, 
+                                                     v3, 
+                                                     v4, 
+                                                 true);
             break;
-        case 0X2A:
-            if (!fifo_has_length(&gpu.gp0, 5))
-                return;
-            render_four_point_polygon_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0),
-                    true);
+
+        /* 
+         * Textured Polygon
+         *   1st  Color+Command     (CcBbGgRrh) (color is ignored for raw-textures)
+         *   2nd  Vertex1           (YyyyXxxxh)
+         *   3rd  Texcoord1+Palette (ClutYyXxh)
+         *   4th  Vertex2           (YyyyXxxxh)
+         *   5th  Texcoord2+Texpage (PageYyXxh)
+         *   6th  Vertex3           (YyyyXxxxh)
+         *   7th  Texcoord3         (0000YyXxh)
+         *  (8th) Vertex4           (YyyyXxxxh) (if any)
+         *  (9th) Texcoord4         (0000YyXxh) (if any)
+         */
+
+        case 0X24: // GP0(24h) - Textured three-point polygon, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 7)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_textured(c1, v1, t1_clut,
+                                                    v2, t2_page,
+                                                    v3, t3,
+                                                false, true);
             break;
-        case 0X24:
-            if (!fifo_has_length(&gpu.gp0, 7))
-                return;
-            render_three_point_polygon_textured(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                    false, true);
+        case 0X25: // GP0(25h) - Textured three-point polygon, opaque, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 7)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_textured(c1, v1, t1_clut,
+                                                    v2, t2_page,
+                                                    v3, t3,
+                                                false, false);
             break;
-        case 0X25:
-            if (!fifo_has_length(&gpu.gp0, 7))
-                return;
-            render_three_point_polygon_textured(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                    false, false);
+        case 0X26: // GP0(26h) - Textured three-point polygon, semi-transparent, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 7)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_textured(c1, v1, t1_clut,
+                                                    v2, t2_page,
+                                                    v3, t3,
+                                                true, true);
             break;
-        case 0X26: 
-            if (!fifo_has_length(&gpu.gp0, 7))
-                return;
-            render_three_point_polygon_textured(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                    true, true);
+        case 0X27: // GP0(27h) - Textured three-point polygon, semi-transparent, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 7)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_textured(c1, v1, t1_clut,
+                                                    v2, t2_page,
+                                                    v3, t3,
+                                                true, false);
             break;
-        case 0X27: 
-            if (!fifo_has_length(&gpu.gp0, 7))
-                return;
-            render_three_point_polygon_textured(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                                        fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                    true, false);
+        case 0X2C: // GP0(2Ch) - Textured four-point polygon, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 9)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+                                     v4 = fifo_pop(&gpu.gp0); t4      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_textured(c1, v1, t1_clut,
+                                                   v2, t2_page,
+                                                   v3, t3,
+                                                   v4, t4,
+                                                false, true);
             break;
-        case 0X2C: 
-            if (!fifo_has_length(&gpu.gp0, 9))
-                return;
-            render_four_point_polygon_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                false, true);
+        case 0X2D: // GP0(2Dh) - Textured four-point polygon, opaque, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 9)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+                                     v4 = fifo_pop(&gpu.gp0); t4      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_textured(c1, v1, t1_clut,
+                                                   v2, t2_page,
+                                                   v3, t3,
+                                                   v4, t4,
+                                                false, false);
             break;
-        case 0X2D: 
-            if (!fifo_has_length(&gpu.gp0, 9))
-                return;
-            render_four_point_polygon_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                false, false);
+        case 0X2E: // GP0(2Eh) - Textured four-point polygon, semi-transparent, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 9)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+                                     v4 = fifo_pop(&gpu.gp0); t4      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_textured(c1, v1, t1_clut,
+                                                   v2, t2_page,
+                                                   v3, t3,
+                                                   v4, t4,
+                                                true, true);
             break;
-        case 0X2E: 
-            if (!fifo_has_length(&gpu.gp0, 9))
-                return;
-            render_four_point_polygon_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                true, true);
+        case 0X2F: // GP0(2Fh) - Textured four-point polygon, semi-transparent, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 9)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+                                     v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0); 
+                                     v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+                                     v4 = fifo_pop(&gpu.gp0); t4      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_textured(c1, v1, t1_clut,
+                                                   v2, t2_page,
+                                                   v3, t3,
+                                                   v4, t4,
+                                                true, false);
             break;
-        case 0X2F: 
-            if (!fifo_has_length(&gpu.gp0, 9))
-                return;
-            render_four_point_polygon_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                true, false);
+
+        /* 
+         * Shaded Polygon
+         *   1st  Color1+Command    (CcBbGgRrh)
+         *   2nd  Vertex1           (YyyyXxxxh)
+         *   3rd  Color2            (00BbGgRrh)
+         *   4th  Vertex2           (YyyyXxxxh)
+         *   5th  Color3            (00BbGgRrh)
+         *   6th  Vertex3           (YyyyXxxxh)
+         *  (7th) Color4            (00BbGgRrh) (if any)
+         *  (8th) Vertex4           (YyyyXxxxh) (if any)
+         */
+
+        case 0X30: // GP0(30h) - Shaded three-point polygon, opaque
+            if (!fifo_has_length(&gpu.gp0, 6)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_shaded(c1, v1,
+                                              c2, v2,
+                                              c3, v3,
+                                              false);
             break;
-        case 0X30: 
-            if (!fifo_has_length(&gpu.gp0, 6))
-                return;
-            render_three_point_polygon_shaded(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                false);
+        case 0X32: // GP0(32h) - Shaded three-point polygon, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 6)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_shaded(c1, v1,
+                                              c2, v2,
+                                              c3, v3,
+                                              true);
             break;
-        case 0X32: 
-            if (!fifo_has_length(&gpu.gp0, 6))
-                return;
-            render_three_point_polygon_shaded(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                true);
+        case 0X38: // GP0(38h) - Shaded four-point polygon, opaque
+            if (!fifo_has_length(&gpu.gp0, 8)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0);
+            c4 = fifo_pop(&gpu.gp0); v4 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_shaded(c1, v1,
+                                             c2, v2,
+                                             c3, v3,
+                                             c4, v4,
+                                             false);
             break;
-        case 0X38: 
-            if (!fifo_has_length(&gpu.gp0, 8))
-                return;
-            render_four_point_polygon_shaded(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                false);
+        case 0X3A: // GP0(3Ah) - Shaded four-point polygon, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 8)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0);
+            c4 = fifo_pop(&gpu.gp0); v4 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_shaded(c1, v1,
+                                             c2, v2,
+                                             c3, v3,
+                                             c4, v4,
+                                             true);
             break;
-        case 0X3A: 
-            if (!fifo_has_length(&gpu.gp0, 8))
-                return;
-            render_four_point_polygon_shaded(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                true);
+
+        /* 
+         * Shaded Textured Polygon 
+         *   1st  Color1+Command    (CcBbGgRrh)
+         *   2nd  Vertex1           (YyyyXxxxh)
+         *   3rd  Texcoord1+Palette (ClutYyXxh)
+         *   4th  Color2            (00BbGgRrh)
+         *   5th  Vertex2           (YyyyXxxxh)
+         *   6th  Texcoord2+Texpage (PageYyXxh)
+         *   7th  Color3            (00BbGgRrh)
+         *   8th  Vertex3           (YyyyXxxxh)
+         *   9th  Texcoord3         (0000YyXxh)
+         *  (10th) Color4           (00BbGgRrh) (if any)
+         *  (11th) Vertex4          (YyyyXxxxh) (if any)
+         *  (12th) Texcoord4        (0000YyXxh) (if any)
+         */
+
+        case 0X34: // GP0(34h) - Shaded Textured three-point polygon, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 9)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_shaded_textured(c1, v1, t1_clut,
+                                                       c2, v2, t2_page,
+                                                       c3, v3, t3,
+                                                       false, true);
             break;
-        case 0X34: 
-            if (!fifo_has_length(&gpu.gp0, 9))
-                return;
-            render_three_point_polygon_shaded_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                false, true);
+        case 0X36: // GP0(36h) - Shaded Textured three-point polygon, semi-transparent, tex-blend
+            if (!fifo_has_length(&gpu.gp0, 9)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_three_point_polygon_shaded_textured(c1, v1, t1_clut,
+                                                       c2, v2, t2_page,
+                                                       c3, v3, t3,
+                                                       true, true);
             break;
-        case 0X36: 
-            if (!fifo_has_length(&gpu.gp0, 9))
-                return;
-            render_three_point_polygon_shaded_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                true, true);
+        case 0X3C: // GP0(3Ch) - Shaded Textured four-point polygon, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 12)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            c4 = fifo_pop(&gpu.gp0); v4 = fifo_pop(&gpu.gp0); t4      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_shaded_textured(c1, v1, t1_clut,
+                                                      c2, v2, t2_page,
+                                                      c3, v3, t3,
+                                                      c4, v4, t4,
+                                                      false, true);
             break;
-        case 0X3C: 
-            if (!fifo_has_length(&gpu.gp0, 12))
-                return;
-            render_four_point_polygon_shaded_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                false, true);
+        case 0X3E: // GP0(3Eh) - Shaded Textured four-point polygon, semi-transparent, tex-blend
+            if (!fifo_has_length(&gpu.gp0, 12)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); t1_clut = fifo_pop(&gpu.gp0);
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0); t2_page = fifo_pop(&gpu.gp0);
+            c3 = fifo_pop(&gpu.gp0); v3 = fifo_pop(&gpu.gp0); t3      = fifo_pop(&gpu.gp0);
+            c4 = fifo_pop(&gpu.gp0); v4 = fifo_pop(&gpu.gp0); t4      = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_polygon", "command: %08x\n", c1);
+            render_four_point_polygon_shaded_textured(c1, v1, t1_clut,
+                                                      c2, v2, t2_page,
+                                                      c3, v3, t3,
+                                                      c4, v4, t4,
+                                                      true, true);
             break;
-        case 0X3E: {
-            if (!fifo_has_length(&gpu.gp0, 12))
-                return;
-            render_four_point_polygon_shaded_textured(
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                true, true);
-            break;
-        }
     }
 }
-static void gp0_render_lines( void ) {}
+static void gp0_render_lines( void ) 
+{
+    /* 
+     * FIXME: rendering parameters need to be stored into variables and then
+     * can be passed to rendering functions 
+     */
+    switch(COMMAND(fifo_peek(&gpu.gp0)))
+    {
+        // Monochrome Line
+        //   1st   Color+Command     (CcBbGgRrh)
+        //   2nd   Vertex1           (YyyyXxxxh)
+        //   3rd   Vertex2           (YyyyXxxxh)
+        //  (...)  VertexN           (YyyyXxxxh) (poly-line only)
+        //  (Last) Termination Code  (55555555h) (poly-line only)
+
+        case 0x40: // GP0(40h) - Monochrome line, opaque
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_line_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), false);
+            break;
+        case 0x42: // GP0(42h) - Monochrome line, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_line_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), true);
+            break;
+        case 0x48: // GP0(48h) - Monochrome Poly-line, opaque
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_polyline_monochrome(gpu.gp0, false);
+            break;
+        case 0x4A: // GP0(4Ah) - Monochrome Poly-line, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_polyline_monochrome(gpu.gp0, true);
+            break;
+
+        // Shaded Line
+        //   1st   Color1+Command    (CcBbGgRrh)
+        //   2nd   Vertex1           (YyyyXxxxh)
+        //   3rd   Color2            (00BbGgRrh)
+        //   4th   Vertex2           (YyyyXxxxh)
+        //  (...)  ColorN            (00BbGgRrh) (poly-line only)
+        //  (...)  VertexN           (YyyyXxxxh) (poly-line only)
+        //  (Last) Termination Code  (55555555h) (poly-line only)
+
+        case 0x50: // GP0(50h) - Shaded line, opaque
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_line_shaded(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
+                    false);
+            break;
+        case 0x52: // GP0(52h) - Shaded line, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_line_shaded(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
+                    true);
+            break;
+        case 0x58: // GP0(58h) - Shaded Poly-line, opaque
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_polyline_shaded(gpu.gp0, false);
+            break;
+        case 0x5A: // GP0(5Ah) - Shaded Poly-line, semi-transparent
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_polyline_shaded(gpu.gp0, true);
+            break;
+    }
+}
 static void gp0_render_rectangles( void ) 
 {
+    /* 
+     * FIXME: rendering parameters need to be stored into variables and then
+     * can be passed to rendering functions 
+     */
     switch (COMMAND(fifo_peek(&gpu.gp0)))
     {
-        /* Monochrome */
-        case 0x60:
-        case 0x62:
-        case 0x68: /* Monochrome Rectangle 1x1 opaque */
-            uint32_t c, v, r, g, b, x, y;
+        /* Monochrome 
+         *   1st  Color+Command     (CcBbGgRrh)
+         *   2nd  Vertex            (YyyyXxxxh)
+         *  (3rd) Width+Height      (YsizXsizh) (variable size only) (max 1023x511) */
 
-            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0);
-            
-            x = (uint32_t) (uint16_t) (v >>  0);
-            y = (uint32_t) (uint16_t) (v >> 16);
-
-            r = (uint32_t) (uint8_t) (c >>  0);
-            g = (uint32_t) (uint8_t) (c >>  8);
-            b = (uint32_t) (uint8_t) (c >> 16);
-
-            memory_write_vram((2 * (1024 * y + x)), (r << 0) | (g << 5) | (b << 10), 2);
+        case 0x60: // GP0(60h) - Monochrome Rectangle (variable size) (opaque)
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), false);
             break;
-        case 0x6A:
-        case 0x70:
-        case 0x72:
-        case 0x78:
-        case 0x7A:
+        case 0x62: // GP0(62h) - Monochrome Rectangle (variable size) (semi-transparent)
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), true);
             break;
-        /* Textured */
-        case 0x64:
-        case 0x65:
-        case 0x66:
-        case 0x67:
-        case 0x6C:
-        case 0x6D:
-        case 0x6E:
-        case 0x6F:
-        case 0x74:
-        case 0x75:
-        case 0x76:
-        case 0x77:
-        case 0x7C:
-        case 0x7D:
-        case 0x7E:
-        case 0x7F:
+        case 0x68: // GP0(68h) - Monochrome Rectangle (1x1) (Dot) (opaque)
+            if (!fifo_has_length(&gpu.gp0, 2))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    PACK_RECT_SIZE(1, 1), false);
+            break;
+        case 0x6A: // GP0(6Ah) - Monochrome Rectangle (1x1) (Dot) (semi-transparent)
+            if (!fifo_has_length(&gpu.gp0, 2))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    PACK_RECT_SIZE(1, 1), true);
+            break;
+        case 0x70: // GP0(70h) - Monochrome Rectangle (8x8) (opaque)
+            if (!fifo_has_length(&gpu.gp0, 2))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    PACK_RECT_SIZE(8, 8), false);
+            break;
+        case 0x72: // GP0(72h) - Monochrome Rectangle (8x8) (semi-transparent)
+            if (!fifo_has_length(&gpu.gp0, 2))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    PACK_RECT_SIZE(8, 8), true);
+            break;
+        case 0x78: // GP0(78h) - Monochrome Rectangle (16x16) (opaque)
+            if (!fifo_has_length(&gpu.gp0, 2))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    PACK_RECT_SIZE(16, 16), false);
+            break;
+        case 0x7A: // GP0(7Ah) - Monochrome Rectangle (16x16) (semi-transparent)
+            if (!fifo_has_length(&gpu.gp0, 2))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_monochrome(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    PACK_RECT_SIZE(16, 16), true);
+            break;
+
+        /* Textured
+         *  1st  Color+Command     (CcBbGgRrh) (color is ignored for raw-textures)
+         *  2nd  Vertex            (YyyyXxxxh) (upper-left edge of the rectangle)
+         *  3rd  Texcoord+Palette  (ClutYyXxh) (for 4bpp Textures Xxh must be even!)
+         * (4th) Width+Height      (YsizXsizh) (variable size only) (max 1023x511) */
+
+        case 0x64: // GP0(64h) - Textured Rectangle, variable size, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
+                    false, true);
+            break;
+        case 0x65: // GP0(65h) - Textured Rectangle, variable size, opaque, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
+                    false, false);
+            break;
+        case 0x66: // GP0(66h) - Textured Rectangle, variable size, semi-transp, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
+                    true, true);
+            break;
+        case 0x67: // GP0(67h) - Textured Rectangle, variable size, semi-transp, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 4))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
+                    true, false);
+            break;
+        case 0x6C: // GP0(6Ch) - Textured Rectangle, 1x1 (nonsense), opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(1, 1),
+                    false, true);
+            break;
+        case 0x6D: // GP0(6Dh) - Textured Rectangle, 1x1 (nonsense), opaque, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(1, 1),
+                    false, false);
+            break;
+        case 0x6E: // GP0(6Eh) - Textured Rectangle, 1x1 (nonsense), semi-transp, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(1, 1),
+                    true, true);
+            break;
+        case 0x6F: // GP0(6Fh) - Textured Rectangle, 1x1 (nonsense), semi-transp, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(1, 1),
+                    true, false);
+            break;
+        case 0x74: // GP0(74h) - Textured Rectangle, 8x8, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(8, 8),
+                    false, true);
+            break;
+        case 0x75: // GP0(75h) - Textured Rectangle, 8x8, opaque, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(8, 8),
+                    false, false);
+            break;
+        case 0x76: // GP0(76h) - Textured Rectangle, 8x8, semi-transparent, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(8, 8),
+                    true, true);
+            break;
+        case 0x77: // GP0(77h) - Textured Rectangle, 8x8, semi-transparent, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(8, 8),
+                    true, false);
+            break;
+        case 0x7C: // GP0(7Ch) - Textured Rectangle, 16x16, opaque, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(16, 16),
+                    false, true);
+            break;
+        case 0x7D: // GP0(7Dh) - Textured Rectangle, 16x16, opaque, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(16, 16),
+                    false, false);
+            break;
+        case 0x7E: // GP0(7Eh) - Textured Rectangle, 16x16, semi-transparent, texture-blending
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(16, 16),
+                    true, true);
+            break;
+        case 0x7F: // GP0(7Fh) - Textured Rectangle, 16x16, semi-transparent, raw-texture
+            if (!fifo_has_length(&gpu.gp0, 3))
+                return;
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
+            render_rectangle_textured(
+                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
+                    fifo_pop(&gpu.gp0), PACK_RECT_SIZE(16, 16),
+                    true, false);
             break;
     }
 }
 static void gp0_rendering_attributes( void ) 
 {   
+    TRACE_GPU("gp0_rendering_attributes", "command: %08x\n", fifo_peek(&gpu.gp0));
+
     uint32_t value = fifo_pop(&gpu.gp0);
     // pop current command as it doesnt need more arguments
     switch (COMMAND(value) & 0b1111) {
@@ -509,6 +882,7 @@ static void gp1_reset( void )
     //
     // Accordingly, GPUSTAT becomes 14802000h.The x1,y1 values are too small, ie. the upper-left edge isn't visible. 
     // Note that GP1(09h) is NOT affected by the reset command.
+    TRACE_GPU("gp1_reset", "command: %08x\n", gpu.gp1);
     
     // clear the fifo
     fifo_reset(&gpu.gp0);
@@ -542,19 +916,25 @@ static void gp1_reset_command_buffer( void )
     // 0-23  Not used (zero)
     // Clears the command FIFO, and aborts the current rendering command 
     // (eg. this may end up with an incompletely drawn triangle).
+    TRACE_GPU("gp1_reset_command_buffer", "command: %08x\n", gpu.gp1);
     fifo_reset(&gpu.gp0);
 }
-static inline void gp1_acknowledge_interrupt( void ) {}
+static inline void gp1_acknowledge_interrupt( void ) 
+{
+    TRACE_GPU("gp1_acknowledge_interrupt", "command: %08x\n", gpu.gp1);
+}
 static inline void gp1_display_enable( void ) 
 {
     // 0     Display On/Off   (0=On, 1=Off)                         ;GPUSTAT.23
     // 1-23  Not used (zero)
+    TRACE_GPU("gp1_display_enable", "command: %08x\n", gpu.gp1);
     gpu.gpustat.display_enable = PARAMETER(gpu.gp1) & 0x1;
 }
 static inline void gp1_dma_direction_or_data_request( void ) 
 {
     // 0-1  DMA Direction (0=Off, 1=FIFO, 2=CPUtoGP0, 3=GPUREADtoCPU) ;GPUSTAT.29-30
     // 2-23 Not used (zero)
+    TRACE_GPU("gp1_dma_direction_or_data_request", "command: %08x\n", gpu.gp1);
     gpu.gpustat.dma_direction = PARAMETER(gpu.gp1) & 0b11;
     switch (PARAMETER(gpu.gp1) & 0b11) 
     {
@@ -572,11 +952,13 @@ static inline void gp1_start_of_display_area_in_vram( void )
     //
     // Upper/left Display source address in VRAM. The size and target position on 
     // screen is set via Display Range registers; target=X1,Y2; size=(X2-X1/cycles_per_pix), (Y2-Y1).
+    TRACE_GPU("gp1_start_of_display_area_in_vram", "command: %08x\n", gpu.gp1);
     gpu.display_vram_x_start = (PARAMETER(gpu.gp1) >>  0) & 0x3ff;
     gpu.display_vram_y_start = (PARAMETER(gpu.gp1) >> 10) & 0x1ff;
 }
 static inline void gp1_horiontal_display_range( void ) 
 {
+    TRACE_GPU("gp1_horiontal_display_range", "command: %08x\n", gpu.gp1);
     // 0-11   X1 (260h+0)       ;12bit       ;\counted in 53.222400MHz units,
     // 12-23  X2 (260h+320*8)   ;12bit       ;/relative to HSYNC
     gpu.display_horizontal_start = (PARAMETER(gpu.gp1) >>  0) & 0xfff;
@@ -584,6 +966,7 @@ static inline void gp1_horiontal_display_range( void )
 }
 static inline void gp1_vertical_display_range( void ) 
 {
+    TRACE_GPU("gp1_vertical_display_range", "command: %08x\n", gpu.gp1);
     // 0-9   Y1 (NTSC=88h-(224/2), (PAL=A3h-(264/2))  ;\scanline numbers on screen,
     // 10-19 Y2 (NTSC=88h+(224/2), (PAL=A3h+(264/2))  ;/relative to VSYNC
     // 20-23 Not used (zero)
@@ -592,6 +975,7 @@ static inline void gp1_vertical_display_range( void )
 }
 static inline void gp1_display_mode( void ) 
 {
+    TRACE_GPU("gp1_display_mode", "command: %08x\n", gpu.gp1);
     // 0-1   Horizontal Resolution 1     (0=256, 1=320, 2=512, 3=640) ;GPUSTAT.17-18
     // 2     Vertical Resolution         (0=240, 1=480, when Bit5=1)  ;GPUSTAT.19
     // 3     Video Mode                  (0=NTSC/60Hz, 1=PAL/50Hz)    ;GPUSTAT.20
@@ -619,12 +1003,25 @@ static void gpu_process_gp0( void )
         /* if a request dma transfer is initiated and the block has been consumed, request another block */
         gpu.gpustat.ready_recieve_dma_block = 1;
     }
-    // else if (gpu.gpustat.ready_send_vram_cpu)
-    // {
-    //     /* if the vram to cpu or cpu to vram transfer is non-dma */
-    //          if (gpu.vram_direct_access_d) memory_read_vram (gpu_get_vram_address(), &gpu.gpuread,       4);
-    //     else if (!fifo_empty(&gpu.gp0))    memory_write_vram(gpu_get_vram_address(), fifo_pop(&gpu.gp0), 4);
-    // }
+    else if (gpu.gpustat.ready_send_vram_cpu)
+    {
+        /* if the vram to cpu or cpu to vram transfer is non-dma */
+        if (gpu.vram_direct_access_d) 
+        {
+            /* vram to cpu, read contents of vram and load into gpu read */
+            uint32_t data;
+
+            memory_read_vram(gpu_get_vram_address(), &data, 4);
+
+            gpu.gpuread = data;
+        }
+        else
+        {
+            /* cpu to vram, if data in fifo, write to next vram address */
+            if (!fifo_empty(&gpu.gp0))
+                memory_write_vram(gpu_get_vram_address(), fifo_pop(&gpu.gp0), 4);
+        }
+    }
     else if (!fifo_empty(&gpu.gp0))
     {
         /* otherwise treat as a basic gp0 command */
@@ -824,7 +1221,7 @@ void init_gpu( void )
     // fifo_destroy( &gpu.gp0 );
 
     /* create gp0 fifo */
-	fifo_create( &gpu.gp0, 12 );
+    fifo_create( &gpu.gp0, 256 );
     
     /* clear stat register */
     gpu.gpustat.value = 0;
@@ -846,10 +1243,10 @@ void task_gpu( void )
     /* process gpu commands */
     switch (gpu.state)
     {
-    	case GPU_RENDERING:   gpu_render_frame(); break;
-    	case GPU_PROCESS_GP0: gpu_process_gp0();  break;
-    	case GPU_PROCESS_GP1: gpu_process_gp1();  break;
-		default:
-			break;
+        case GPU_RENDERING:   gpu_render_frame(); break;
+        case GPU_PROCESS_GP0: gpu_process_gp0();  break;
+        case GPU_PROCESS_GP1: gpu_process_gp1();  break;
+        default:
+            break;
     }
 }

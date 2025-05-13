@@ -37,10 +37,6 @@ define RELATIVE
     p/x (cpu.cir & ((1 << 16) - 1))
 end
 
-define instr
-    
-end
-
 # gpu debugging features
 
 define gpu_misc
@@ -117,7 +113,7 @@ define gp0
     printf "\n"
     printf "    commands:\n"
     set $d = gpu.gp0.head
-    while $d != gpu.gp0.tail
+    while $d != gpu.gp0.length
         printf "    %x\n", gpu.gp0.data[$d]
         set $d = $d + 1
     end
@@ -126,14 +122,103 @@ end
 # dma debugging features
 
 define chcr
-    p (union chcr) $arg0
+    set $chcr = (union chcr)dma.dma0_mdec_in_chcr
+    printf "dma 0: mdec in\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
+
+    set $chcr = (union chcr)dma1_mdec_out_chcr
+    printf "dma 1: mdec out\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
+
+    set $chcr = (union chcr)dma2_gpu_chcr
+    printf "dma 2: gpu\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
+
+    set $chcr = (union chcr)dma3_cdrom_chcr
+    printf "dma 3: cdrom\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
+
+    set $chcr = (union chcr)dma4_spu_chcr
+    printf "dma 4: spu\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
+
+    set $chcr = (union chcr)dma5_pio_chcr
+    printf "dma 5: pio\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
+
+    set $chcr = (union chcr)dma6_otc_chcr
+    printf "dma 6: otc\n"
+    printf "    transfer_direction      : %d\n", $chcr.transfer_direction
+    printf "    address_step            : %d\n", $chcr.address_step
+    printf "    chopping_enable         : %d\n", $chcr.chopping_enable
+    printf "    sync_mode               : %d\n", $chcr.sync_mode
+    printf "    chopping_dma_window_size: %d\n", $chcr.chopping_dma_window_size
+    printf "    chopping_cpu_window_size: %d\n", $chcr.chopping_cpu_window_size
+    printf "    start_busy              : %d\n", $chcr.start_busy
+    printf "    start_trigger           : %d\n", $chcr.start_trigger
 end
 
 define madr
+    uint32_t dma0_mdec_in_madr;
+    uint32_t dma1_mdec_out_madr;
+    uint32_t dma2_gpu_madr;
+    uint32_t dma3_cdrom_madr;
+    uint32_t dma4_spu_madr;
+    uint32_t dma5_pio_madr;
+    uint32_t dma6_otc_madr;
     p (union madr) $arg0
 end
 
 define brc
+    uint32_t dma0_mdec_in_brc;
+    uint32_t dma1_mdec_out_brc;
+    uint32_t dma2_gpu_brc;
+    uint32_t dma3_cdrom_brc;
+    uint32_t dma4_spu_brc;
+    uint32_t dma5_pio_brc;
+    uint32_t dma6_otc_brc;
     p (union brc)  $arg0
 end
 

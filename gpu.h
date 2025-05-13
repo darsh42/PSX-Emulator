@@ -17,6 +17,7 @@
 
 #define COMMAND(c)   (c >> 24)
 #define PARAMETER(c) (c & 0x00FFFFFF)
+#define PACK_RECT_SIZE(h, w) ((h) << 16) | ((w) << 0)
 
 #define VRAM_WIDTH 1024
 
@@ -51,6 +52,12 @@ enum gpu_state {
     GPU_PROCESS_GP0,
     GPU_PROCESS_GP1,
     GPU_VRAM_TRANSFER,
+};
+
+enum gpu_transfer_direction
+{
+    TRANSFER_TO_VRAM,
+    TRANSFER_TO_MAIN
 };
 
 union GPUSTAT {
@@ -106,7 +113,8 @@ struct gpu {
     uint32_t vram_direct_access_h; // access height
     uint32_t vram_direct_access_cx; // access cursor - where in vram is accessed
     uint32_t vram_direct_access_cy; // access cursor - where in vram is accessed
-    uint32_t vram_direct_access_d; // access direction
+    uint32_t vram_direct_access_d;  // access direction -
+                                    //     0 (cpu to vram), 1 (vram to cpu)
 
     uint8_t texture_window_mask_x;   // texture window x mask (8 bit steps)
     uint8_t texture_window_mask_y;   // texture window y mask (8 bit steps)

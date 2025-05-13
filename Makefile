@@ -17,7 +17,7 @@ $(TARGET): $(OBJECTS)
 
 .PHONY: clean run debug stub run_debug all
 
-BIOS := SCPH1001.BIN
+BIOS := scph1001.bin
 GAME := .
 CPU_TEST := psxtest_cpu.exe
 

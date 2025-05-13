@@ -15,7 +15,7 @@ void trace( char *file, char *function_call, char *format_string, ... )
     va_start(args, format_string); 
     
     /* print the basic information */
-    fprintf(stdout, "[TRACE] file: %s | function: %s | ", file, function_call);
+    fprintf(stdout, "[TRACE] file: %-16s | function: %-48s | ", file, function_call);
     
     /* print the specific information */
     vprintf(format_string, args); 

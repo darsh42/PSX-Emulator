@@ -96,8 +96,6 @@ void dma_transfer_manual_otc( void )
     union brc   brc = { .value = dma.dma6_otc_brc  };
     union chcr chcr = { .value = dma.dma6_otc_chcr };
 
-    /* lock memory */
-
     uint32_t source = madr.base_address;
     uint32_t size = brc.bc;
      int32_t step = (chcr.address_step) ? -4: +4;
@@ -107,7 +105,9 @@ void dma_transfer_manual_otc( void )
     /* clear */
     while ( size > 1 )
     {
-        memory_write(source, source - 4, 4);
+        TRACE_DMA("dma_transfer_manual_otc", "current: %08x, next: %08x\n", source, source + step);
+
+        memory_write(source, source + step, 4);
         source += step;
         size--;
     }
@@ -158,14 +158,8 @@ void dma_transfer_request_gpu( void )
     uint32_t block_size  = brc.bs;
     uint32_t step = (chcr.address_step) ? -4: +4;
     
-    while (!(block_count == 0 && block_size == 0))
+    while (block_count != 0)
     {
-        /* if end of block go to next block */
-        if (block_size == 0)
-        {
-            block_size = brc.bs;
-            block_count--;
-        }
         /* get next gpu address */
         vram_address = gpu_get_vram_address();
 
@@ -173,11 +167,19 @@ void dma_transfer_request_gpu( void )
         if ( chcr.transfer_direction == RAM_TO_DEVICE) { memory_read( ram_address, &data, 4); memory_write_vram( vram_address,  data, 4); }
         else                                           { memory_read_vram( vram_address, &data, 4); memory_write( ram_address,  data, 4); }
 
-        ram_address += step;
         block_size--;
+
+        /* if end of block go to next block */
+        if (block_size == 0)
+        {
+            block_size = brc.bs;
+            block_count--;
+        }
+
+        ram_address += step;
     }
 
-#error BUG: incorrect dma transfer request for gpu
+// #error BUG: incorrect dma transfer request for gpu
     /* finish dma transfer */
     chcr.start_busy   = 0;
     gpu_notify_dma_block_end();
@@ -219,6 +221,9 @@ void dma_transfer_linkedlist_gpu( void )
 
     next = (header >>  0) & 0X00FFFFFF; /* store next address  */
     size = (header >> 24) & 0X000000FF; /* read size of packet */
+
+    TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n", 
+                source, header, next, size);
 
     source += 4;
 

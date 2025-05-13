@@ -18,6 +18,45 @@ pthread_mutex_t system_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct system sys;
 
+void render_line_monochrome(
+        uint32_t c, uint32_t v1,
+                    uint32_t v2,
+        bool semi_transparent
+)
+{
+}
+void render_line_shaded(
+        uint32_t c1, uint32_t v1,
+        uint32_t c2, uint32_t v2,
+        bool semi_transparent
+)
+{
+}
+void render_polyline_monochrome(
+        struct fifo gp0,
+        bool semi_transparent
+)
+{
+}
+void render_polyline_shaded(
+        struct fifo gp0,
+        bool semi_transparent
+)
+{
+}
+
+void render_rectangle_monochrome(
+        uint32_t c, uint32_t v, uint32_t s,
+        bool semi_transparent
+)
+{
+}
+void render_rectangle_textured(
+        uint32_t c, uint32_t v, uint32_t t_clut, uint32_t s,
+        bool semi_transparent, bool texture_blending
+)
+{
+}
 void render_three_point_polygon_monochrome(
     uint32_t c1, uint32_t v1, 
                  uint32_t v2, 
@@ -25,7 +64,7 @@ void render_three_point_polygon_monochrome(
     bool semi_transparent
 ) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_three_point_polygon_monochrome", 
             "\n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
              \n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
              \n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
@@ -46,6 +85,7 @@ void render_four_point_polygon_monochrome(uint32_t c1, uint32_t v1,
             "\n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
              \n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
              \n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
+             \n\tx: %03d | y: %03d | r: %03d | g: %03d | b: %03d \
              \n\tsemitransparent: %d\n",
              X(v1), Y(v1), R(c1), G(c1), B(c1),
              X(v2), Y(v2), R(c1), G(c1), B(c1),
@@ -58,7 +98,7 @@ void render_three_point_polygon_textured(uint32_t c1, uint32_t v1, uint32_t t1_c
                                                       uint32_t v3, uint32_t t3,
                                          bool semi_transparent, bool texture_blending) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_three_point_polygon_textured", 
             "\n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
@@ -82,7 +122,7 @@ void render_four_point_polygon_textured(
     bool semi_transparent, bool texture_blending
 ) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_four_point_polygon_textured", 
             "\n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
@@ -109,7 +149,7 @@ void render_three_point_polygon_shaded(
     bool semi_transparent
 ) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_three_point_polygon_shaded", 
             "\n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
@@ -125,7 +165,7 @@ void render_four_point_polygon_shaded(uint32_t c1, uint32_t v1,
                                       uint32_t c4, uint32_t v4,
                                       bool semi_transparent) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_four_point_polygon_shaded", 
             "\n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
@@ -144,7 +184,7 @@ void render_three_point_polygon_shaded_textured(
     bool semi_transparent, bool texture_blending
 ) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_three_point_polygon_shaded_textured", 
             "\n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
@@ -170,7 +210,7 @@ void render_four_point_polygon_shaded_textured(
     bool semi_transparent, bool texture_blending
 ) 
 {
-    TRACE_SYS("render_four_point_polygon_monochrome", 
+    TRACE_SYS("render_four_point_polygon_shaded_textured", 
             "\n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \
              \n\t x: %03d |  y: %03d | r: %03d | g: %03d | b: %03d \

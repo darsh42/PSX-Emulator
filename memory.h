@@ -7,6 +7,14 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#define  TRACE_DEVMEM(file, function, format, ...)
+
+#include "trace.h"
+#ifdef ENABLE_MEMORY_DEVICE_TRACE
+#undef  TRACE_DEVMEM(file, function, format, ...)
+#define TRACE_DEVMEM(file, function, format, ...) trace(file " (devmem)", function, format, __VA_ARGS__)
+#endif
+
 #ifdef MEMORY_PRIVATE
 
 // utilities

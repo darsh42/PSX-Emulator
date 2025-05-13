@@ -69,7 +69,16 @@ void fifo_destroy       ( struct fifo *fifo )
 
     free(fifo->data);
 }
+void fifo_print        ( struct fifo *fifo ) 
+{
+    assert(fifo);
 
+    uint32_t i = fifo->head;
+    uint32_t l = fifo->length;
+    
+    for (; l > 0; l--, i++, i %= fifo->size)
+        printf("[FIFO]: index = %d, value = %x\n", i, fifo->data[i]);
+}
 static void fifo_test   ( void )
 {
     struct fifo fifo;
