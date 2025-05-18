@@ -8,6 +8,8 @@
 #define PSX_EXE_FORMAT
 #include "fileformats.h"
 
+#include "main.h"
+
 // devices
 #include "cpu.h"
 #include "gpu.h"

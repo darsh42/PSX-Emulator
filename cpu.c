@@ -1,5 +1,8 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
+
+#include "main.h"
 
 #define CPU_PRIVATE
 #include "cpu.h"

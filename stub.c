@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+#include "main.h"
 #include "stub.h"
 
 /* system devices */

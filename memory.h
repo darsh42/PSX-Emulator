@@ -178,6 +178,4 @@ extern void memory_write_sound_ram(uint32_t address, uint32_t data, uint32_t siz
 extern void memory_read_sound_ram(uint32_t address, uint32_t *data, uint32_t size);
 extern void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **sector);
 
-extern uint32_t running;
-
 #endif // MEMORY_H_INCLUDED

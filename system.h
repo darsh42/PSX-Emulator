@@ -28,6 +28,10 @@ enum system_state {
 };
 
 #define TRACE_SYS(function, format, ...)
+#ifdef ENABLE_SYS_TRACE
+#undef  TRACE_SYS
+#define TRACE_SYS(function, format, ...) trace("system.c", function, format, __VA_ARGS__)
+#endif
 
 /* renderer type specific structures */
 #ifdef RENDERER_SDL

@@ -31,7 +31,7 @@ void write_gpu( uint32_t address, uint32_t data )
         case( gp1_gpu_stat ): gpu.gp1 = data;            gpu.state = GPU_PROCESS_GP1; break;
     }
 
-    TRACE_DEVMEM("gpu.c", "write_gpu ", "address: %08x | data: %08x\n", address, data);
+    // TRACE_DEVMEM("gpu.c", "write_gpu ", "address: %08x | data: %08x\n", address, data);
 }
 
 /* if gpu is transferring data to or from vram it computes next address */
@@ -455,10 +455,8 @@ static void gp0_render_polygons( void )
 }
 static void gp0_render_lines( void ) 
 {
-    /* 
-     * FIXME: rendering parameters need to be stored into variables and then
-     * can be passed to rendering functions 
-     */
+    uint32_t c1, c2;
+    uint32_t v1, v2;
     switch(COMMAND(fifo_peek(&gpu.gp0)))
     {
         // Monochrome Line
@@ -469,30 +467,24 @@ static void gp0_render_lines( void )
         //  (Last) Termination Code  (55555555h) (poly-line only)
 
         case 0x40: // GP0(40h) - Monochrome line, opaque
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
-            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_line_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    fifo_pop(&gpu.gp0), false);
+            if (!fifo_has_length(&gpu.gp0, 3)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_line", "command: %08x\n", c1);
+            render_line_monochrome(c1, v1, v2, false);
             break;
         case 0x42: // GP0(42h) - Monochrome line, semi-transparent
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
-            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_line_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    fifo_pop(&gpu.gp0), true);
+            if (!fifo_has_length(&gpu.gp0, 3)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_line", "command: %08x\n", c1);
+            render_line_monochrome(c1, v1, v2, true);
             break;
         case 0x48: // GP0(48h) - Monochrome Poly-line, opaque
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
+            if (!fifo_has_length(&gpu.gp0, 3)) return;
             TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
             render_polyline_monochrome(gpu.gp0, false);
             break;
         case 0x4A: // GP0(4Ah) - Monochrome Poly-line, semi-transparent
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
+            if (!fifo_has_length(&gpu.gp0, 3)) return;
             TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
             render_polyline_monochrome(gpu.gp0, true);
             break;
@@ -507,32 +499,29 @@ static void gp0_render_lines( void )
         //  (Last) Termination Code  (55555555h) (poly-line only)
 
         case 0x50: // GP0(50h) - Shaded line, opaque
-            if (!fifo_has_length(&gpu.gp0, 4))
-                return;
-            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_line_shaded(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                    false);
+            if (!fifo_has_length(&gpu.gp0, 4)) return;
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); 
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_line", "command: %08x\n", c1);
+            render_line_monochrome(c1, v1, 
+                                   c2, v2, 
+                                   false);
             break;
         case 0x52: // GP0(52h) - Shaded line, semi-transparent
-            if (!fifo_has_length(&gpu.gp0, 4))
-                return;
-            TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_line_shaded(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0),
-                    true);
+            c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); 
+            c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_line", "command: %08x\n", c1);
+            render_line_monochrome(c1, v1, 
+                                   c2, v2, 
+                                   true);
             break;
         case 0x58: // GP0(58h) - Shaded Poly-line, opaque
-            if (!fifo_has_length(&gpu.gp0, 4))
-                return;
+            if (!fifo_has_length(&gpu.gp0, 4)) return;
             TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
             render_polyline_shaded(gpu.gp0, false);
             break;
         case 0x5A: // GP0(5Ah) - Shaded Poly-line, semi-transparent
-            if (!fifo_has_length(&gpu.gp0, 4))
-                return;
+            if (!fifo_has_length(&gpu.gp0, 4)) return;
             TRACE_GPU("gpu_render_line", "command: %08x\n", fifo_peek(&gpu.gp0));
             render_polyline_shaded(gpu.gp0, true);
             break;
@@ -544,6 +533,7 @@ static void gp0_render_rectangles( void )
      * FIXME: rendering parameters need to be stored into variables and then
      * can be passed to rendering functions 
      */
+    uint32_t c, v, t_clut, s;
     switch (COMMAND(fifo_peek(&gpu.gp0)))
     {
         /* Monochrome 
@@ -552,52 +542,40 @@ static void gp0_render_rectangles( void )
          *  (3rd) Width+Height      (YsizXsizh) (variable size only) (max 1023x511) */
 
         case 0x60: // GP0(60h) - Monochrome Rectangle (variable size) (opaque)
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
-            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_rectangle_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    fifo_pop(&gpu.gp0), false);
+            if (!fifo_has_length(&gpu.gp0, 3)) return;
+            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0); s = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", c);
+            render_rectangle_monochrome(c, v, s, false);
             break;
         case 0x62: // GP0(62h) - Monochrome Rectangle (variable size) (semi-transparent)
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
-            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_rectangle_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    fifo_pop(&gpu.gp0), true);
+            if (!fifo_has_length(&gpu.gp0, 3)) return;
+            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0); s = fifo_pop(&gpu.gp0);
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", c);
+            render_rectangle_monochrome(c, v, s, true);
             break;
         case 0x68: // GP0(68h) - Monochrome Rectangle (1x1) (Dot) (opaque)
-            if (!fifo_has_length(&gpu.gp0, 2))
-                return;
-            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_rectangle_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    PACK_RECT_SIZE(1, 1), false);
+            if (!fifo_has_length(&gpu.gp0, 2)) return;
+            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0); s = PACK_RECT_SIZE(1, 1);
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", c);
+            render_rectangle_monochrome(c, v, s, false);
             break;
         case 0x6A: // GP0(6Ah) - Monochrome Rectangle (1x1) (Dot) (semi-transparent)
-            if (!fifo_has_length(&gpu.gp0, 2))
-                return;
-            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_rectangle_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    PACK_RECT_SIZE(1, 1), true);
+            if (!fifo_has_length(&gpu.gp0, 2)) return;
+            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0); s = PACK_RECT_SIZE(1, 1);
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", c);
+            render_rectangle_monochrome(c, v, s, true);
             break;
         case 0x70: // GP0(70h) - Monochrome Rectangle (8x8) (opaque)
-            if (!fifo_has_length(&gpu.gp0, 2))
-                return;
-            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_rectangle_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    PACK_RECT_SIZE(8, 8), false);
+            if (!fifo_has_length(&gpu.gp0, 2)) return;
+            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0); s = PACK_RECT_SIZE(8, 8);
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", c);
+            render_rectangle_monochrome(c, v, s, false);
             break;
         case 0x72: // GP0(72h) - Monochrome Rectangle (8x8) (semi-transparent)
-            if (!fifo_has_length(&gpu.gp0, 2))
-                return;
-            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", fifo_peek(&gpu.gp0));
-            render_rectangle_monochrome(
-                    fifo_pop(&gpu.gp0), fifo_pop(&gpu.gp0), 
-                    PACK_RECT_SIZE(8, 8), true);
+            if (!fifo_has_length(&gpu.gp0, 2)) return;
+            c = fifo_pop(&gpu.gp0); v = fifo_pop(&gpu.gp0); s = PACK_RECT_SIZE(8, 8);
+            TRACE_GPU("gpu_render_rectangle", "command: %08x\n", c);
+            render_rectangle_monochrome(c, v, s, true);
             break;
         case 0x78: // GP0(78h) - Monochrome Rectangle (16x16) (opaque)
             if (!fifo_has_length(&gpu.gp0, 2))
