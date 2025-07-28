@@ -503,17 +503,17 @@ static void gp0_render_lines( void )
             c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); 
             c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
             TRACE_GPU("gpu_render_line", "command: %08x\n", c1);
-            render_line_monochrome(c1, v1, 
-                                   c2, v2, 
-                                   false);
+            render_line_shaded(c1, v1, 
+                               c2, v2, 
+                               false);
             break;
         case 0x52: // GP0(52h) - Shaded line, semi-transparent
             c1 = fifo_pop(&gpu.gp0); v1 = fifo_pop(&gpu.gp0); 
             c2 = fifo_pop(&gpu.gp0); v2 = fifo_pop(&gpu.gp0);
             TRACE_GPU("gpu_render_line", "command: %08x\n", c1);
-            render_line_monochrome(c1, v1, 
-                                   c2, v2, 
-                                   true);
+            render_line_shaded(c1, v1, 
+                               c2, v2, 
+                               true);
             break;
         case 0x58: // GP0(58h) - Shaded Poly-line, opaque
             if (!fifo_has_length(&gpu.gp0, 4)) return;

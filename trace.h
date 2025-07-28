@@ -5,8 +5,8 @@
 
 // #define TRACE_TTY
 
-#define ENABLE_CPU_TRACE
-#define ENABLE_GPU_TRACE
+// #define ENABLE_CPU_TRACE
+// #define ENABLE_GPU_TRACE
 // #define ENABLE_SPU_TRACE
 // #define ENABLE_DMA_TRACE
 // #define ENABLE_BIOS_TRACE
