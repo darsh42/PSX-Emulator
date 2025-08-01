@@ -11,8 +11,9 @@
 
 #include "trace.h"
 #ifdef ENABLE_MEMORY_DEVICE_TRACE
-#undef  TRACE_DEVMEM(file, function, format, ...)
-#define TRACE_DEVMEM(file, function, format, ...) trace(file " (devmem)", function, format, __VA_ARGS__)
+#undef  TRACE_DEVMEM
+#define TRACE_DEVMEM(file, function, format, ...) \
+    trace(file " (devmem)", function, format, __VA_ARGS__)
 #endif
 
 #ifdef MEMORY_PRIVATE
@@ -22,8 +23,9 @@
 
 #include "trace.h"
 #ifdef ENABLE_MEMORY_TRACE
-#undef  TRACE_MEM(function, format, ...)
-#define TRACE_MEM(function, format, ...) trace("memory.c", function, format, __VA_ARGS__)
+#undef  TRACE_MEM
+#define TRACE_MEM(function, format, ...) \
+    trace("memory.c", function, format, __VA_ARGS__)
 #endif
 
 #define RAM_SIZE       0x200000
@@ -31,24 +33,6 @@
 #define BIOS_SIZE      0x80000
 #define VRAM_SIZE      0x100000
 #define SOUND_RAM_SIZE 0x80000
-
-/* file formats */
-struct psx_exe_header
-{
-    uint8_t ascii_id[8];
-    uint8_t zerofill[8];
-
-    uint32_t initial_pc;
-    uint32_t initial_gp;
-    uint32_t destination_address;
-    uint32_t filesize;
-    uint32_t data_section_start;
-    uint32_t data_section_end;
-    uint32_t bss_section_start;
-    uint32_t bss_section_end;
-    uint32_t initial_sp_fp_base;
-    uint32_t initial_sp_fp_offset;
-};
 
 struct memory {
     uint8_t        ram[      RAM_SIZE];

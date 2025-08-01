@@ -260,7 +260,7 @@ void task_dma( void )
     //  - highest priority
     union chcr chcr;
     
-    const static uint32_t *chcrs[] = {
+    static const uint32_t *chcrs[] = {
         &dma.dma0_mdec_in_chcr,
         &dma.dma1_mdec_out_chcr,
         &dma.dma2_gpu_chcr,

@@ -1,17 +1,11 @@
-#include <pthread.h>
 #include <assert.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #define TIMER_PRIVATE
 #include "timer.h"
 #include "memory.h"
 #include "gpu.h"
-
-#ifdef DEBUG
-#include "stub.h"
-#endif
 
 static struct timers timers;
 
@@ -74,7 +68,7 @@ static void timer_reset( struct timer *_timer )
     }
     else
     {
-        /* counter reset on overflow         */
+        /* counter reset on overflow */
         if ( timer.current_count >= 0xFFFF )
         {
             timer.current_count = 0;
@@ -159,7 +153,7 @@ static void timers_increment_timer2( void )
     timers.t2.current_count++;
 }
 
-void init_timers( void ) { }
+void init_timers( void ) {}
 void task_timers( void )
 {
     //usleep(20);

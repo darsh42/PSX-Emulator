@@ -33,7 +33,7 @@ uint32_t cpu_cop0_sr_isc( void )
 
 uint32_t cpu_get_general_register( uint32_t _register )
 {
-    assert(_register >= 0 && _register < 32);
+    assert(_register < 32);
     return cpu.r[_register];
 }
 
@@ -91,9 +91,10 @@ static const char *cop0_register_names[] =
 
 static void cpu_trace_instruction( char *mneumonic )
 {
-    if (cpu_trace_enabled)
+    if (cpu_trace_enabled) {
         TRACE_CPU("cpu_execute", "pc: %08x | op: %08x rs(%04s): %08x rt(%04s): %08x rd(%04s): %08x shamt: %08x funct: %08x | imm16: %08x imm25: %08x | %s\n",
                 cpu.pc, OP, cpu_register_names[RS], reg(RS), cpu_register_names[RT], reg(RT), cpu_register_names[RD], reg(RD), SHAMT, FUNCT, IMM16, IMM25, mneumonic);
+    }
 }
 
 static void cpu_branch( void )
@@ -333,7 +334,7 @@ static inline void sltiu(void)
     
     DO_LOAD_DELAY;
 
-    reg(RT) = s < S_IMM16;
+    reg(RT) = s < (uint32_t) S_IMM16;
 }  
 static inline void andi(void)    
 {
@@ -463,7 +464,7 @@ static inline void lwl(void)
 }
 static inline void lwr(void)     
 {
-    // Load Halfword Right TODO:
+    // Load Halfword Right
     cpu_trace_instruction("lwr");
 
     uint32_t s = reg(RS);
@@ -867,7 +868,8 @@ static inline void div(void)
         cpu.hi = s;
         cpu.lo = (s < 0) ? 0X00000001: 0XFFFFFFFF;
     } 
-    else if (t == 0XFFFFFFFF && s == 0X80000000) 
+    else if ((uint32_t) t == 0XFFFFFFFF && 
+             (uint32_t) s == 0X80000000) 
     {
         cpu.hi = 0X00000000;
         cpu.lo = 0X80000000;
@@ -909,7 +911,8 @@ static inline void add(void)
     
     DO_LOAD_DELAY;
 
-    if (overflow(s, t)) 
+    if (overflow((uint32_t) s, 
+                 (uint32_t) t)) 
     {
         cpu_exception(Ov);
     } 

@@ -1,7 +1,6 @@
 #ifndef FILEFORMATS_H_INCLUDED
 #define FILEFORMATS_H_INCLUDED
 
-#ifdef PSX_EXE_HEADER
 struct psx_exe_header
 {
     uint8_t ascii_id[8];
@@ -18,6 +17,5 @@ struct psx_exe_header
     uint32_t initial_sp_fp_base;
     uint32_t initial_sp_fp_offset;
 };
-#endif
 
 #endif // FILEFORMATS_H_INCLUDED

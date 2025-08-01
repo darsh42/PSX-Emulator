@@ -67,12 +67,10 @@ void *task_system( void *ignore )
 
     assert(!pthread_cond_broadcast(&system_notify));
 
-    while ( running )
-    {
+    while ( running ) {
         system_input();
     }
 
-cleanup:
     SDL_DestroyRenderer(sys.renderer);
     SDL_DestroyWindow(sys.window);
     SDL_Quit();

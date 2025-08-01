@@ -10,6 +10,7 @@
 #include "timer.h"
 #include "memory.h"
 #include "system.h"
+#include "interrupts.h"
 
 #define TRACE_H_IMPLEMENTATION
 #include "trace.h"
@@ -82,20 +83,11 @@ void *task_core( void *_args )
     return NULL;
 }
 
-
 void *task_debug( void * )
 {
     printf("DEBUGGER: %ld\n", pthread_self());
 
     return NULL;
-}
-
-void usage( void )
-{
-    fprintf(stdout, "usage: psx -b bios -g game\n");
-    fprintf(stdout, "   bios: path to bios\n");
-    fprintf(stdout, "   game: path to game\n");
-    exit(1);
 }
 
 int main( int argc , char **argv ) 
@@ -105,7 +97,6 @@ int main( int argc , char **argv )
     char *exe  = NULL;
     char *tty  = NULL;
     char *game = NULL;
-    uint32_t debug = 0;
 
     char opt;
 
@@ -118,16 +109,14 @@ int main( int argc , char **argv )
             case 'e': exe  = optarg; break;
             case 'h': 
             default:
-                usage(); 
+                goto usage; 
                 break;
         }
     }
 
-    if (!bios)
-        usage();
+    if (!bios || !game)
+        goto usage;
     
-    if (!game)
-        usage();
 
     struct task_core_args core_args = {
         .bios = bios,
@@ -151,4 +140,11 @@ int main( int argc , char **argv )
     pthread_join(thread_system, NULL);
 
     return 0;
+
+usage:
+    fprintf(stderr, "usage: %s BIOS.bin GAME.bin\n", *argv);
+    fprintf(stderr, "   BIOS.bin: path to bios\n");
+    fprintf(stderr, "   GAME.bin: path to game\n");
+    
+    return 1;
 }

@@ -24,7 +24,7 @@
 static struct memory memory;
 
 /* for sdl texture streaming */
-uint32_t *get_vram_pointer( void ) { return memory.vram; }
+uint32_t *get_vram_pointer( void ) { return (uint32_t *) memory.vram; }
 
 /* virtual to physical memory lookup table */
 static uint32_t segment_lookup[] = {
@@ -81,7 +81,7 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
     /* trace signals to memory */
     TRACE_MEM("memory_write", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
-    if ( ( physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130 ) 
+    if ((physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130)
     {
         switch ((enum memory_map) address)
         {
@@ -192,7 +192,7 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 
 /* if the memory registers are accessed treat them as non-devices*/
 memory_registers_write: 
-    if (physical >= 0x00000000 && physical < 0x00200000) 
+    if (physical < 0x00200000) 
     { 
         /* if cache is isolated do scratchpad, else do main ram */
         if ( cpu_cop0_sr_isc() )
@@ -377,7 +377,7 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
 /* if the memory registers are accessed treat them as non-devices*/
 memory_registers_read:
 
-    if (physical >= 0x00000000 && physical < 0x00200000) 
+    if (physical < 0x00200000) 
     { 
         /* if cache is isolated do scratchpad, else do main ram */
         if ( cpu_cop0_sr_isc() )
@@ -453,7 +453,7 @@ void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
             *(memory.vram + address + 0)  = (data >>   0);
             *(memory.vram + address + 1)  = (data >>   8);
             *(memory.vram + address + 2)  = (data >>  16);
-            *(memory.vram + address + 3)  = (data >>  32);
+            *(memory.vram + address + 3)  = (data >>  24);
             break;
     }
 }
@@ -501,8 +501,9 @@ void memory_write_sound_ram( uint32_t address, uint32_t data, uint32_t size )
         case 1:
             /* ODD  8 bit writes are ignored                  *
              * EVEN 8 bit writes are treated as 16 bit writes */
-            if (address % 2 > 0)
+            if (address % 2 != 0)
                 break;
+            // fall through
         case 2:
             *(memory.sound_ram + address + 0)  = (data >>  0);
             *(memory.sound_ram + address + 1)  = (data >>  8);
