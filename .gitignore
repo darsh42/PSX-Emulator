@@ -52,8 +52,6 @@ Mkfile.old
 dkms.conf
 
 # ROMS and MISC files
+build/
 *.BIN
-*.txt
-*.bin
 .gdb_history
-psx
