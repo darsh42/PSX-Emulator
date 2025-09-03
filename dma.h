@@ -7,11 +7,8 @@
 
 #include "trace.h"
 
-#ifdef ENABLE_DMA_TRACE
-#define TRACE_DMA(function, format, ...) trace("dma.c", function, format, __VA_ARGS__)
-#else
-#define TRACE_DMA(function, format, ...) 
-#endif
+#define TRACE_DMA(function, format, ...) \
+    trace(TRACE_DMA_EN, "dma.c", function, format, __VA_ARGS__)
 
 enum dma_channels 
 {

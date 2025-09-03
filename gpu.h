@@ -9,11 +9,8 @@
 #include "fifo.h"
 #include "trace.h"
 
-#ifdef ENABLE_GPU_TRACE
-#define TRACE_GPU(function, format, ...) trace("gpu.c", function, format, __VA_ARGS__)
-#else
-#define TRACE_GPU(function, format, ...) 
-#endif
+#define TRACE_GPU(function, format, ...) \
+    trace(TRACE_GPU_EN, "gpu.c", function, format, __VA_ARGS__)
 
 #define COMMAND(c)   (c >> 24)
 #define PARAMETER(c) (c & 0x00FFFFFF)

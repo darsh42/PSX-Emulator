@@ -38,7 +38,7 @@ uint32_t read_spu_voice( uint32_t address )
 void write_spu_voice( uint32_t address, uint32_t data)
 {
     /* check for voice registers */
-    
+
     uint32_t voice = (address & 0x000000F0) >> 4;
 
     switch (address & 0xFFFFFE0F)
@@ -76,7 +76,7 @@ uint32_t read_spu( uint32_t address )
         case (spu_sound_ram_reverb_work_area_start_address): break;
         case (spu_sound_ram_irq_address                   ): break;
         case (spu_sound_ram_data_transfer_address         ): data = spu.sound_ram_data_transfer_address; break;
-        case (spu_sound_ram_data_transfer_fifo            ): 
+        case (spu_sound_ram_data_transfer_fifo            ):
              memory_read_sound_ram(spu.sound_ram_data_transfer_current_address, &data, 2);
              spu.sound_ram_data_transfer_current_address++;
              break;
@@ -86,7 +86,7 @@ uint32_t read_spu( uint32_t address )
         case (spu_cd_volume_left_right                    ): break;
         case (spu_extern_volume_left_right                ): break;
         case (spu_current_main_volume_left_right          ): break;
-        default: 
+        default:
             break;
     }
 
@@ -109,13 +109,13 @@ void write_spu( uint32_t address, uint32_t data )
         case (spu_channel_status                          ): break;
         case (spu_sound_ram_reverb_work_area_start_address): break;
         case (spu_sound_ram_irq_address                   ): break;
-        case (spu_sound_ram_data_transfer_address         ): 
-            spu.sound_ram_data_transfer_address         = data; 
+        case (spu_sound_ram_data_transfer_address         ):
+            spu.sound_ram_data_transfer_address         = data;
             spu.sound_ram_data_transfer_current_address = data << 3;
             break;
-        case (spu_sound_ram_data_transfer_fifo            ): 
+        case (spu_sound_ram_data_transfer_fifo            ):
         {
-            memory_write_sound_ram(spu.sound_ram_data_transfer_current_address, data, 2); 
+            memory_write_sound_ram(spu.sound_ram_data_transfer_current_address, data, 2);
             spu.sound_ram_data_transfer_current_address++;
             break;
         }
@@ -138,7 +138,7 @@ void write_spu( uint32_t address, uint32_t data )
 #define CLAMP(x, hi, lo) ((x < lo) ? lo: (x > hi) ? hi: x)
 void spu_decode_samples(struct spu_adpcm_sector *sector,
                         int16_t *decode_buffer,
-                        int16_t *old, 
+                        int16_t *old,
                         int16_t *older)
 {
     static int32_t pos_adpcm_table[] = {0, +60, +115, +98, +122};
@@ -146,36 +146,36 @@ void spu_decode_samples(struct spu_adpcm_sector *sector,
 
     uint32_t f0 = pos_adpcm_table[sector->filter];
     uint32_t f1 = neg_adpcm_table[sector->filter];
-    
+
     /* shift 13-15 treated as 9 */
     if (sector->shift > 12)
         sector->shift = 9;
-    
+
     /* decoding algorithm */
     for (uint32_t n = 0; n < 14; n++)
     {
         int32_t msb, lsb, _old, _older;
-        
+
         /* sign extend old samples */
         _old   = SIGN_EXT(*old,   16);
         _older = SIGN_EXT(*older, 16);
-        
+
         /* sign extend compressed samples */
         lsb = SIGN_EXT(sector->data[n] >> 0, 4);
         msb = SIGN_EXT(sector->data[n] >> 4, 4);
-        
+
         /* apply shift mask */
         lsb <<= (12 - sector->shift);
         msb <<= (12 - sector->shift);
-        
+
         /* calculate the sample */
         lsb = lsb + (32 + f0 * _old + f1 * _older) / 64; lsb = CLAMP(lsb, +0x7FFF, -0x8000);
         msb = msb + (32 + f0 *  lsb + f1 * _old  ) / 64; msb = CLAMP(msb, +0x7FFF, -0x8000);
-        
+
         /* populate voice sample buffers */
         decode_buffer[n + 0] = (int16_t) lsb;
         decode_buffer[n + 1] = (int16_t) msb;
-        
+
         /* set new old and older samples */
         *older = (int16_t) lsb;
         *old   = (int16_t) msb;
@@ -193,7 +193,7 @@ void spu_decode_block( int voice )
     /* sets the repeat address if current block has loop start set */
     if (sector->loop_start)
         spu.adpcm_repeat_address[voice] = address >> 3;
-    
+
     /* jumps to adpcm repeat address if current block has loop end set */
     if (sector->loop_end)
     {
@@ -204,16 +204,16 @@ void spu_decode_block( int voice )
         {
             spu.voice_volume[voice] = 0;
             spu.endx |= (1 << voice);
-            spu.koff |= (1 << voice); // BUG: seems like adsr related 
+            spu.koff |= (1 << voice); // BUG: seems like adsr related
         }
     }
 
     /* populate voice samples buffer */
     int16_t old = 0, older = 0;
 
-    spu_decode_samples(sector, 
+    spu_decode_samples(sector,
                        spu.decode_buffers[voice],
-                       &old, 
+                       &old,
                        &older);
 
     spu.adpcm_current_address[voice] += 16;
@@ -232,7 +232,7 @@ int16_t spu_service_voice(uint32_t voice)
 
         /* reset decode buffer index */
         spu.decode_buffers_index[voice] = 0;
-        
+
         /* clear keyon and endx flag */
         spu.endx &= ~(1 << voice);
         spu.kon  &= ~(1 << voice); // BUG: seems adsr related
@@ -240,7 +240,7 @@ int16_t spu_service_voice(uint32_t voice)
 
     /* clamp and add the sample rate to the pitch counter */
     spu.pitch_counter[voice] = CLAMP(spu.adpcm_sample_rate[voice], 0x4000, 0);
-    
+
     /* pitch counter determines how many samples are stepped through *
      * during each spu clock                                         */
     while (spu.pitch_counter[voice] > 0x1000)
@@ -248,7 +248,7 @@ int16_t spu_service_voice(uint32_t voice)
         /* decrement the pitch counter */
         spu.pitch_counter[voice] -= 0x1000;
         spu.decode_buffers_index[voice]++;
-        
+
         /* if the decode buffer index reaches the end, decode new samples and *
          * set index to 0                                                     */
         if (spu.decode_buffers_index[voice] == 28)

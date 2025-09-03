@@ -26,9 +26,9 @@ int cpu_trace_enabled = 1;
 
 struct cpu cpu;
 
-uint32_t cpu_cop0_sr_isc( void ) 
-{ 
-    union cop0_sr sr  = { .value = cpu.cop0[COP0_SR] }; return sr.Isc; 
+uint32_t cpu_cop0_sr_isc( void )
+{
+    union cop0_sr sr  = { .value = cpu.cop0[COP0_SR] }; return sr.Isc;
 }
 
 uint32_t cpu_get_general_register( uint32_t _register )
@@ -57,7 +57,51 @@ void cpu_load_initial_exe_registers(uint32_t initial_pc,
     }
 }
 
-static const char *cpu_register_names[] = 
+void cpu_exception( enum cpu_exception_type t )
+{
+    union cop0_cause cause = { .value = cpu.cop0[COP0_CAUSE] };
+    union cop0_sr    sr    = { .value = cpu.cop0[COP0_SR]    };
+    uint32_t         epc   =            cpu.cop0[COP0_EPC]    ;
+
+    uint32_t handler;
+
+    /* set the correct execption code */
+    cause.excode = t;
+
+    /* determine which exeption handler to use */
+    if (sr.BEV) handler = 0xBFC00180;
+    else        handler = 0x80000000;
+
+    /* set exception routine return */
+    if (cpu.branch_s == UNUSED)
+    {
+        /* normal, non-branch exception */
+        epc = cpu.pc;
+    }
+    else
+    {
+        /* branch miss if exception occurs during branch */
+        epc = cpu.branch_v;
+
+        cause.branch_delay = 1;
+
+        cpu.branch_v = 0;
+        cpu.branch_s = UNUSED;
+    }
+
+    /* set correct sr status */
+    sr.value = (sr.value & ~0X3F) | ((sr.value >> 2) & 0X3F);
+
+    /* write back all register values */
+    cpu.cop0[COP0_SR]    = sr.value;
+    cpu.cop0[COP0_CAUSE] = cause.value;
+    cpu.cop0[COP0_EPC]   = epc;
+
+    /* set pc to handler */
+    cpu.pc = handler - 4;
+}
+
+static const char *cpu_register_names[] =
 {
     "zero",
     "at",
@@ -73,7 +117,7 @@ static const char *cpu_register_names[] =
     "ra"
 };
 
-static const char *cop0_register_names[] = 
+static const char *cop0_register_names[] =
 {
     "n/a", "n/a",
     "bpc",
@@ -103,52 +147,8 @@ static void cpu_branch( void )
     cpu.branch_s = DELAY;
 }
 
-static void cpu_exception( enum cpu_exception_type t )
-{   
-    union cop0_cause cause = { .value = cpu.cop0[COP0_CAUSE] };
-    union cop0_sr    sr    = { .value = cpu.cop0[COP0_SR]    };
-    uint32_t         epc   =            cpu.cop0[COP0_EPC]    ;
-    
-    uint32_t handler;
-    
-    /* set the correct execption code */
-    cause.excode = t;
-
-    /* determine which exeption handler to use */
-    if (sr.BEV) handler = 0xBFC00180;
-    else        handler = 0x80000000;
-    
-    /* set exception routine return */
-    if (cpu.branch_s == UNUSED)
-    {
-        /* normal, non-branch exception */
-        epc = cpu.pc;
-    }
-    else
-    {
-        /* branch miss if exception occurs during branch */
-        epc = cpu.branch_v;
-
-        cause.branch_delay = 1;
-
-        cpu.branch_v = 0;
-        cpu.branch_s = UNUSED;
-    }
-    
-    /* set correct sr status */
-    sr.value = (sr.value & ~0X3F) | ((sr.value >> 2) & 0X3F);
-    
-    /* write back all register values */
-    cpu.cop0[COP0_SR]    = sr.value;
-    cpu.cop0[COP0_CAUSE] = cause.value;
-    cpu.cop0[COP0_EPC]   = epc;
-    
-    /* set pc to handler */
-    cpu.pc = handler - 4;
-}
-
-static inline void bltz(void)    
-{   
+static inline void bltz(void)
+{
     // Branch Less Than Zero
     cpu_trace_instruction("bltz");
 
@@ -156,26 +156,26 @@ static inline void bltz(void)
 
     DO_LOAD_DELAY;
 
-    if (s < 0) 
+    if (s < 0)
     {
         cpu_branch();
     }
 }
-static inline void bgez(void)    
+static inline void bgez(void)
 {
-    // Branch Greater than Equal Zero 
+    // Branch Greater than Equal Zero
     cpu_trace_instruction("bgez");
 
     int32_t s = sign32(reg(RS));
-    
+
     DO_LOAD_DELAY;
 
-    if (s >= 0) 
+    if (s >= 0)
     {
         cpu_branch();
     }
 }
-static inline void bltzal(void)    
+static inline void bltzal(void)
 {
     // Branch Less Than Zero And Link
     cpu_trace_instruction("bltzal");
@@ -184,13 +184,13 @@ static inline void bltzal(void)
 
     DO_LOAD_DELAY;
 
-    if (s < 0) 
+    if (s < 0)
     {
         cpu.r[31] = cpu.pc;
         cpu_branch();
     }
 }
-static inline void bgezal(void)    
+static inline void bgezal(void)
 {
     // Branch Greater than Equal Zero And Link
     cpu_trace_instruction("bgezal");
@@ -199,13 +199,13 @@ static inline void bgezal(void)
 
     DO_LOAD_DELAY;
 
-    if (s >= 0) 
+    if (s >= 0)
     {
         cpu.r[31] = cpu.pc;
         cpu_branch();
     }
 }
-static inline void j(void)       
+static inline void j(void)
 {
     // Jump
     cpu_trace_instruction("j");
@@ -215,7 +215,7 @@ static inline void j(void)
     cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
     cpu.branch_s = DELAY;
 }
-static inline void jal(void)     
+static inline void jal(void)
 {
     // Jump And Link
     cpu_trace_instruction("jal");
@@ -227,116 +227,116 @@ static inline void jal(void)
     cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
     cpu.branch_s = DELAY;
 }
-static inline void beq(void)     
+static inline void beq(void)
 {
     // Branch Equal
     cpu_trace_instruction("beq");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
-    
+
     DO_LOAD_DELAY;
 
-    if (s == t) 
+    if (s == t)
     {
         cpu_branch();
     }
-}    
-static inline void bne(void)     
+}
+static inline void bne(void)
 {
     // Branch Not Equal
     cpu_trace_instruction("bne");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
-    
+
     DO_LOAD_DELAY;
 
     if (s != t )
     {
         cpu_branch();
     }
-}    
-static inline void blez(void)    
+}
+static inline void blez(void)
 {
     // Branch Less than Equal Zero
     cpu_trace_instruction("blez");
 
     int32_t s = sign32(reg(RS));
-    
+
     DO_LOAD_DELAY;
 
-    if (s <= 0) 
+    if (s <= 0)
     {
         cpu_branch();
     }
-}   
-static inline void bgtz(void)    
+}
+static inline void bgtz(void)
 {
     // Branch Greater Than Zero
     cpu_trace_instruction("bgtz");
 
     int32_t s = sign32(reg(RS));
-    
+
     DO_LOAD_DELAY;
 
-    if (s > 0) 
+    if (s > 0)
     {
         cpu_branch();
     }
-}   
-static inline void addi(void)    
+}
+static inline void addi(void)
 {
-    // ADD Immediate, with overflow 
+    // ADD Immediate, with overflow
     cpu_trace_instruction("addi");
 
     uint32_t s = reg(RS);
-    
+
     DO_LOAD_DELAY;
 
     if (overflow(s, S_IMM16))
     {
         cpu_exception(Ov);
-    } 
-    else 
+    }
+    else
     {
         reg(RT) = s + S_IMM16;
     }
-}   
-static inline void addiu(void)   
+}
+static inline void addiu(void)
 {
     // ADD Immediate Unsigned
     cpu_trace_instruction("addiu");
 
     uint32_t s = reg(RS);
-    
+
     DO_LOAD_DELAY;
 
     reg(RT) = s + S_IMM16;
-}  
-static inline void slti(void)    
+}
+static inline void slti(void)
 {
     // Set if Less Than Immediate
     cpu_trace_instruction("slti");
 
     int32_t s = sign32(reg(RS));
-    
+
     DO_LOAD_DELAY;
 
     reg(RT) = s < S_IMM16;
-}   
-static inline void sltiu(void)   
+}
+static inline void sltiu(void)
 {
     // Set if Less Than Immediate Unsigned
     cpu_trace_instruction("sltiu");
 
     uint32_t s = reg(RS);
-    
+
     DO_LOAD_DELAY;
 
     reg(RT) = s < (uint32_t) S_IMM16;
-}  
-static inline void andi(void)    
+}
+static inline void andi(void)
 {
     // AND Immediate
     cpu_trace_instruction("andi");
@@ -346,10 +346,10 @@ static inline void andi(void)
     DO_LOAD_DELAY;
 
     reg(RT) = reg(RS) & IMM16;
-}   
-static inline void ori(void)     
+}
+static inline void ori(void)
 {
-    // OR Immediate 
+    // OR Immediate
     cpu_trace_instruction("ori");
 
     uint32_t s = reg(RS);
@@ -357,10 +357,10 @@ static inline void ori(void)
     DO_LOAD_DELAY;
 
     reg(RT) = s | IMM16;
-}    
-static inline void xori(void)    
+}
+static inline void xori(void)
 {
-    // XOR Immediate 
+    // XOR Immediate
     cpu_trace_instruction("xori");
 
     uint32_t s = reg(RS);
@@ -368,8 +368,8 @@ static inline void xori(void)
     DO_LOAD_DELAY;
 
     reg(RT) = s ^ IMM16;
-}   
-static inline void lui(void)     
+}
+static inline void lui(void)
 {
     // shift immediate << 16 and store in RT
     cpu_trace_instruction("lui");
@@ -378,8 +378,8 @@ static inline void lui(void)
     DO_LOAD_DELAY;
 
     reg(RT) = IMM16 << 16;
-}    
-static inline void lb(void)      
+}
+static inline void lb(void)
 {
     // Load Byte
     cpu_trace_instruction("lb");
@@ -387,7 +387,7 @@ static inline void lb(void)
     uint32_t result, address = reg(RS) + S_IMM16;
 
     memory_read(address, &result, 1);
-    
+
     if (cpu.load_d != RT)
     {
         DO_LOAD_DELAY;
@@ -395,10 +395,10 @@ static inline void lb(void)
 
     cpu.load_d = RT;
     cpu.load_v = sign8(result);
-}     
-static inline void lh(void)      
+}
+static inline void lh(void)
 {
-    // Load Halfword 
+    // Load Halfword
     cpu_trace_instruction("lh");
 
     uint32_t result, address = reg(RS) + S_IMM16;
@@ -409,13 +409,13 @@ static inline void lh(void)
     {
         DO_LOAD_DELAY;
     }
-    
+
     cpu.load_d = RT;
     cpu.load_v = sign16(result);
-}    
-static inline void lw(void)      
+}
+static inline void lw(void)
 {
-    // Load Word 
+    // Load Word
     cpu_trace_instruction("lw");
 
     uint32_t result, address = reg(RS) + S_IMM16;
@@ -429,8 +429,8 @@ static inline void lw(void)
 
     cpu.load_d = RT;
     cpu.load_v = result;
-}     
-static inline void lwl(void)     
+}
+static inline void lwl(void)
 {
     // Load Halfword Left TODO:
     cpu_trace_instruction("lwl");
@@ -446,55 +446,55 @@ static inline void lwl(void)
 
     memory_read(address, &result, 2);
 
-    switch ((s + S_IMM16) & 0X3) 
+    switch ((s + S_IMM16) & 0X3)
     {
         case 0: mask = 0X00FFFFFF; result <<= 24; break;
         case 1: mask = 0X0000FFFF; result <<= 16; break;
         case 2: mask = 0X000000FF; result <<= 8;  break;
         case 3: mask = 0X00000000; result <<= 0;  break;
     }
-    
+
     cpu.load_v &= mask;
     cpu.load_v |= result;
 
-    if (cpu.load_s == UNUSED) 
+    if (cpu.load_s == UNUSED)
     {
         cpu.load_s = DELAY;
     }
 }
-static inline void lwr(void)     
+static inline void lwr(void)
 {
     // Load Halfword Right
     cpu_trace_instruction("lwr");
 
     uint32_t s = reg(RS);
-    
+
     if (cpu.load_d != RT)
     {
         DO_LOAD_DELAY;
     }
-    
+
     uint32_t mask, result, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &result, 2);
 
-    switch ((s + S_IMM16) & 0X3) 
+    switch ((s + S_IMM16) & 0X3)
     {
         case 1: mask = 0X00000000; result <<= 0;  break;
         case 2: mask = 0X000000FF; result <<= 8;  break;
         case 3: mask = 0X0000FFFF; result <<= 16; break;
         case 4: mask = 0X00FFFFFF; result <<= 24; break;
     }
-    
+
     cpu.load_v &= mask;
     cpu.load_v |= result;
 
-    if (cpu.load_s == UNUSED) 
+    if (cpu.load_s == UNUSED)
     {
         cpu.load_s = DELAY;
     }
 }
-static inline void lbu(void)     
+static inline void lbu(void)
 {
     // Load Byte Unsigned
     cpu_trace_instruction("lbu");
@@ -510,8 +510,8 @@ static inline void lbu(void)
 
     cpu.load_v = result;
     cpu.load_d = RT;
-}    
-static inline void lhu(void)     
+}
+static inline void lhu(void)
 {
     // Load Halfword Unsigned
     cpu_trace_instruction("lhu");
@@ -527,32 +527,32 @@ static inline void lhu(void)
 
     cpu.load_v = result;
     cpu.load_d = RT;
-}    
-static inline void sb(void)      
+}
+static inline void sb(void)
 {
     // Store Byte
     cpu_trace_instruction("sb");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
-    
+
     DO_LOAD_DELAY;
 
     memory_write(s + S_IMM16, t, 1);
-}     
-static inline void sh(void)      
+}
+static inline void sh(void)
 {
-    // Store Half word 
+    // Store Half word
     cpu_trace_instruction("sh");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
-    
+
     DO_LOAD_DELAY;
 
     memory_write(s + S_IMM16, t, 2);
-}     
-static inline void swl(void)     
+}
+static inline void swl(void)
 {
     // Store Halfword Left TODO:
     cpu_trace_instruction("swl");
@@ -565,20 +565,20 @@ static inline void swl(void)
 
     memory_read(address, &current, 2);
 
-    switch ((s + S_IMM16) & 0X3) 
+    switch ((s + S_IMM16) & 0X3)
     {
         case 0: mask = 0X00FFFFFF; value = current << 24; break;
         case 1: mask = 0X0000FFFF; value = current << 16; break;
         case 2: mask = 0X000000FF; value = current << 8;  break;
         case 3: mask = 0X00000000; value = current << 0;  break;
     }
-    
+
     current &= mask;
     current |= value;
 
     memory_write(address, current, 4);
 }
-static inline void swr(void)     
+static inline void swr(void)
 {
     // Store Halfword Right TODO:
     cpu_trace_instruction("swr");
@@ -591,46 +591,46 @@ static inline void swr(void)
 
     memory_read(address, &current, 2);
 
-    switch ((s + S_IMM16) & 0X3) 
+    switch ((s + S_IMM16) & 0X3)
     {
         case 0: mask = 0X00000000; value = current << 0;  break;
         case 1: mask = 0X000000FF; value = current << 8;  break;
         case 2: mask = 0X0000FFFF; value = current << 16; break;
         case 3: mask = 0X00FFFFFF; value = current << 24; break;
     }
-    
+
     current &= mask;
     current |= value;
 
     memory_write(address, current, 4);
 }
-static inline void sw(void)      
+static inline void sw(void)
 {
-    // Store Word 
+    // Store Word
     cpu_trace_instruction("sw");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
-    
+
     DO_LOAD_DELAY;
 
     memory_write(s + S_IMM16, t, 4);
-}     
-static inline void lwc0(void)    
+}
+static inline void lwc0(void)
 {
     // Load Word Coprocessor 0
     cpu_trace_instruction("lwc0");
 
     cpu_exception(CpU);
-}   
-static inline void lwc1(void)    
+}
+static inline void lwc1(void)
 {
     // Load Word Coprocessor 1
     cpu_trace_instruction("lwc1");
 
     cpu_exception(CpU);
-}   
-static inline void lwc2(void)    
+}
+static inline void lwc2(void)
 {
     // Load Word Coprocessor 2
     cpu_trace_instruction("lwc2");
@@ -638,29 +638,29 @@ static inline void lwc2(void)
     uint32_t *reg, address = reg(RS) + IMM25;
     // COPn_reg(2, RD, &reg);
     memory_read(address, reg, 4);
-}   
-static inline void lwc3(void)    
+}
+static inline void lwc3(void)
 {
     // Load Word Coprocessor 3
     cpu_trace_instruction("lwc3");
 
     cpu_exception(CpU);
-}   
-static inline void swc0(void)    
+}
+static inline void swc0(void)
 {
     // Store Word Coprocessor 0
     cpu_trace_instruction("swc0");
 
     cpu_exception(CpU);
-}   
-static inline void swc1(void)    
+}
+static inline void swc1(void)
 {
     // Store Word Coprocessor 1
     cpu_trace_instruction("swc1");
 
     cpu_exception(CpU);
-}   
-static inline void swc2(void)    
+}
+static inline void swc2(void)
 {
     // Store Word Coprocessor 2
     cpu_trace_instruction("swc2");
@@ -669,14 +669,14 @@ static inline void swc2(void)
     // COPn_reg(2, RD, &value);
     memory_write(address, *value, 4);
 }
-static inline void swc3(void)    
+static inline void swc3(void)
 {
     // Store Word Coprocessor 3
     cpu_trace_instruction("swc3");
 
     cpu_exception(CpU);
-}   
-static inline void sll(void)     
+}
+static inline void sll(void)
 {
     // Shift Left Logical
     cpu_trace_instruction("sll");
@@ -687,7 +687,7 @@ static inline void sll(void)
 
     reg(RD) = t << SHAMT;
 }
-static inline void srl(void)     
+static inline void srl(void)
 {
     // Shift Right Logical
     cpu_trace_instruction("srl");
@@ -697,19 +697,19 @@ static inline void srl(void)
     DO_LOAD_DELAY;
 
     reg(RD) = t >> SHAMT;
-}    
-static inline void sra(void)     
+}
+static inline void sra(void)
 {
     // Shift Right Arithmetic
     cpu_trace_instruction("sra");
 
     int32_t t = sign32(reg(RT));
-        
+
     DO_LOAD_DELAY;
 
     reg(RD) = t >> SHAMT;
-}    
-static inline void sllv(void)    
+}
+static inline void sllv(void)
 {
     // Shift Left Logical Variable
     cpu_trace_instruction("sllv");
@@ -720,8 +720,8 @@ static inline void sllv(void)
     DO_LOAD_DELAY;
 
     reg(RD) = t << (s & 0X1F);
-}   
-static inline void srlv(void)    
+}
+static inline void srlv(void)
 {
     // Shift Right Logical Variable
     cpu_trace_instruction("srlv");
@@ -732,8 +732,8 @@ static inline void srlv(void)
     DO_LOAD_DELAY;
 
     reg(RD) = t >> (s & 0X1F);
-}   
-static inline void srav(void)    
+}
+static inline void srav(void)
 {
     // Shift Right Arthmetic Variable
     cpu_trace_instruction("srav");
@@ -744,8 +744,8 @@ static inline void srav(void)
     DO_LOAD_DELAY;
 
     reg(RD) = t >> (s & 0x1f);
-}   
-static inline void jr(void)      
+}
+static inline void jr(void)
 {
     // Jump to Register
     cpu_trace_instruction("jr");
@@ -756,8 +756,8 @@ static inline void jr(void)
 
     cpu.branch_v = s;
     cpu.branch_s = DELAY;
-}     
-static inline void jalr(void)    
+}
+static inline void jalr(void)
 {
     // Jump And Link Register
     cpu_trace_instruction("jalr");
@@ -770,8 +770,8 @@ static inline void jalr(void)
 
     cpu.branch_v = s;
     cpu.branch_s = DELAY;
-}   
-static inline void syscall(void) 
+}
+static inline void syscall(void)
 {
     // SYStem CALL exception
     cpu_trace_instruction("syscall");
@@ -780,7 +780,7 @@ static inline void syscall(void)
 
     cpu_exception(SYSCALL);
 }
-static inline void brk(void)   
+static inline void brk(void)
 {
     // BREAK exception
     cpu_trace_instruction("brk");
@@ -788,8 +788,8 @@ static inline void brk(void)
     DO_LOAD_DELAY;
 
     cpu_exception(BP);
-}  
-static inline void mfhi(void)    
+}
+static inline void mfhi(void)
 {
     // Move From HI
     cpu_trace_instruction("mfhi");
@@ -797,8 +797,8 @@ static inline void mfhi(void)
     DO_LOAD_DELAY;
 
     reg(RD) = cpu.hi;
-}   
-static inline void mthi(void)    
+}
+static inline void mthi(void)
 {
     // Move To HI
     cpu_trace_instruction("mthi");
@@ -806,17 +806,17 @@ static inline void mthi(void)
     DO_LOAD_DELAY;
 
     cpu.hi = reg(RS);
-}   
-static inline void mflo(void)    
+}
+static inline void mflo(void)
 {
     // Move From LO
     cpu_trace_instruction("mflo");
 
     DO_LOAD_DELAY;
-    
+
     reg(RD) = cpu.lo;
-}   
-static inline void mtlo(void)    
+}
+static inline void mtlo(void)
 {
     // Move To LO
     cpu_trace_instruction("mtlo");
@@ -825,7 +825,7 @@ static inline void mtlo(void)
 
     cpu.lo = reg(RS);
 }
-static inline void mult(void)    
+static inline void mult(void)
 {
     // MULTiplication RS and RT store in HI:LO
     cpu_trace_instruction("mult");
@@ -838,8 +838,8 @@ static inline void mult(void)
 
     cpu.hi = (uint32_t) (r >> 32);
     cpu.lo = (uint32_t)  r;
-}   
-static inline void multu(void)   
+}
+static inline void multu(void)
 {
     // MULTiplication Unsigned RS and RT store in HI:LO
     cpu_trace_instruction("multu");
@@ -852,8 +852,8 @@ static inline void multu(void)
 
     cpu.hi = (uint32_t) (r >> 32);
     cpu.lo = (uint32_t)  r;
-}  
-static inline void div(void)     
+}
+static inline void div(void)
 {
     // DIVision, edge cases accounted for, TODO: delays on MULT/DIV operations
     cpu_trace_instruction("div");
@@ -863,65 +863,65 @@ static inline void div(void)
 
     DO_LOAD_DELAY;
 
-    if (t == 0) 
+    if (t == 0)
     {
         cpu.hi = s;
         cpu.lo = (s < 0) ? 0X00000001: 0XFFFFFFFF;
-    } 
-    else if ((uint32_t) t == 0XFFFFFFFF && 
-             (uint32_t) s == 0X80000000) 
+    }
+    else if ((uint32_t) t == 0XFFFFFFFF &&
+             (uint32_t) s == 0X80000000)
     {
         cpu.hi = 0X00000000;
         cpu.lo = 0X80000000;
-    } 
-    else 
+    }
+    else
     {
         cpu.hi = s % t;
         cpu.lo = s / t;
     }
-}    
-static inline void divu(void)    
+}
+static inline void divu(void)
 {
     // DIVide Unsigned RS by RT
     cpu_trace_instruction("divu");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
-    
+
     DO_LOAD_DELAY;
 
-    if (t == 0) 
+    if (t == 0)
     {
         cpu.hi = s;
         cpu.lo = 0XFFFFFFFF;
-    } 
-    else 
+    }
+    else
     {
         cpu.hi = s % t;
         cpu.lo = s / t;
     }
-}   
-static inline void add(void)     
+}
+static inline void add(void)
 {
     // ADD with overflow
     cpu_trace_instruction("add");
 
     int32_t s = sign32(reg(RS));
     int32_t t = sign32(reg(RT));
-    
+
     DO_LOAD_DELAY;
 
-    if (overflow((uint32_t) s, 
-                 (uint32_t) t)) 
+    if (overflow((uint32_t) s,
+                 (uint32_t) t))
     {
         cpu_exception(Ov);
-    } 
-    else 
+    }
+    else
     {
         reg(RD) = s + t;
     }
-}    
-static inline void addu(void)    
+}
+static inline void addu(void)
 {
     // ADD Unsigned
     cpu_trace_instruction("addu");
@@ -932,8 +932,8 @@ static inline void addu(void)
     DO_LOAD_DELAY;
 
     reg(RD) = s + t;
-}   
-static inline void sub(void)     
+}
+static inline void sub(void)
 {
     // SUB with overflow
     cpu_trace_instruction("sub");
@@ -943,16 +943,16 @@ static inline void sub(void)
 
     DO_LOAD_DELAY;
 
-    if (underflow(s, t)) 
+    if (underflow(s, t))
     {
         cpu_exception(Ov);
-    } 
-    else 
+    }
+    else
     {
         reg(RD) = s - t;
     }
-}    
-static inline void subu(void)    
+}
+static inline void subu(void)
 {
     // SUBtract Unsigned
     cpu_trace_instruction("subu");
@@ -961,22 +961,22 @@ static inline void subu(void)
     uint32_t t = reg(RT);
 
     DO_LOAD_DELAY;
-    
+
     reg(RD) = s - t;
-}   
-static inline void and(void)     
+}
+static inline void and(void)
 {
-    // AND 
+    // AND
     cpu_trace_instruction("and");
 
     uint32_t s = reg(RS);
     uint32_t t = reg(RT);
 
     DO_LOAD_DELAY;
-    
+
     reg(RD) = s & t;
-}    
-static inline void or(void)      
+}
+static inline void or(void)
 {
     // OR RS
     cpu_trace_instruction("or");
@@ -985,10 +985,10 @@ static inline void or(void)
     uint32_t t = reg(RT);
 
     DO_LOAD_DELAY;
-    
+
     reg(RD) = s | t;
-}     
-static inline void xor(void)     
+}
+static inline void xor(void)
 {
     // XOR RS
     cpu_trace_instruction("xor");
@@ -997,10 +997,10 @@ static inline void xor(void)
     uint32_t t = reg(RT);
 
     DO_LOAD_DELAY;
-    
+
     reg(RD) = s ^ t;
-}    
-static inline void nor(void)     
+}
+static inline void nor(void)
 {
     // Not OR
     cpu_trace_instruction("nor");
@@ -1009,12 +1009,12 @@ static inline void nor(void)
     uint32_t t = reg(RT);
 
     DO_LOAD_DELAY;
-    
+
     reg(RD) = ~(s | t);
-}    
-static inline void slt(void)     
+}
+static inline void slt(void)
 {
-    // Set Less Than 
+    // Set Less Than
     cpu_trace_instruction("slt");
 
     int32_t s = sign32(reg(RS));
@@ -1023,10 +1023,10 @@ static inline void slt(void)
     DO_LOAD_DELAY;
 
     reg(RD) = s < t;
-}    
-static inline void sltu(void)    
+}
+static inline void sltu(void)
 {
-    // Set Less Than Unsigned 
+    // Set Less Than Unsigned
     cpu_trace_instruction("sltu");
 
     uint32_t s = reg(RS);
@@ -1035,10 +1035,10 @@ static inline void sltu(void)
     DO_LOAD_DELAY;
 
     reg(RD) = s < t;
-}   
+}
 
 // COPn
-static inline void MFCn(int cop_n) 
+static inline void MFCn(int cop_n)
 {
     // Move From Coprocessor n
     cpu_trace_instruction("MFCn");
@@ -1051,7 +1051,7 @@ static inline void MFCn(int cop_n)
 
     cpu.load_d = RT;
 }
-static inline void MTCn(int cop_n) 
+static inline void MTCn(int cop_n)
 {
     // Move To Coprocessor n
     cpu_trace_instruction("MTCn");
@@ -1076,33 +1076,33 @@ static inline void TLBR(void)  { running = 0; }
 static inline void TLBWI(void) { running = 0; }
 static inline void TLBWR(void) { running = 0; }
 static inline void TLBP(void)  { running = 0; }
-static inline void RFE(void)   
+static inline void RFE(void)
 {
     // Return From Exception
     cpu_trace_instruction("RFE");
 
-    if ((cpu.cir & 0x1f) == 0x10) 
+    if ((cpu.cir & 0x1f) == 0x10)
     {
         /* increment exception stack */
-        cpu.cop0[COP0_SR] = (cpu.cop0[COP0_SR] & ~0X3F) | ((cpu.cop0[COP0_SR] &  0X3F) >> 2); 
+        cpu.cop0[COP0_SR] = (cpu.cop0[COP0_SR] & ~0X3F) | ((cpu.cop0[COP0_SR] &  0X3F) >> 2);
     }
 }
-static inline void cop0(void)    
+static inline void cop0(void)
 {
     // Coprocessor0 instructions
     cpu_trace_instruction("cop0");
 
-    switch (COP_TYPE) 
+    switch (COP_TYPE)
     {
         case 0X00:
-            switch (COP_FUNC) 
+            switch (COP_FUNC)
             {
                 case 0X00: MFCn(0); break; // MFCn
                 case 0X02: CFCn(0); break; // CFCn
                 case 0X04: MTCn(0); break; // MTCn
                 case 0X06: CTCn(0); break; // CTCn
                 case 0X08:
-                    switch(RT) 
+                    switch(RT)
                     {
                         case 0X00: BCnF(0); break; // BCnF
                         case 0X01: BCnT(0); break; // BCnT
@@ -1111,7 +1111,7 @@ static inline void cop0(void)
             }
             break;
         case 0X01:
-            switch (IMM25) 
+            switch (IMM25)
             {
                 case 0X01: TLBR();  break; // TLBR
                 case 0X02: TLBWI(); break; // TLBWI
@@ -1122,23 +1122,23 @@ static inline void cop0(void)
             }
             break;
     }
-}   
-static inline void cop2(void)    
+}
+static inline void cop2(void)
 {
     // Coprocessor2 instructions TODO: create the GTE
     cpu_trace_instruction("cop2");
 
-    switch (COP_TYPE) 
+    switch (COP_TYPE)
     {
         case 0X00:
-            switch (COP_FUNC) 
+            switch (COP_FUNC)
             {
                 case 0X00: MFCn(2); break; // MFCn
                 case 0X02: CFCn(2); break; // CFCn
                 case 0X04: MTCn(2); break; // MTCn
                 case 0X06: CTCn(2); break; // CTCn
                 case 0X08:
-                    switch(RT) 
+                    switch(RT)
                     {
                         case 0X00: BCnF(2); break; // BCnF
                         case 0X01: BCnT(2); break; // BCnT
@@ -1148,22 +1148,22 @@ static inline void cop2(void)
             break;
         case 0X01: COPn(2); break; // COPN
     }
-}   
+}
 
 static inline void cpu_execute( void )
 {
     /* handle branch delay */
     switch (cpu.branch_s)
     {
-        case DELAY:   
+        case DELAY:
             cpu.branch_s = TRANSFER;
             break;
-        case TRANSFER: 
+        case TRANSFER:
             cpu.pc       = cpu.branch_v;
             cpu.branch_s = UNUSED;
             cpu.branch_v = 0;
             break;
-        case UNUSED: 
+        case UNUSED:
             break;
     }
 
@@ -1176,7 +1176,7 @@ static inline void cpu_execute( void )
     /* read and increment program counter */
     memory_read(cpu.pc, &cpu.cir, 4);
 
-    switch (OP) 
+    switch (OP)
     {
         case 0X00: goto secondary_op;
         case 0x01: goto branch_op;
@@ -1214,7 +1214,7 @@ static inline void cpu_execute( void )
     } goto cycle_complete;
 
 secondary_op:
-    switch (FUNCT) 
+    switch (FUNCT)
     {
         case 0x00: sll();                break;
         case 0x02: srl();                break;
@@ -1250,7 +1250,7 @@ secondary_op:
     } goto cycle_complete;
 
 branch_op:
-    switch (RT) 
+    switch (RT)
     {
         case 0x00: bltz();               break;
         case 0x01: bgez();               break;

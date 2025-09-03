@@ -82,13 +82,13 @@ void write_dma( uint32_t address, uint32_t data )
     TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
 }
 
-void dma_transfer_manual_cdrom( void ) 
+void dma_transfer_manual_cdrom( void )
 {
     union madr madr = { .value = dma.dma3_cdrom_madr };
     union brc   brc = { .value = dma.dma3_cdrom_brc  };
     union chcr chcr = { .value = dma.dma3_cdrom_chcr };
 }
-void dma_transfer_manual_otc( void ) 
+void dma_transfer_manual_otc( void )
 {
     TRACE_DMA("dma_transfer_manual_otc", "manual transfer otc\n", 0);
 
@@ -99,9 +99,9 @@ void dma_transfer_manual_otc( void )
     uint32_t source = madr.base_address;
     uint32_t size = brc.bc;
      int32_t step = (chcr.address_step) ? -4: +4;
-    
+
     /* clear otc busy flag */
-    
+
     /* clear */
     while ( size > 1 )
     {
@@ -111,10 +111,10 @@ void dma_transfer_manual_otc( void )
         source += step;
         size--;
     }
-    
+
     /* last double word is a terminator */
     memory_write(source, 0xFFFFFF, 4);
-    
+
     /* transfer complete */
     madr.base_address = 0xFFFFFF;
     chcr.start_busy   = 0;
@@ -157,7 +157,7 @@ void dma_transfer_request_gpu( void )
     uint32_t block_count = brc.ba;
     uint32_t block_size  = brc.bs;
     uint32_t step = (chcr.address_step) ? -4: +4;
-    
+
     while (block_count != 0)
     {
         /* get next gpu address */
@@ -203,26 +203,26 @@ void dma_transfer_linkedlist_gpu( void )
     TRACE_DMA("dma_transfer_linkedlist_gpu", "linked list transfer gpu\n", 0);
 
     /* lock the memory */
-    
+
     static uint32_t next = 0x00FFFFFF;
-    
+
     uint32_t source, size, header, command;
-        
+
     /* new DMA transfer is determined by checking if the previous
      * DMA transfers end address was preserved                    */
     if (next == 0x00FFFFFF)
         next = ((union madr) dma.dma2_gpu_madr).base_address;
-    
+
     /* load next source address */
     source = next;
-    
+
     /* read packet header */
     memory_read(source, &header, 4);
 
     next = (header >>  0) & 0X00FFFFFF; /* store next address  */
     size = (header >> 24) & 0X000000FF; /* read size of packet */
 
-    TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n", 
+    TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n",
                 source, header, next, size);
 
     source += 4;
@@ -231,7 +231,7 @@ void dma_transfer_linkedlist_gpu( void )
     {
         memory_read(source, &command, 4);       /* read command from memory */
         memory_write(gp0_gpu_read, command, 4); /* write command to device  */
-        
+
         source += 4;
         size--;
     }
@@ -259,7 +259,7 @@ void task_dma( void )
     //  - enabled in its own CHCR
     //  - highest priority
     union chcr chcr;
-    
+
     static const uint32_t *chcrs[] = {
         &dma.dma0_mdec_in_chcr,
         &dma.dma1_mdec_out_chcr,
@@ -269,28 +269,28 @@ void task_dma( void )
         &dma.dma5_pio_chcr,
         &dma.dma6_otc_chcr
     };
-    
+
     dma.channel = DMAX_UNUSED;
 
     uint32_t dev_priority = 10;
     uint32_t channel_bits, priority, enabled;
-    
-    for (int32_t i = 6; i >= 1; i--) 
-    {   
+
+    for (int32_t i = 6; i >= 1; i--)
+    {
         channel_bits = (dma.dpcr >> (i * 4)) & 0xf;
 
         priority = channel_bits & 0x7; /* get 0b0111 */
         enabled  = channel_bits & 0x8; /* get 0b1000 */
-        
+
         chcr.value = *chcrs[i];
-        
-        if (enabled && chcr.start_busy && priority < dev_priority) 
+
+        if (enabled && chcr.start_busy && priority < dev_priority)
         {
             dev_priority = priority;
             dma.channel  = i;
         }
     }
-    
+
     /* set the correct channel or set to IDLE till next check */
     switch (dma.channel)
     {
@@ -306,7 +306,7 @@ void task_dma( void )
                 case LINKED_LIST: dma_transfer_linkedlist_gpu(); break;
             }
             break;
-        default: 
+        default:
             break;
     }
 }

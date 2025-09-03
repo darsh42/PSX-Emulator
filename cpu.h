@@ -8,11 +8,8 @@
 
 #include "trace.h"
 
-#ifdef ENABLE_CPU_TRACE
-#define TRACE_CPU(function, format, ...) trace("cpu.c", function, format, __VA_ARGS__)
-#else
-#define TRACE_CPU(function, format, ...) 
-#endif
+#define TRACE_CPU(function, format, ...) \
+    trace(TRACE_CPU_EN, "cpu.c", function, format, __VA_ARGS__)
 
 /* main opcode breakdown */
 #define FUNCT    ((cpu.cir >>  0) & 0x3F)
@@ -84,8 +81,8 @@ enum cpu_load_delay
 union cop0_sr
 {
     uint32_t value;
-    struct 
-	{
+    struct
+    {
         uint32_t IEc: 1;
         uint32_t KUc: 1;
         uint32_t IEp: 1;
@@ -115,8 +112,8 @@ union cop0_sr
 union cop0_cause
 {
     uint32_t value;
-    struct 
-	{
+    struct
+    {
         uint32_t             :  2;
         uint32_t excode      :  5;
         uint32_t             :  1;
@@ -128,19 +125,19 @@ union cop0_cause
     };
 };
 
-struct cpu 
+struct cpu
 {
     uint32_t pc;
     uint32_t cir;
     uint32_t r[32];
     uint32_t hi, lo;
-    
+
     /* coprocessor registers */
     uint32_t cop0[16];
     uint32_t cop2[64];
 
     uint32_t cycles;
-    
+
     /* load delay destinaion and value */
     uint32_t load_d, load_v;
     enum cpu_load_delay load_s;

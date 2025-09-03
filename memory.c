@@ -39,7 +39,7 @@ void memory_load_exe( const char *exe )
     FILE *fp;
 
     struct psx_exe_header header;
-    
+
     /* load the header */
     assert((fp = fopen(exe, "rb")));
     assert(fread((void *) &header, 1, sizeof(header), fp) == sizeof(header));
@@ -156,18 +156,18 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
                 write_spu(address, data);
                 return;
             /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address): 
-            case(expansion_2_base_address): 
-            case(expansion_1_delay_size  ): 
-            case(expansion_3_delay_size  ): 
-            case(bios_rom_delay_size     ): 
-            case(spu_delay_size          ): 
-            case(cdrom_delay_size        ): 
-            case(expansion_2_delay_size  ): 
-            case(com_delay_size          ): 
+            case(expansion_1_base_address):
+            case(expansion_2_base_address):
+            case(expansion_1_delay_size  ):
+            case(expansion_3_delay_size  ):
+            case(bios_rom_delay_size     ):
+            case(spu_delay_size          ):
+            case(cdrom_delay_size        ):
+            case(expansion_2_delay_size  ):
+            case(com_delay_size          ):
             /* CACHE CONTROL / KSEG2 */
             case(cache_control           ):
-			   	goto memory_registers_write;
+                goto memory_registers_write;
         }
 
         /* spu voice registers */
@@ -191,9 +191,9 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
     }
 
 /* if the memory registers are accessed treat them as non-devices*/
-memory_registers_write: 
-    if (physical < 0x00200000) 
-    { 
+memory_registers_write:
+    if (physical < 0x00200000)
+    {
         /* if cache is isolated do scratchpad, else do main ram */
         if ( cpu_cop0_sr_isc() )
         {
@@ -202,26 +202,26 @@ memory_registers_write:
         }
         else
         {
-            segment =  memory.ram; 
+            segment =  memory.ram;
         }
     }
     else if (physical >= 0x1FC00000 && physical < 0x1FC80000) { segment = memory.bios; physical -= 0x1FC00000; }
-	/* internal memory registers */
-	else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
-	else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
-	else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
-	else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
-	else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
-	else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
-	else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
-	else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
-	else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
-	else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
-    else 
-	{
-			// assert(0 && "Unhandled memory address");
+    /* internal memory registers */
+    else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
+    else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
+    else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
+    else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
+    else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
+    else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
+    else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
+    else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
+    else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
+    else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
+    else
+    {
+            // assert(0 && "Unhandled memory address");
             return;
-	}
+    }
 
     assert(segment);
 
@@ -247,8 +247,8 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
 {
     assert(data);
     assert(size == 4 || size == 2 || size == 1);
-    
-	/* memory segment pointer */
+
+    /* memory segment pointer */
     uint8_t *segment = NULL;
 
     /* virtual to physical memory lookup */
@@ -256,8 +256,8 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
 
     /* clear data pointer */
     *data = 0;
-    
-    if ( (physical >= 0x1F801000 && physical < 0x1F802000) || physical == 0xFFFE0130 ) 
+
+    if ( (physical >= 0x1F801000 && physical < 0x1F802000) || physical == 0xFFFE0130 )
     {
         switch ((enum memory_map) address)
         {
@@ -332,18 +332,18 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
                 *data = read_spu(address);
                 break;
             /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address): 
-            case(expansion_2_base_address): 
-            case(expansion_1_delay_size  ): 
-            case(expansion_3_delay_size  ): 
-            case(bios_rom_delay_size     ): 
-            case(spu_delay_size          ): 
-            case(cdrom_delay_size        ): 
-            case(expansion_2_delay_size  ): 
-            case(com_delay_size          ): 
+            case(expansion_1_base_address):
+            case(expansion_2_base_address):
+            case(expansion_1_delay_size  ):
+            case(expansion_3_delay_size  ):
+            case(bios_rom_delay_size     ):
+            case(spu_delay_size          ):
+            case(cdrom_delay_size        ):
+            case(expansion_2_delay_size  ):
+            case(com_delay_size          ):
             /* CACHE CONTROL / KSEG2 */
-            case(cache_control           ): 
-				goto memory_registers_read;
+            case(cache_control           ):
+                goto memory_registers_read;
         }
 
         if (address >= 0x1F801C00 && address <= 0x1F801D7E)
@@ -364,7 +364,7 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
             }
         }
 
-        switch (size) 
+        switch (size)
         {
             case 1: *data = (uint32_t) ( uint8_t) *data; break;
             case 2: *data = (uint32_t) (uint16_t) *data; break;
@@ -377,8 +377,8 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
 /* if the memory registers are accessed treat them as non-devices*/
 memory_registers_read:
 
-    if (physical < 0x00200000) 
-    { 
+    if (physical < 0x00200000)
+    {
         /* if cache is isolated do scratchpad, else do main ram */
         if ( cpu_cop0_sr_isc() )
         {
@@ -387,29 +387,29 @@ memory_registers_read:
         }
         else
         {
-            segment =  memory.ram; 
+            segment =  memory.ram;
         }
     }
     else if (physical >= 0x1FC00000 && physical < 0x1FC80000) { segment = memory.bios; physical -= 0x1FC00000; }
-	/* internal memory registers */
-	else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
-	else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
-	else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
-	else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
-	else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
-	else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
-	else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
-	else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
-	else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
-	else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
-    else 
-	{
-			// assert(0 && "Unhandled memory address");
-            return;
-	}
+    /* internal memory registers */
+    else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
+    else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
+    else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
+    else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
+    else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
+    else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
+    else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
+    else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
+    else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
+    else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
+    else
+    {
+    // assert(0 && "Unhandled memory address");
+                return;
+    }
 
     assert(segment);
-    
+
     switch ( size )
     {
         case 1:
@@ -463,7 +463,7 @@ void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
     assert(data);
     assert(address < VRAM_SIZE);
     assert(size == 1 || size == 2 || size == 4);
-    
+
     /* clear data pointer */
     *data = 0;
 
@@ -522,7 +522,7 @@ void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
     assert(data);
     assert(address < SOUND_RAM_SIZE);
     assert(size == 1 || size == 2 || size == 4);
-    
+
     /* clear data pointer */
     *data = 0;
 
@@ -551,6 +551,6 @@ void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **se
 {
     assert(sector);
     assert(address < SOUND_RAM_SIZE - sizeof(struct spu_adpcm_sector));
-    
+
     *sector = (struct spu_adpcm_sector *) &memory.sound_ram[address];
 }

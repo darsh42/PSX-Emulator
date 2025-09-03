@@ -9,7 +9,7 @@
 
 static struct timers timers;
 
-uint32_t read_timers( uint32_t address ) 
+uint32_t read_timers( uint32_t address )
 {
     uint32_t data;
     switch ( address )
@@ -29,7 +29,7 @@ uint32_t read_timers( uint32_t address )
     return data;
 }
 
-void write_timers( uint32_t address, uint32_t _data ) 
+void write_timers( uint32_t address, uint32_t _data )
 {
     uint16_t data = (uint16_t) _data;
     switch ( address )
@@ -90,13 +90,13 @@ static void timers_increment_timer0( void )
         // 1 = Reset counter to 0000h at Hblank(s)
         // 2 = Reset counter to 0000h at Hblank(s) and pause outside of Hblank
         // 3 = Pause until Hblank occurs once, then switch to Free Run
-        
+
         if (gpu_hblank())
         {
             /* clear counter to 0000 at HBLANK for modes 1 and 2 */
             if (timers.t0.mode.sync_mode == 1 || timers.t0.mode.sync_mode == 2)
                 timers.t0.current_count = 0;
-            
+
             /* switch to free running after HBLANK for mode 3 */
             if (timers.t0.mode.sync_mode == 3)
                 timers.t0.mode.sync_enable = 0;
@@ -120,13 +120,13 @@ static void timers_increment_timer1( void )
         // 1 = Reset counter to 0000h at Vblank(s)
         // 2 = Reset counter to 0000h at Vblank(s) and pause outside of Vblank
         // 3 = Pause until Vblank occurs once, then switch to Free Run
-        
+
         if (gpu_vblank())
         {
             /* clear counter to 0000 at VBLANK for modes 1 and 2 */
             if (timers.t1.mode.sync_mode == 1 || timers.t1.mode.sync_mode == 2)
                 timers.t1.current_count = 0;
-            
+
             /* switch to free running after VBLANK for mode 3 */
             if (timers.t1.mode.sync_mode == 3)
                 timers.t1.mode.sync_enable = 0;

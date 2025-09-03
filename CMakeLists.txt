@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 if (NOT BACKEND)
     set(BACKEND SDL CACHE STRING "PSX system backend" FORCE)
 endif()
-if (NOT CMAKE_BUILD_TYPE) 
+if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build Type" FORCE)
 endif()
 
@@ -145,12 +145,12 @@ target_link_libraries(emulator
     PUBLIC
     PRIVATE
     psx-core
-    $<$<BOOL:${BACKEND_SDL}>:psx-sdl>
-    $<$<BOOL:${BACKEND_VULKAN}>:psx-vulkan>
+    psx-sdl
+    psx-vulkan
     $<$<CONFIG:DEBUG>:psx-debugger>
 
     Threads::Threads
-    $<$<BOOL:${BACKEND_SDL}>:${SDL2_LIBRARIES}>
+    ${SDL2_LIBRARIES}
 
     $<$<CONFIG:RELEASE>: release-flags>
     $<$<CONFIG:DEBUG>: debug-flags>)
@@ -158,11 +158,11 @@ target_link_libraries(emulator
 
 ############################ COMMANDS ##################################
 add_custom_target(run
-    COMMAND emulator BIOS.bin GAME.bin
+    COMMAND emulator -b BIOS.bin -g GAME.bin
     VERBATIM)
 add_custom_target(run-debug
     COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/.gdbinit ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND gdb -iex "set auto-load safe-path ${CMAKE_CURRENT_SOURCE_DIR}" --args emulator BIOS.bin GAME.bin
+    COMMAND gdb -iex "set auto-load safe-path ${CMAKE_CURRENT_SOURCE_DIR}" --args emulator -b BIOS.bin -g GAME.bin
     VERBATIM)
 add_custom_target(perf-stat
     COMMAND perf record emulator BIOS.bin GAME.bin

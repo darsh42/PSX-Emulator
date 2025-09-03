@@ -6,15 +6,15 @@
 #define SIGN_EXT(x, b) ((SIGN_PRE(x, b) ^ SIGN_MSK(b)) >> SIGN_MSK(b))
 
 #define CLAMP(x, hi, lo) ((x < lo) ? lo: (x > hi) ? hi: x)
-// void xa_audio_decode_block( uint32_t  nibble, uint32_t  block, 
-//                             uint8_t  *source, uint16_t *destination, 
+// void xa_audio_decode_block( uint32_t  nibble, uint32_t  block,
+//                             uint8_t  *source, uint16_t *destination,
 //                             uint16_t *old,    uint16_t *older )
 // {
 //     /*
-//      * ------------------------- 
+//      * -------------------------
 //      * | Header (16 bytes)     |
 //      * -------------------------      ^
-//      *  b0 b1 b2 b3 b4 b5 b6 b7       |   
+//      *  b0 b1 b2 b3 b4 b5 b6 b7       |
 //      *  _______________________       |
 //      * |  |  |  |  |  |  |  |  | v0   |
 //      * |  |  |  |  |  |  |  |  | v1   |
@@ -51,14 +51,14 @@
 //      */
 //     static int32_t pos_xa_adpcm_table[] = {0, +60, +115, +98, +122};
 //     static int32_t neg_xa_adpcm_table[] = {0,   0,  -52, -55,  -60};
-//     
+//
 //     /* retrieving shift and filter */
 //     uint32_t shift  = 12 - (source[4 + block * 2 + nibble] & 0xf0);
 //     uint32_t filter =      (source[4 + block * 2 + nibble] & 0x30) >> 4;
-//     
+//
 //     uint32_t f0 = pos_xa_adpcm_table[filter];
 //     uint32_t f1 = neg_xa_adpcm_table[filter];
-// 
+//
 //     for (int32_t sample, v = 0; v < 28; v++)
 //     {
 //         /* skip the 16 byte header, voice 'v' sample */
@@ -71,16 +71,16 @@
 //         sample = (sample << shift) + ((32 + f0 * (*old) + f1 * (*older))/64);
 //         /* clamp the sample */
 //         sample = CLAMP(sample, +0x7fff, -0x8000);
-// 
+//
 //     }
 // }
-// 
+//
 // void xa_audio_decode_sector( uint32_t sector_address )
 // {
 //     struct cdrom_sector_cd_xa_2 *sector;
-// 
+//
 //     memory_read_sector(sector_address, &sector);
-// 
+//
 //     for (uint32_t p = 0; p < 18; p++)
 //     {
 //         for (uint32_t b = 0; b < 4; b++)
@@ -90,7 +90,7 @@
 //                 /* decode stereo samples */
 //                 uint16_t r_old, r_older;
 //                 uint16_t l_old, l_older;
-//                 
+//
 //                 xa_audio_decode_block(0, b, &sector->data + 128 * p, spu.samples[p][b], &l_old, &l_older);
 //                 xa_audio_decode_block(1, b, &sector->data + 128 * p, spu.samples[p][b], &r_old, &r_older);
 //             }
@@ -98,7 +98,7 @@
 //             {
 //                 /* decode mono samples */
 //                 uint16_t old, older;
-// 
+//
 //                 xa_audio_decode_block(0, b, &sector->data + 128 * p, spu.samples[p][b], &old, &older);
 //                 xa_audio_decode_block(1, b, &sector->data + 128 * p, spu.samples[p][b], &old, &older);
 //             }

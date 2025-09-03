@@ -6,28 +6,30 @@
 
 #include "trace.h"
 
-FILE *trace_file    = NULL;
-bool  trace_enabled = false;
+struct tracer {
+    union logging enabled;
+};
 
-void trace_enable  ( void ) { trace_enabled = true;  }
-void trace_disabled( void ) { trace_enabled = false; }
+static struct tracer tracer;
 
-void trace( char *file, char *function_call, char *format_string, ... )
+void trace_set_profile( uint32_t profile ) {
+    tracer.enabled.profile = profile;
+}
+
+void trace( enum tracing_device dev, char *file, char *function_call, char *format_string, ... )
 {
-    if (trace_enabled) {
-        /* will contain argument list */
-        va_list args; 
+    va_list args;
 
-        /* get all the format arguments */
-        va_start(args, format_string); 
-        
+    /* if the device is enabled */
+    if (tracer.enabled.profile & dev) {
+        va_start(args, format_string);
+
         /* print the basic information */
         fprintf(stdout, "[TRACE] file: %-16s | function: %-48s | ", file, function_call);
-        
+
         /* print the specific information */
-        vprintf(format_string, args); 
-        
-        /* end the arguments */
+        vprintf(format_string, args);
+
         va_end(args);
     }
 }

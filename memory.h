@@ -7,26 +7,15 @@
 #include <pthread.h>
 #include <stdint.h>
 
-#define  TRACE_DEVMEM(file, function, format, ...)
-
 #include "trace.h"
-#ifdef ENABLE_MEMORY_DEVICE_TRACE
-#undef  TRACE_DEVMEM
 #define TRACE_DEVMEM(file, function, format, ...) \
-    trace(file " (devmem)", function, format, __VA_ARGS__)
-#endif
+    trace(TRACE_MEMORY_EN, file " (devmem)", function, format, __VA_ARGS__)
 
 #ifdef MEMORY_PRIVATE
 
-// utilities
-#define TRACE_MEM(function, format, ...) 
-
 #include "trace.h"
-#ifdef ENABLE_MEMORY_TRACE
-#undef  TRACE_MEM
 #define TRACE_MEM(function, format, ...) \
-    trace("memory.c", function, format, __VA_ARGS__)
-#endif
+    trace(TRACE_MEMORY_EN, "memory.c", function, format, __VA_ARGS__)
 
 #define RAM_SIZE       0x200000
 #define SCRPD_SIZE     0x400

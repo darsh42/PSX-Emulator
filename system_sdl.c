@@ -32,11 +32,11 @@ static inline void system_input( void )
 
 void system_render( void )
 {
-    SDL_UpdateTexture(sys.screen, NULL, sys.frame_buffer, 1024*3);
-    SDL_SetRenderDrawColor(sys.renderer, 0xff, 0xff, 0xff, 0xff);
-    SDL_RenderClear(sys.renderer);
-    SDL_RenderCopy(sys.renderer, sys.screen, NULL, &sys.scale);
-    SDL_RenderPresent(sys.renderer);
+    // SDL_UpdateTexture(sys.screen, NULL, sys.frame_buffer, 1024*3);
+    // SDL_SetRenderDrawColor(sys.renderer, 0xff, 0xff, 0xff, 0xff);
+    // SDL_RenderClear(sys.renderer);
+    // SDL_RenderCopy(sys.renderer, sys.screen, NULL, &sys.scale);
+    // SDL_RenderPresent(sys.renderer);
 }
 
 void system_write_audio_sample(int32_t sample)
@@ -59,7 +59,7 @@ void *task_system( void *ignore )
     SDL_CHECK_PTR(sys.window   = SDL_CreateWindow(NAME, WIN_X, WIN_Y, WIN_W, WIN_H, WINDOW_FLAGS));
     SDL_CHECK_PTR(sys.renderer = SDL_CreateRenderer(sys.window, -1, SDL_RENDERER_ACCELERATED));
     SDL_CHECK_PTR(sys.screen   = SDL_CreateTexture(sys.renderer, SDL_PIXELFORMAT_BGR555, SDL_TEXTUREACCESS_STREAMING, WIN_W, WIN_H));
-    
+
     sys.scale = (SDL_Rect) {0, 0, 1024, 512};
 
     /* AUDIO */

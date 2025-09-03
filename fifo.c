@@ -26,7 +26,7 @@ void fifo_push          ( struct fifo *fifo, uint32_t data )
 {
     assert(fifo);
     assert(!fifo_full(fifo));
-    
+
     fifo->data[fifo->tail++] = data;
 
     fifo->tail %= fifo->size;
@@ -43,7 +43,7 @@ uint32_t *fifo_push_ptr ( struct fifo *fifo )
     fifo->length++;
     return ptr;
 }
-void fifo_reset         ( struct fifo *fifo )     
+void fifo_reset         ( struct fifo *fifo )
 {
     assert(fifo);
 
@@ -55,7 +55,7 @@ void fifo_create        ( struct fifo *fifo, uint32_t size )
 {
     assert(fifo);
     assert(size);
-    
+
     fifo->data = malloc(sizeof(uint32_t) * size);
     fifo->size = size;
 }
@@ -69,13 +69,13 @@ void fifo_destroy       ( struct fifo *fifo )
 
     free(fifo->data);
 }
-void fifo_print        ( struct fifo *fifo ) 
+void fifo_print        ( struct fifo *fifo )
 {
     assert(fifo);
 
     uint32_t i = fifo->head;
     uint32_t l = fifo->length;
-    
+
     for (; l > 0; l--, i++, i %= fifo->size)
         printf("[FIFO]: index = %d, value = %x\n", i, fifo->data[i]);
 }
@@ -85,12 +85,12 @@ static void fifo_test   ( void )
     fifo_create(&fifo, 5);          // create fifo of size 5
     fifo_push  (&fifo, 1);          // push 1 onto it
     fifo_push  (&fifo, 2);          // push 2 onto it
-    fifo_push  (&fifo, 3);          // push 3 onto it 
-    fifo_push  (&fifo, 4);          // push 4 onto it 
+    fifo_push  (&fifo, 3);          // push 3 onto it
+    fifo_push  (&fifo, 4);          // push 4 onto it
     fifo_push  (&fifo, 5);          // push 5 onto it
     assert(fifo_peek(&fifo) == 1);  // peek the first element, should be 1
     assert(fifo_pop(&fifo) == 1);   // pop the first element, should be 1
     assert(fifo_peek(&fifo) == 2);  // peek the first element, should be 2
-    assert(fifo_pop(&fifo) == 2);   // pop the first element, should be 2 
+    assert(fifo_pop(&fifo) == 2);   // pop the first element, should be 2
     fifo_destroy(&fifo);            // desroy the fifo
 }

@@ -14,11 +14,8 @@ extern void     write_timers( uint32_t address, uint32_t data );
 
 #include "trace.h"
 
-#ifdef ENABLE_TIMERS_TRACE
-#define TRACE_TIMERS(function, format, ...) trace("timers.c", function, format, __VA_ARGS__)
-#else
-#define TRACE_TIMERS(function, format, ...) 
-#endif
+#define TRACE_TIMERS(function, format, ...) \
+    trace(TRACE_TIMERS_EN, "timers.c", function, format, __VA_ARGS__)
 
 union timer_mode {
     uint16_t value;

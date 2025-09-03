@@ -6,11 +6,8 @@
 
 #include "trace.h"
 
-#ifdef ENABLE_SPU_TRACE
-#define TRACE_SPU(function, format, ...) trace("spu.c", function, format, __VA_ARGS__)
-#else
-#define TRACE_SPU(function, format, ...) 
-#endif
+#define TRACE_SPU(function, format, ...) \
+    trace(TRACE_SPU_EN, "spu.c", function, format, __VA_ARGS__)
 
 #include <stdint.h>
 

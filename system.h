@@ -27,21 +27,16 @@ enum system_state {
     RENDER
 };
 
-#define TRACE_SYS(function, format, ...)
-#ifdef ENABLE_SYS_TRACE
-#undef  TRACE_SYS
-#define TRACE_SYS(function, format, ...) trace("system.c", function, format, __VA_ARGS__)
-#endif
+#define TRACE_SYS(function, format, ...) \
+    trace(TRACE_SYSTEM_EN, "system.c", function, format, __VA_ARGS__)
 
 /* renderer type specific structures */
 #ifdef RENDERER_SDL
 
 #include <SDL2/SDL.h>
 
-#ifdef ENABLE_SYS_TRACE
-#undef  TRACE_SYS
-#define TRACE_SYS(function, format, ...) trace("system_sdl.c", function, format, __VA_ARGS__)
-#endif
+#define TRACE_SYS(function, format, ...) \
+    trace(TRACE_SYSTEM_EN, "system_sdl.c", function, format, __VA_ARGS__)
 
 #define INITIALIZE_FLAGS SDL_INIT_VIDEO | SDL_INIT_AUDIO
 #define     WINDOW_FLAGS SDL_WINDOW_SHOWN
