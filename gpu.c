@@ -1,11 +1,46 @@
 #include <assert.h>
 #include <stdio.h>
 
-#define GPU_PRIVATE
 #include "gpu.h"
 #include "dma.h"
 #include "memory.h"
 #include "system.h"
+#include "interrupts.h"
+
+#include "trace.h"
+
+#define TRACE_GPU(function, format, ...) \
+    trace(TRACE_GPU_EN, "gpu.c", function, format, __VA_ARGS__)
+
+#define COMMAND(c)   (c >> 24)
+#define PARAMETER(c) (c & 0x00FFFFFF)
+#define PACK_RECT_SIZE(h, w) ((h) << 16) | ((w) << 0)
+
+#define VRAM_WIDTH 1024
+
+#define CYCLES_PER_DOT_256PIX 10
+#define CYCLES_PER_DOT_320PIX  8
+#define CYCLES_PER_DOT_368PIX  7
+#define CYCLES_PER_DOT_512PIX  5
+#define CYCLES_PER_DOT_640PIX  4
+
+#define NTSC_DOTS_PER_SCANLINE_256PIX 341
+#define NTSC_DOTS_PER_SCANLINE_320PIX 426
+#define NTSC_DOTS_PER_SCANLINE_368PIX 487
+#define NTSC_DOTS_PER_SCANLINE_512PIX 628
+#define NTSC_DOTS_PER_SCANLINE_640PIX 853
+
+#define  PAL_DOTS_PER_SCANLINE_256PIX 340
+#define  PAL_DOTS_PER_SCANLINE_320PIX 426
+#define  PAL_DOTS_PER_SCANLINE_368PIX 486
+#define  PAL_DOTS_PER_SCANLINE_512PIX 621
+#define  PAL_DOTS_PER_SCANLINE_640PIX 851
+
+#define NTSC_CYCLES_PER_SCANLINE 3413
+#define NTSC_SCANLINES_PER_FRAME  263
+
+#define  PAL_CYCLES_PER_SCANLINE 3406
+#define  PAL_SCANLINES_PER_FRAME  314
 
 static struct gpu gpu;
 
@@ -31,7 +66,7 @@ void write_gpu( uint32_t address, uint32_t data )
         case( gp1_gpu_stat ): gpu.gp1 = data; gpu.state = GPU_PROCESS_GP1; break;
     }
 
-    // TRACE_DEVMEM("gpu.c", "write_gpu ", "address: %08x | data: %08x\n", address, data);
+    TRACE_DEVMEM("gpu.c", "write_gpu ", "address: %08x | data: %08x\n", address, data);
 }
 
 /* if gpu is transferring data to or from vram it computes next address */
@@ -62,15 +97,13 @@ uint32_t gpu_get_vram_address( void )
     return address;
 }
 
+
 /* external status functions */
-void gpu_notify_dma_block_end( void ) { gpu.gpustat.ready_recieve_dma_block = 0; }
-
-bool gpu_gpustat_dma_data_request       ( void ) { return (gpu.gpustat.dma_data_request);       }
-bool gpu_gpustat_ready_send_vram_cpu    ( void ) { return (gpu.gpustat.ready_send_vram_cpu);    }
-bool gpu_gpustat_dma_ready_recieve_block( void ) { return (gpu.gpustat.ready_recieve_dma_block); }
-
 bool gpu_hblank( void ) { return (gpu.hblank); }
 bool gpu_vblank( void ) { return (gpu.vblank); }
+void gpu_set_gpustat( union gpustat  stat ) {  gpu.gpustat = stat; }
+void gpu_get_gpustat( union gpustat *stat ) { *stat = gpu.gpustat; }
+
 
 // gp0 instructions
 static void gp0_nop( void ) { TRACE_GPU("gp0_nop", "command: %08x\n", fifo_pop(&gpu.gp0)); }

@@ -139,8 +139,12 @@ void dma_transfer_request_mdec_out( void )
 }
 void dma_transfer_request_gpu( void )
 {
-     if (!gpu_gpustat_dma_data_request() ||
-         !gpu_gpustat_ready_send_vram_cpu())
+    union gpustat gpustat;
+
+    gpu_get_gpustat(&gpustat);
+
+    if (!gpustat.ready_send_vram_cpu ||
+        !gpustat.dma_data_request)
         return;
 
     TRACE_DMA("dma_transfer_request_gpu", "request transfer gpu\n", 0);
@@ -158,20 +162,23 @@ void dma_transfer_request_gpu( void )
     uint32_t block_size  = brc.bs;
     uint32_t step = (chcr.address_step) ? -4: +4;
 
-    while (block_count != 0)
-    {
+    while (block_count != 0) {
         /* get next gpu address */
         vram_address = gpu_get_vram_address();
 
         /* copy from source to destination depending on transfer direction */
-        if ( chcr.transfer_direction == RAM_TO_DEVICE) { memory_read( ram_address, &data, 4); memory_write_vram( vram_address,  data, 4); }
-        else                                           { memory_read_vram( vram_address, &data, 4); memory_write( ram_address,  data, 4); }
+        if (chcr.transfer_direction == RAM_TO_DEVICE) {
+            memory_read(ram_address, &data, 4);
+            memory_write_vram(vram_address,  data, 4);
+        } else {
+            memory_read_vram(vram_address, &data, 4);
+            memory_write(ram_address,  data, 4);
+        }
 
         block_size--;
 
         /* if end of block go to next block */
-        if (block_size == 0)
-        {
+        if (block_size == 0) {
             block_size = brc.bs;
             block_count--;
         }
@@ -179,10 +186,15 @@ void dma_transfer_request_gpu( void )
         ram_address += step;
     }
 
+    /* finished block */
+    gpustat.ready_recieve_dma_block = 0;
+
+    /* notify gpu of block end */
+    gpu_set_gpustat(gpustat);
+
 // #error BUG: incorrect dma transfer request for gpu
     /* finish dma transfer */
     chcr.start_busy   = 0;
-    gpu_notify_dma_block_end();
     dma.dma2_gpu_chcr = chcr.value;
 }
 void dma_transfer_request_spu( void )
@@ -194,10 +206,14 @@ void dma_transfer_request_spu( void )
 
 void dma_transfer_linkedlist_gpu( void )
 {
+    union gpustat gpustat;
+
+    gpu_get_gpustat(&gpustat);
+
     /* wait for gpustat dma data request bit    */
     /* wait for gpustat dma ready recieve block */
-    if (!gpu_gpustat_dma_data_request() ||
-        !gpu_gpustat_dma_ready_recieve_block())
+    if (!gpustat.ready_recieve_dma_block ||
+        !gpustat.dma_data_request)
         return;
 
     TRACE_DMA("dma_transfer_linkedlist_gpu", "linked list transfer gpu\n", 0);
@@ -236,13 +252,15 @@ void dma_transfer_linkedlist_gpu( void )
         size--;
     }
 
+    /* finished block */
+    gpustat.ready_recieve_dma_block = 0;
+
     /* notify gpu of block end */
-    gpu_notify_dma_block_end();
+    gpu_set_gpustat(gpustat);
 
     /* end of link list is denoted by the packet 0x00FFFFFF, *
      * clear start busy                                      */
-    if (next == 0x00FFFFFF)
-    {
+    if (next == 0x00FFFFFF) {
         union chcr chcr = {.value = dma.dma2_gpu_chcr};
         dma.dma2_gpu_chcr = (chcr.start_busy = 0);
     }

@@ -4,60 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef GPU_PRIVATE
-
 #include "fifo.h"
-#include "trace.h"
 
-#define TRACE_GPU(function, format, ...) \
-    trace(TRACE_GPU_EN, "gpu.c", function, format, __VA_ARGS__)
-
-#define COMMAND(c)   (c >> 24)
-#define PARAMETER(c) (c & 0x00FFFFFF)
-#define PACK_RECT_SIZE(h, w) ((h) << 16) | ((w) << 0)
-
-#define VRAM_WIDTH 1024
-
-#define CYCLES_PER_DOT_256PIX 10
-#define CYCLES_PER_DOT_320PIX  8
-#define CYCLES_PER_DOT_368PIX  7
-#define CYCLES_PER_DOT_512PIX  5
-#define CYCLES_PER_DOT_640PIX  4
-
-#define NTSC_DOTS_PER_SCANLINE_256PIX 341
-#define NTSC_DOTS_PER_SCANLINE_320PIX 426
-#define NTSC_DOTS_PER_SCANLINE_368PIX 487
-#define NTSC_DOTS_PER_SCANLINE_512PIX 628
-#define NTSC_DOTS_PER_SCANLINE_640PIX 853
-
-#define  PAL_DOTS_PER_SCANLINE_256PIX 340
-#define  PAL_DOTS_PER_SCANLINE_320PIX 426
-#define  PAL_DOTS_PER_SCANLINE_368PIX 486
-#define  PAL_DOTS_PER_SCANLINE_512PIX 621
-#define  PAL_DOTS_PER_SCANLINE_640PIX 851
-
-#define NTSC_CYCLES_PER_SCANLINE 3413
-#define NTSC_SCANLINES_PER_FRAME  263
-
-#define  PAL_CYCLES_PER_SCANLINE 3406
-#define  PAL_SCANLINES_PER_FRAME  314
-
-
-enum gpu_state {
-    GPU_IDLE,
-    GPU_RENDERING,
-    GPU_PROCESS_GP0,
-    GPU_PROCESS_GP1,
-    GPU_VRAM_TRANSFER,
-};
-
-enum gpu_transfer_direction
-{
-    TRANSFER_TO_VRAM,
-    TRANSFER_TO_MAIN
-};
-
-union GPUSTAT {
+union gpustat {
     uint32_t value;
     struct {
         uint32_t texture_page_x_base         : 4;
@@ -88,13 +37,27 @@ union GPUSTAT {
     };
 };
 
+enum gpu_state {
+    GPU_IDLE,
+    GPU_RENDERING,
+    GPU_PROCESS_GP0,
+    GPU_PROCESS_GP1,
+    GPU_VRAM_TRANSFER,
+};
+
+enum gpu_transfer_direction
+{
+    TRANSFER_TO_VRAM,
+    TRANSFER_TO_MAIN
+};
+
 struct gpu {
     enum gpu_state state;
 
     struct fifo gp0;
     uint32_t    gp1;
 
-    union GPUSTAT gpustat;
+    union gpustat gpustat;
     uint32_t      gpuread;
 
     uint32_t cycles;    // gpu cycles 
@@ -103,7 +66,7 @@ struct gpu {
 
     uint32_t vblank;    // vertical blank (outside vertical resolution)
     uint32_t hblank;    // horizontal blank (outside horizontal resolution)
-    
+
     uint32_t vram_direct_access_x; // minimum x
     uint32_t vram_direct_access_y; // minimum y
     uint32_t vram_direct_access_w; // access width
@@ -136,20 +99,19 @@ struct gpu {
     bool texture_rectangle_x_flip; // if texture is flipped in x direction
     bool texture_rectangle_y_flip; // if texture is flipped in y direction
 };
-#endif // GPU_PRIVATE
 
-extern bool gpu_hblank( void );
-extern bool gpu_vblank( void );
-extern bool gpu_gpustat_dma_data_request( void );
-extern bool gpu_gpustat_dma_ready_recieve_block( void );
-extern bool gpu_gpustat_ready_send_vram_cpu( void );
-extern void gpu_notify_dma_block_end( void );
-extern uint32_t gpu_get_vram_address( void );
 
-extern uint32_t  read_gpu( uint32_t address );
-extern void     write_gpu( uint32_t address, uint32_t data );
+bool gpu_hblank( void );
+bool gpu_vblank( void );
+void gpu_set_gpustat( union gpustat  stat );
+void gpu_get_gpustat( union gpustat *stat );
 
-extern void init_gpu( void );
-extern void task_gpu( void );
+uint32_t gpu_get_vram_address( void );
+
+uint32_t  read_gpu( uint32_t address );
+void     write_gpu( uint32_t address, uint32_t data );
+
+void init_gpu( void );
+void task_gpu( void );
 
 #endif //  GPU_H_INCLUDED
