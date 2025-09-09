@@ -54,6 +54,7 @@ target_compile_options(debug-flags
 target_compile_definitions(debug-flags
     INTERFACE
     -D TRACE_TTY
+    $<$<BOOL:${GDBSTUB}>:GDBSTUB>
     -D ENABLE_CPU_TRACE
     -D ENABLE_GPU_TRACE
     -D ENABLE_SPU_TRACE

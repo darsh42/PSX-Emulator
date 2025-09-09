@@ -15,9 +15,7 @@
 #define TRACE_H_IMPLEMENTATION
 #include "trace.h"
 
-#ifdef DEBUG
 #include "stub.h"
-#endif
 
 uint32_t running = 1;
 
@@ -36,6 +34,10 @@ void *task_core( void *_args )
 
     init_tracer();
 
+#ifdef GDBSTUB
+    init_gdb_stub();
+#endif
+
     init_cpu(args->bios,
              args->exe);
     init_gpu();
@@ -49,6 +51,12 @@ void *task_core( void *_args )
 
     while (running)
     {
+#ifdef GDBSTUB
+        /* check if user interacting with stub */
+        while (paused_gdb_stub())
+            ;
+#endif // GDBSTUB
+
         /* clock */
         task_timers();
 
@@ -85,16 +93,24 @@ void *task_core( void *_args )
     return NULL;
 }
 
+#ifdef GDBSTUB
 void *task_debug( void * )
 {
     printf("DEBUGGER: %ld\n", pthread_self());
 
+    init_gdb_stub();
+
+    while (running)
+        task_gdb_stub();
+
+    kill_gdb_stub();
+
     return NULL;
 }
+#endif // GDBSTUB
 
 int main( int argc , char **argv )
 {
-    // char *bios = "SCPH1001.BIN";
     char *bios = NULL;
     char *exe  = NULL;
     char *tty  = NULL;
@@ -131,18 +147,23 @@ int main( int argc , char **argv )
     };
 
     pthread_t thread_core;
-    pthread_t thread_debug;
     pthread_t thread_system;
 
-    assert(!pthread_create(&thread_system, NULL, task_system, NULL));
-    // assert(!pthread_create(&thread_debug, NULL, task_debug, NULL));
+#ifdef GDBSTUB
+    pthread_t thread_debug;
+    assert(!pthread_create(&thread_debug, NULL, task_debug, NULL));
+#endif // GDBSTUB
 
+    assert(!pthread_create(&thread_system,
+                NULL, task_system, NULL));
     wait_system_ready();
+    assert(!pthread_create(&thread_core,
+                NULL, task_core, (void *) &core_args));
 
-    assert(!pthread_create(&thread_core, NULL, task_core, (void *) &core_args));
-
+#ifdef GDBSTUB
+    pthread_join(thread_debug, NULL);
+#endif // GDBSTUB
     pthread_join(thread_core, NULL);
-    // pthread_join(thread_debug, NULL);
     pthread_join(thread_system, NULL);
 
     return 0;

@@ -13,9 +13,9 @@
 
 #define hextoint(c) (((c) <= '9') ? (c) - '0': ((c) <= 'Z') ? (c) - 'A': (c) - 'a')
 
-extern uint32_t gdb_stub_pause;
-
-extern void  wait_gdb_stub( void );
-extern void *task_gdb_stub( void *ignore );
+extern void init_gdb_stub( void );
+extern void kill_gdb_stub( void );
+extern void task_gdb_stub( void );
+extern bool paused_gdb_stub( void );
 
 #endif // STUB_H_INCLUDED

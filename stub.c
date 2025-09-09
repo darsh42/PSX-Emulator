@@ -1,7 +1,9 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include <pthread.h>
 
 #include <assert.h>
@@ -37,6 +39,12 @@ uint32_t gdb_stub_pause = 1;
 
 pthread_cond_t gdb_stub_notify = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t gdb_stub_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+enum GDB_STATE {
+    CONTINUE = 0,
+    STEPPING = 1,
+    PAUSED   = 2
+};
 
 /** All possible main commands of the stub */
 enum GDB_COMMANDS {
@@ -94,6 +102,8 @@ struct gdb_stub {
     int socket_fd;
     int listen_fd;
     int signal;
+
+    atomic_int state;
 };
 
 static struct gdb_stub stub;
@@ -189,7 +199,10 @@ static void socket_connect ( const char *address, const int port )
     stub.socket_fd = socket(AF_INET, SOCK_STREAM, STUB_TYPE);
 
     /** quit and display message if socket issue */
-    assert(stub.socket_fd != -1);
+    if (stub.socket_fd == -1) {
+        printf("%s\n", strerror(errno));
+        assert(0);
+    }
 
     /** create the socket address */
     struct sockaddr_in addr = {
@@ -202,19 +215,28 @@ static void socket_connect ( const char *address, const int port )
     result = bind(stub.socket_fd, (struct sockaddr *)&addr, sizeof(addr));
 
     /** quit and display if binding issue */
-    assert(result != -1);
+    if (result == -1) {
+        printf("%s\n", strerror(errno));
+        assert(0);
+    }
 
     /** listen for a connection to the socket */
     result = listen(stub.socket_fd, STUB_MAX_CONNECTIONS);
 
     /** quit and display if listening issue */
-    assert(result != -1);
+    if (result == -1) {
+        printf("%s\n", strerror(errno));
+        assert(0);
+    }
 
     /** block program execution and wait to accept the gdb connection */
     stub.listen_fd = accept(stub.socket_fd, NULL, 0);
 
     /** quit and display if accepting issue */
-    assert(stub.listen_fd != -1);
+    if (stub.listen_fd == -1) {
+        printf("%s\n", strerror(errno));
+        assert(0);
+    }
 }
 
 /** reads from socket into gdb_packet */
@@ -877,62 +899,72 @@ void wait_gdb_stub( void )
     assert(!pthread_cond_wait(&gdb_stub_notify, &gdb_stub_mutex));
 }
 
-/** gdb stub needs to control the timer as that controls the system */
-/** gdb stub processes main commands */
-void *task_gdb_stub( void *ignore )
-{
-    /** Initialize gdb stub */
-    socket_connect(STUB_ADDRESS, STUB_PORT);
-    mp_hash_init();
-
-    while ( running )
-    {
-        /** check breakpoints */
-        if ( !gdb_stub_pause )
-            gdb_stub_pause = mp_hash_hit();
-
-        /** clear buffer contents */
-        memset(stub.current.data,  0, STUB_PACKET_SIZE);
-        memset(stub.response.data, 0, STUB_PACKET_SIZE);
-
-        /* verify command */
-        while ( !gdb_stub_verify_checksum() )
-            socket_read( stub.current.data , &stub.current.size , sizeof( stub.current.data ) );
-
-        /* process command */
-        switch ( gdb_stub_get_command() )
-        {
-            case ( GDB_PSX_EXTENDED_SUPPORT   ): gdb_stub_extended_support();   break;
-            case ( GDB_PSX_EXCEPTION          ): gdb_stub_exception();          break;
-            case ( GDB_PSX_CONTINUE           ): gdb_stub_continue();           break;
-            case ( GDB_PSX_REGISTER_READ_ALL  ): gdb_stub_register_read_all();  break;
-            case ( GDB_PSX_REGISTER_WRITE_ALL ): gdb_stub_register_write_all(); break;
-            case ( GDB_PSX_REGISTER_READ      ): gdb_stub_register_read();      break;
-            case ( GDB_PSX_REGISTER_WRITE     ): gdb_stub_register_write();     break;
-            case ( GDB_PSX_MEMORY_READ        ): gdb_stub_memory_read ();       break;
-            case ( GDB_PSX_MEMORY_WRITE       ): gdb_stub_memory_write();       break;
-            case ( GDB_PSX_STEP_INSTRUCTION   ): gdb_stub_step_instruction();   break;
-            case ( GDB_PSX_BREAKPOINT_DELETE  ): gdb_stub_breakpoint_delete();  break;
-            case ( GDB_PSX_BREAKPOINT_SET     ): gdb_stub_breakpoint_set();     break;
-            case ( GDB_PSX_QUERY_GENERAL      ): gdb_stub_query_general();      break;
-            case ( GDB_PSX_QUERY_SET          ): gdb_stub_query_set();          break;
-            case ( GDB_PSX_MULTILETTER        ): gdb_stub_multiletter();        break;
-
-            case ( GDB_PSX_BREAKPOINT_LIST    ): gdb_stub_breakpoint_list();    break;
-            case ( GDB_PSX_DEVICE_INFO        ): gdb_stub_device_info();        break;
-            case ( GDB_PSX_HELP               ): gdb_stub_help();               break;
-            case ( GDB_PSX_KILL               ): gdb_stub_quit();               break;
-            case ( GDB_PSX_STOP               ): gdb_stub_stop();               break;
-            default:                             gdb_stub_default_response();   break;
-        }
-
-        /* write response to client */
-        socket_write( stub.response.data , stub.response.size );
+bool paused_gdb_stub( void ) {
+    if (stub.state == PAUSED) {
+        return true;
     }
 
+    if (stub.state == STEPPING) {
+        stub.state = PAUSED;
+    }
+
+    return false;
+}
+
+void init_gdb_stub( void ) {
+    /** Initialize gdb stub */
+    mp_hash_init();
+    socket_connect(STUB_ADDRESS, STUB_PORT);
+}
+
+void kill_gdb_stub( void ) {
     assert(!pthread_cond_broadcast(&gdb_stub_notify));
 
     /* de initialize gdb stub */
     mp_hash_deinit();
     socket_close();
+}
+
+void task_gdb_stub( void ) {
+    /** clear buffer contents */
+    memset(stub.current.data,  0, STUB_PACKET_SIZE);
+    memset(stub.response.data, 0, STUB_PACKET_SIZE);
+
+    /* read and verify incoming command */
+    while (!gdb_stub_verify_checksum())
+        socket_read(stub.current.data,
+                   &stub.current.size,
+                    sizeof(stub.current.data));
+
+    /* pause application */
+    stub.state = PAUSED;
+
+    /* process command */
+    switch ( gdb_stub_get_command() ) {
+    case GDB_PSX_EXTENDED_SUPPORT  : gdb_stub_extended_support();   break;
+    case GDB_PSX_EXCEPTION         : gdb_stub_exception();          break;
+    case GDB_PSX_CONTINUE          : gdb_stub_continue();           break;
+    case GDB_PSX_REGISTER_READ_ALL : gdb_stub_register_read_all();  break;
+    case GDB_PSX_REGISTER_WRITE_ALL: gdb_stub_register_write_all(); break;
+    case GDB_PSX_REGISTER_READ     : gdb_stub_register_read();      break;
+    case GDB_PSX_REGISTER_WRITE    : gdb_stub_register_write();     break;
+    case GDB_PSX_MEMORY_READ       : gdb_stub_memory_read ();       break;
+    case GDB_PSX_MEMORY_WRITE      : gdb_stub_memory_write();       break;
+    case GDB_PSX_STEP_INSTRUCTION  : gdb_stub_step_instruction();   break;
+    case GDB_PSX_BREAKPOINT_DELETE : gdb_stub_breakpoint_delete();  break;
+    case GDB_PSX_BREAKPOINT_SET    : gdb_stub_breakpoint_set();     break;
+    case GDB_PSX_QUERY_GENERAL     : gdb_stub_query_general();      break;
+    case GDB_PSX_QUERY_SET         : gdb_stub_query_set();          break;
+    case GDB_PSX_MULTILETTER       : gdb_stub_multiletter();        break;
+
+    case GDB_PSX_BREAKPOINT_LIST   : gdb_stub_breakpoint_list();    break;
+    case GDB_PSX_DEVICE_INFO       : gdb_stub_device_info();        break;
+    case GDB_PSX_HELP              : gdb_stub_help();               break;
+    case GDB_PSX_KILL              : gdb_stub_quit();               break;
+    case GDB_PSX_STOP              : gdb_stub_stop();               break;
+    default                        : gdb_stub_default_response();   break;
+    }
+
+    /* write response to client */
+    socket_write( stub.response.data , stub.response.size );
 }
