@@ -34,6 +34,8 @@ void *task_core( void *_args )
 
     struct task_core_args *args = (struct task_core_args *) _args;
 
+    init_tracer();
+
     init_cpu(args->bios,
              args->exe);
     init_gpu();

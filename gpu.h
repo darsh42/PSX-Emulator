@@ -6,6 +6,20 @@
 
 #include "fifo.h"
 
+enum gpu_state {
+    GPU_IDLE,
+    GPU_RENDERING,
+    GPU_PROCESS_GP0,
+    GPU_PROCESS_GP1,
+    GPU_VRAM_TRANSFER,
+};
+
+enum gpu_transfer_direction
+{
+    TRANSFER_TO_VRAM,
+    TRANSFER_TO_MAIN
+};
+
 union gpustat {
     uint32_t value;
     struct {
@@ -35,20 +49,6 @@ union gpustat {
         uint32_t dma_direction               : 2;
         uint32_t drawing_even_odd_interlace  : 1;
     };
-};
-
-enum gpu_state {
-    GPU_IDLE,
-    GPU_RENDERING,
-    GPU_PROCESS_GP0,
-    GPU_PROCESS_GP1,
-    GPU_VRAM_TRANSFER,
-};
-
-enum gpu_transfer_direction
-{
-    TRANSFER_TO_VRAM,
-    TRANSFER_TO_MAIN
 };
 
 struct gpu {
@@ -100,6 +100,8 @@ struct gpu {
     bool texture_rectangle_y_flip; // if texture is flipped in y direction
 };
 
+void init_gpu( void );
+void task_gpu( void );
 
 bool gpu_hblank( void );
 bool gpu_vblank( void );
@@ -110,8 +112,5 @@ uint32_t gpu_get_vram_address( void );
 
 uint32_t  read_gpu( uint32_t address );
 void     write_gpu( uint32_t address, uint32_t data );
-
-void init_gpu( void );
-void task_gpu( void );
 
 #endif //  GPU_H_INCLUDED

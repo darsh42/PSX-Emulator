@@ -12,7 +12,8 @@ extern void     write_interrupts( uint32_t address, uint32_t data );
 #include "trace.h"
 
 #ifdef ENABLE_INTERRUPTS_TRACE
-#define TRACE_INTERRUPTS(function, format, ...) trace("interrupts.c", function, format, __VA_ARGS__)
+#define TRACE_INTERRUPTS(function, format, ...) \
+    trace(TRACE_INTERRUPTS_EN, "interrupts.c", function, format, __VA_ARGS__)
 #else
 #define TRACE_INTERRUPTS(function, format, ...) 
 #endif

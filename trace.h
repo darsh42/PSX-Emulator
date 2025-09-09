@@ -37,7 +37,9 @@ union logging {
     };
 };
 
+extern void trace_set_output( const char *filename );
 extern void trace_set_profile( uint32_t profile );
+extern void init_tracer( void );
 
 extern void trace( enum tracing_device dev,
                    char *file,
