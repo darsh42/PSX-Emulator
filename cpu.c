@@ -4,10 +4,36 @@
 
 #include "main.h"
 
-#define CPU_PRIVATE
 #include "cpu.h"
 #include "timer.h"
 #include "memory.h"
+
+#include "trace.h"
+#define TRACE_CPU(function, format, ...) \
+    trace(TRACE_CPU_EN, "cpu.c", function, format, __VA_ARGS__)
+
+/* sign extensions */
+#define sign8(a)  (int32_t) (int8_t)  a
+#define sign16(a) (int32_t) (int16_t) a
+#define sign32(a) (int32_t)           a
+#define sign64(a) (int64_t) (int32_t) a
+#define overflow(a, b) (a > 0 && (a + b) > 0xffffffff)
+#define underflow(a,b) ((b < 0) && (a > INT_MAX + b))
+
+/* main opcode breakdown */
+#define FUNCT    ((cpu.cir >>  0) & 0x3F)
+#define SHAMT    ((cpu.cir >>  6) & 0x1F)
+#define RD       ((cpu.cir >> 11) & 0x1F)
+#define RT       ((cpu.cir >> 16) & 0x1F)
+#define RS       ((cpu.cir >> 21) & 0x1F)
+#define OP       ((cpu.cir >> 26) & 0x3F)
+#define TARGET    (cpu.cir & ((1 << 26) - 1))
+#define IMM16     (cpu.cir & ((1 << 16) - 1))
+#define S_IMM16   sign16(IMM16)
+#define IMM25     (cpu.cir & ((1 << 25) - 1))
+#define RELATIVE  (cpu.cir & ((1 << 16) - 1))
+
+#define reg(R) cpu.r[R]
 
 // #define ENABLE_SIDELOADING
 
@@ -22,39 +48,10 @@
     cpu.load_d = 0;                 \
 }
 
-int cpu_trace_enabled = 1;
-
 struct cpu cpu;
 
-uint32_t cpu_cop0_sr_isc( void )
-{
+uint32_t cpu_cop0_sr_isc( void ) {
     union cop0_sr sr  = { .value = cpu.cop0[COP0_SR] }; return sr.Isc;
-}
-
-uint32_t cpu_get_general_register( uint32_t _register )
-{
-    assert(_register < 32);
-    return cpu.r[_register];
-}
-
-uint32_t cpu_get_pc( void )
-{
-    return cpu.pc;
-}
-
-void cpu_load_initial_exe_registers(uint32_t initial_pc,
-                                    uint32_t initial_gp,
-                                    uint32_t initial_sp_fp_base,
-                                    uint32_t initial_sp_fp_offset)
-{
-    cpu.pc    = initial_pc;
-    cpu.r[28] = initial_gp;
-
-    if (initial_sp_fp_base != 0)
-    {
-        cpu.r[29] = initial_sp_fp_base + initial_sp_fp_offset;
-        cpu.r[30] = initial_sp_fp_base + initial_sp_fp_offset;
-    }
 }
 
 void cpu_exception( enum cpu_exception_type t )
@@ -133,12 +130,10 @@ static const char *cop0_register_names[] =
     "prid",
 };
 
-static void cpu_trace_instruction( char *mneumonic )
+void cpu_trace_instruction( char *mneumonic )
 {
-    if (cpu_trace_enabled) {
-        TRACE_CPU("cpu_execute", "pc: %08x | op: %08x rs(%04s): %08x rt(%04s): %08x rd(%04s): %08x shamt: %08x funct: %08x | imm16: %08x imm25: %08x | %s\n",
-                cpu.pc, OP, cpu_register_names[RS], reg(RS), cpu_register_names[RT], reg(RT), cpu_register_names[RD], reg(RD), SHAMT, FUNCT, IMM16, IMM25, mneumonic);
-    }
+    TRACE_CPU("cpu_execute", "pc: %08x | op: %08x rs(%04s): %08x rt(%04s): %08x rd(%04s): %08x shamt: %08x funct: %08x | imm16: %08x imm25: %08x | %s\n",
+            cpu.pc, OP, cpu_register_names[RS], reg(RS), cpu_register_names[RT], reg(RT), cpu_register_names[RD], reg(RD), SHAMT, FUNCT, IMM16, IMM25, mneumonic);
 }
 
 static void cpu_branch( void )
@@ -1273,16 +1268,42 @@ cycle_complete:
     cpu.r[0] = 0;
 }
 
+void write_cpu_reg(enum cpu_reg_e r, uint32_t  data) {
+    switch (r) {
+    case CPU_HI:  cpu.hi  = data; break;
+    case CPU_LO:  cpu.lo  = data; break;
+    case CPU_PC:  cpu.pc  = data; break;
+    case CPU_CIR: cpu.cir = data; break;
+    default:
+        if (r < CPU_ZERO || r > CPU_RA)
+            assert(0 && "illegal register");
+        cpu.r[r] = data;
+        break;
+    }
+}
+
+void  read_cpu_reg(enum cpu_reg_e r, uint32_t *data) {
+    switch (r) {
+    case CPU_HI:  *data = cpu.hi;  break;
+    case CPU_LO:  *data = cpu.lo;  break;
+    case CPU_PC:  *data = cpu.pc;  break;
+    case CPU_CIR: *data = cpu.cir; break;
+    default:
+        if (r < CPU_ZERO || r > CPU_RA)
+            assert(0 && "illegal register");
+        *data = cpu.r[r];
+        break;
+    }
+}
+
 void init_cpu(const char *file_bios,
-              const char *file_exe)
-{
+              const char *file_exe) {
     cpu.pc           = 0xbfc00000;
     cpu.sideload_exe = file_exe;
 
     memory_load_bios(file_bios);
 }
 
-void task_cpu( void )
-{
+void task_cpu( void ) {
     cpu_execute();
 }

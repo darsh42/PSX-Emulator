@@ -45,10 +45,10 @@ void memory_load_exe( const char *exe )
     assert(fread((void *) &header, 1, sizeof(header), fp) == sizeof(header));
 
     /* set the cpu registers */
-    cpu_load_initial_exe_registers(header.initial_pc,
-                                   header.initial_gp,
-                                   header.initial_sp_fp_base,
-                                   header.initial_sp_fp_offset);
+    write_cpu_reg(CPU_PC, header.initial_pc);
+    write_cpu_reg(CPU_GP, header.initial_gp);
+    write_cpu_reg(CPU_SP, header.initial_sp_fp_base + header.initial_sp_fp_offset);
+    write_cpu_reg(CPU_FP, header.initial_sp_fp_base + header.initial_sp_fp_offset);
 
     /* seek to first data section */
     assert(!fseek(fp, 0x800, SEEK_SET));

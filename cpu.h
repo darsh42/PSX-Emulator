@@ -4,56 +4,27 @@
 #include <stdint.h>
 #include <limits.h>
 
-#ifdef CPU_PRIVATE
+enum cpu_reg_e {
+    CPU_ZERO = 0,
+    CPU_AT,
+    CPU_V0, CPU_V1,
+    CPU_A0, CPU_A1, CPU_A2, CPU_A3,
+    CPU_T0, CPU_T1, CPU_T2, CPU_T3, CPU_T4, CPU_T5, CPU_T6, CPU_T7,
+    CPU_S0, CPU_S1, CPU_S2, CPU_S3, CPU_S4, CPU_S5, CPU_S6, CPU_S7,
+    CPU_T8, CPU_T9,
+    CPU_K0, CPU_K1,
+    CPU_GP,
+    CPU_SP,
+    CPU_FP,
+    CPU_RA,
 
-#include "trace.h"
+    CPU_HI,
+    CPU_LO,
+    CPU_PC,
+    CPU_CIR,
+};
 
-#define TRACE_CPU(function, format, ...) \
-    trace(TRACE_CPU_EN, "cpu.c", function, format, __VA_ARGS__)
-
-/* main opcode breakdown */
-#define FUNCT    ((cpu.cir >>  0) & 0x3F)
-#define SHAMT    ((cpu.cir >>  6) & 0x1F)
-#define RD       ((cpu.cir >> 11) & 0x1F)
-#define RT       ((cpu.cir >> 16) & 0x1F)
-#define RS       ((cpu.cir >> 21) & 0x1F)
-#define OP       ((cpu.cir >> 26) & 0x3F)
-#define TARGET    (cpu.cir & ((1 << 26) - 1))
-#define IMM16     (cpu.cir & ((1 << 16) - 1))
-#define S_IMM16   sign16(IMM16)
-#define IMM25     (cpu.cir & ((1 << 25) - 1))
-#define RELATIVE  (cpu.cir & ((1 << 16) - 1))
-
-/* coprocessor opcode breakdown */
-#define COP_TYPE ((cpu.cir >> 25) & 0x1)
-#define COP_FUNC ((cpu.cir >> 21) & 0x7)
-
-/* coprocessor register breakdown */
-#define COP0_BPC         3
-#define COP0_BDA         5
-#define COP0_JUMPDEST    6
-#define COP0_DCIC        7
-#define COP0_BAD_VADDR   8
-#define COP0_BDAM        9
-#define COP0_BPCM       11
-#define COP0_SR         12
-#define COP0_CAUSE      13
-#define COP0_EPC        14
-#define COP0_PRID       15
-
-/* cop0 status register*/
-
-#define sign8(a)  (int32_t) (int8_t)  a
-#define sign16(a) (int32_t) (int16_t) a
-#define sign32(a) (int32_t)           a
-#define sign64(a) (int64_t) (int32_t) a
-#define overflow(a, b) (a > 0 && (a + b) > 0xffffffff)
-#define underflow(a,b) ((b < 0) && (a > INT_MAX + b)) 
-
-#define reg(R) cpu.r[R]
-#define copn_reg(N, R) cpu.STRCAT(cop, N)[R]
-
-enum cpu_exception_type 
+enum cpu_exception_type
 {
     INT     = 0x00,
     MOD     = 0x01,
@@ -70,7 +41,24 @@ enum cpu_exception_type
     Ov      = 0x0C
 };
 
-enum cpu_load_delay 
+#define COP_TYPE ((cpu.cir >> 25) & 0x1)
+#define COP_FUNC ((cpu.cir >> 21) & 0x7)
+
+/* coprocessor register breakdown */
+#define COP0_BPC         3
+#define COP0_BDA         5
+#define COP0_JUMPDEST    6
+#define COP0_DCIC        7
+#define COP0_BAD_VADDR   8
+#define COP0_BDAM        9
+#define COP0_BPCM       11
+#define COP0_SR         12
+#define COP0_CAUSE      13
+#define COP0_EPC        14
+#define COP0_PRID       15
+
+#define copn_reg(N, R) cpu.STRCAT(cop, N)[R]
+enum cpu_load_delay
 {
     UNUSED,
     TRANSFER,
@@ -150,18 +138,11 @@ struct cpu
     const char *sideload_exe;
 };
 
-#endif // CPU_PRIVATE
+uint32_t cpu_cop0_sr_isc( void );
+void write_cpu_reg(enum cpu_reg_e r, uint32_t  data);
+void  read_cpu_reg(enum cpu_reg_e r, uint32_t *data);
 
-extern uint32_t cpu_cop0_sr_isc( void );
-extern uint32_t cpu_get_general_register( uint32_t _register );
-extern void cpu_load_initial_exe_registers(uint32_t initial_pc,
-                                           uint32_t initial_gp,
-                                           uint32_t initial_sp_fp_base,
-                                           uint32_t initial_sp_fp_offset);
-extern uint32_t cpu_get_pc( void );
-
-extern void init_cpu(const char *file_bios,
-                     const char *file_exe);
-extern void task_cpu( void );
+void init_cpu(const char *file_bios, const char *file_exe);
+void task_cpu( void );
 
 #endif // CPU_H_INCLUDED
