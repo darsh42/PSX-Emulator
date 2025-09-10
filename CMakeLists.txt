@@ -75,6 +75,8 @@ target_link_options(debug-flags
 add_library(psx-core
     ${CMAKE_CURRENT_SOURCE_DIR}/cdrom.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/cp0.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/gte.c
     ${CMAKE_CURRENT_SOURCE_DIR}/dma.c
     ${CMAKE_CURRENT_SOURCE_DIR}/fifo.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gpu.c
@@ -86,6 +88,8 @@ add_library(psx-core
     ${CMAKE_CURRENT_SOURCE_DIR}/trace.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cdrom.h
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/cp0.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/gte.h
     ${CMAKE_CURRENT_SOURCE_DIR}/dma.h
     ${CMAKE_CURRENT_SOURCE_DIR}/fifo.h
     ${CMAKE_CURRENT_SOURCE_DIR}/fileformats.h

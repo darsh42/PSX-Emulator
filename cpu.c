@@ -5,6 +5,8 @@
 #include "main.h"
 
 #include "cpu.h"
+#include "cp0.h"
+#include "gte.h"
 #include "timer.h"
 #include "memory.h"
 
@@ -49,54 +51,6 @@
 }
 
 struct cpu cpu;
-
-uint32_t cpu_cop0_sr_isc( void ) {
-    union cop0_sr sr  = { .value = cpu.cop0[COP0_SR] }; return sr.Isc;
-}
-
-void cpu_exception( enum cpu_exception_type t )
-{
-    union cop0_cause cause = { .value = cpu.cop0[COP0_CAUSE] };
-    union cop0_sr    sr    = { .value = cpu.cop0[COP0_SR]    };
-    uint32_t         epc   =            cpu.cop0[COP0_EPC]    ;
-
-    uint32_t handler;
-
-    /* set the correct execption code */
-    cause.excode = t;
-
-    /* determine which exeption handler to use */
-    if (sr.BEV) handler = 0xBFC00180;
-    else        handler = 0x80000000;
-
-    /* set exception routine return */
-    if (cpu.branch_s == UNUSED)
-    {
-        /* normal, non-branch exception */
-        epc = cpu.pc;
-    }
-    else
-    {
-        /* branch miss if exception occurs during branch */
-        epc = cpu.branch_v;
-
-        cause.branch_delay = 1;
-
-        cpu.branch_v = 0;
-        cpu.branch_s = UNUSED;
-    }
-
-    /* set correct sr status */
-    sr.value = (sr.value & ~0X3F) | ((sr.value >> 2) & 0X3F);
-
-    /* write back all register values */
-    cpu.cop0[COP0_SR]    = sr.value;
-    cpu.cop0[COP0_CAUSE] = cause.value;
-    cpu.cop0[COP0_EPC]   = epc;
-
-    /* set pc to handler */
-    cpu.pc = handler - 4;
-}
 
 static const char *cpu_register_names[] =
 {
@@ -291,7 +245,7 @@ static inline void addi(void)
 
     if (overflow(s, S_IMM16))
     {
-        cpu_exception(Ov);
+        cp0_exception(Ov);
     }
     else
     {
@@ -616,14 +570,14 @@ static inline void lwc0(void)
     // Load Word Coprocessor 0
     cpu_trace_instruction("lwc0");
 
-    cpu_exception(CpU);
+    cp0_exception(CpU);
 }
 static inline void lwc1(void)
 {
     // Load Word Coprocessor 1
     cpu_trace_instruction("lwc1");
 
-    cpu_exception(CpU);
+    cp0_exception(CpU);
 }
 static inline void lwc2(void)
 {
@@ -639,21 +593,21 @@ static inline void lwc3(void)
     // Load Word Coprocessor 3
     cpu_trace_instruction("lwc3");
 
-    cpu_exception(CpU);
+    cp0_exception(CpU);
 }
 static inline void swc0(void)
 {
     // Store Word Coprocessor 0
     cpu_trace_instruction("swc0");
 
-    cpu_exception(CpU);
+    cp0_exception(CpU);
 }
 static inline void swc1(void)
 {
     // Store Word Coprocessor 1
     cpu_trace_instruction("swc1");
 
-    cpu_exception(CpU);
+    cp0_exception(CpU);
 }
 static inline void swc2(void)
 {
@@ -669,7 +623,7 @@ static inline void swc3(void)
     // Store Word Coprocessor 3
     cpu_trace_instruction("swc3");
 
-    cpu_exception(CpU);
+    cp0_exception(CpU);
 }
 static inline void sll(void)
 {
@@ -773,7 +727,7 @@ static inline void syscall(void)
 
     DO_LOAD_DELAY;
 
-    cpu_exception(SYSCALL);
+    cp0_exception(SYSCALL);
 }
 static inline void brk(void)
 {
@@ -782,7 +736,7 @@ static inline void brk(void)
 
     DO_LOAD_DELAY;
 
-    cpu_exception(BP);
+    cp0_exception(BP);
 }
 static inline void mfhi(void)
 {
@@ -909,7 +863,7 @@ static inline void add(void)
     if (overflow((uint32_t) s,
                  (uint32_t) t))
     {
-        cpu_exception(Ov);
+        cp0_exception(Ov);
     }
     else
     {
@@ -940,7 +894,7 @@ static inline void sub(void)
 
     if (underflow(s, t))
     {
-        cpu_exception(Ov);
+        cp0_exception(Ov);
     }
     else
     {
@@ -1032,119 +986,6 @@ static inline void sltu(void)
     reg(RD) = s < t;
 }
 
-// COPn
-static inline void MFCn(int cop_n)
-{
-    // Move From Coprocessor n
-    cpu_trace_instruction("MFCn");
-
-    switch (cop_n)
-    {
-        case 0x0: cpu.load_v = cpu.cop0[RD]; break;
-        case 0x2: cpu.load_v = cpu.cop2[RD]; break;
-    }
-
-    cpu.load_d = RT;
-}
-static inline void MTCn(int cop_n)
-{
-    // Move To Coprocessor n
-    cpu_trace_instruction("MTCn");
-
-    switch (cop_n)
-    {
-        case 0x0: cpu.cop0[RD] = reg(RT); break;
-        case 0x2: cpu.cop2[RD] = reg(RT); break;
-    }
-}
-
-static inline void CFCn(int cop_n) { running = 0; }
-static inline void CTCn(int cop_n) { running = 0; }
-static inline void COPn(int cop_n) { running = 0; }
-static inline void BCnF(int cop_n) { running = 0; }
-static inline void BCnT(int cop_n) { running = 0; }
-static inline void LWCn(int cop_n) { running = 0; }
-static inline void SWCn(int cop_n) { running = 0; }
-
-// COP0
-static inline void TLBR(void)  { running = 0; }
-static inline void TLBWI(void) { running = 0; }
-static inline void TLBWR(void) { running = 0; }
-static inline void TLBP(void)  { running = 0; }
-static inline void RFE(void)
-{
-    // Return From Exception
-    cpu_trace_instruction("RFE");
-
-    if ((cpu.cir & 0x1f) == 0x10)
-    {
-        /* increment exception stack */
-        cpu.cop0[COP0_SR] = (cpu.cop0[COP0_SR] & ~0X3F) | ((cpu.cop0[COP0_SR] &  0X3F) >> 2);
-    }
-}
-static inline void cop0(void)
-{
-    // Coprocessor0 instructions
-    cpu_trace_instruction("cop0");
-
-    switch (COP_TYPE)
-    {
-        case 0X00:
-            switch (COP_FUNC)
-            {
-                case 0X00: MFCn(0); break; // MFCn
-                case 0X02: CFCn(0); break; // CFCn
-                case 0X04: MTCn(0); break; // MTCn
-                case 0X06: CTCn(0); break; // CTCn
-                case 0X08:
-                    switch(RT)
-                    {
-                        case 0X00: BCnF(0); break; // BCnF
-                        case 0X01: BCnT(0); break; // BCnT
-                    }
-                    break;
-            }
-            break;
-        case 0X01:
-            switch (IMM25)
-            {
-                case 0X01: TLBR();  break; // TLBR
-                case 0X02: TLBWI(); break; // TLBWI
-                case 0X06: TLBWR(); break; // TLBWR
-                case 0X08: TLBP();  break; // TLBP
-                case 0X10: RFE();   break; // RFE
-                default:   COPn(0); break; // COPN
-            }
-            break;
-    }
-}
-static inline void cop2(void)
-{
-    // Coprocessor2 instructions TODO: create the GTE
-    cpu_trace_instruction("cop2");
-
-    switch (COP_TYPE)
-    {
-        case 0X00:
-            switch (COP_FUNC)
-            {
-                case 0X00: MFCn(2); break; // MFCn
-                case 0X02: CFCn(2); break; // CFCn
-                case 0X04: MTCn(2); break; // MTCn
-                case 0X06: CTCn(2); break; // CTCn
-                case 0X08:
-                    switch(RT)
-                    {
-                        case 0X00: BCnF(2); break; // BCnF
-                        case 0X01: BCnT(2); break; // BCnT
-                    }
-                    break;
-            }
-            break;
-        case 0X01: COPn(2); break; // COPN
-    }
-}
-
 static inline void cpu_execute( void )
 {
     /* handle branch delay */
@@ -1175,6 +1016,8 @@ static inline void cpu_execute( void )
     {
         case 0X00: goto secondary_op;
         case 0x01: goto branch_op;
+        case 0x10: cp0();                break;
+        case 0x12: cp2();                break;
         case 0x02: j();                  break;
         case 0x03: jal();                break;
         case 0x04: beq();                break;
@@ -1201,8 +1044,6 @@ static inline void cpu_execute( void )
         case 0x2a: swl();                break;
         case 0x2b: sw();                 break;
         case 0x2e: swr();                break;
-        case 0x10: cop0();               break;
-        case 0x12: cop2();               break;
         default:
             assert(0 && "Unhandled instruction\n");
             break;

@@ -12,6 +12,7 @@
 
 // devices
 #include "cpu.h"
+#include "cp0.h"
 #include "gpu.h"
 #define SPU_SECTORS
 #include "spu.h"
@@ -194,8 +195,10 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
 memory_registers_write:
     if (physical < 0x00200000)
     {
+        union cp0_sr sr; read_cp0_reg(CP0_SR, &sr.value);
+
         /* if cache is isolated do scratchpad, else do main ram */
-        if ( cpu_cop0_sr_isc() )
+        if ( sr.Isc )
         {
             segment = memory.scratchpad;
             physical &= 0x3FF;
@@ -379,8 +382,10 @@ memory_registers_read:
 
     if (physical < 0x00200000)
     {
+        union cp0_sr sr; read_cp0_reg(CP0_SR, &sr.value);
+
         /* if cache is isolated do scratchpad, else do main ram */
-        if ( cpu_cop0_sr_isc() )
+        if ( sr.Isc )
         {
             segment = memory.scratchpad;
             physical &= 0x3FF;

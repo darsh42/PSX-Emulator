@@ -24,93 +24,11 @@ enum cpu_reg_e {
     CPU_CIR,
 };
 
-enum cpu_exception_type
-{
-    INT     = 0x00,
-    MOD     = 0x01,
-    TLBL    = 0x02,
-    TLBS    = 0x03,
-    AdEL    = 0x04,
-    AdES    = 0x05,
-    IBE     = 0x06,
-    DBE     = 0x07,
-    SYSCALL = 0x08,
-    BP      = 0x09,
-    RI      = 0x0A,
-    CpU     = 0x0B,
-    Ov      = 0x0C
-};
-
-#define COP_TYPE ((cpu.cir >> 25) & 0x1)
-#define COP_FUNC ((cpu.cir >> 21) & 0x7)
-
-/* coprocessor register breakdown */
-#define COP0_BPC         3
-#define COP0_BDA         5
-#define COP0_JUMPDEST    6
-#define COP0_DCIC        7
-#define COP0_BAD_VADDR   8
-#define COP0_BDAM        9
-#define COP0_BPCM       11
-#define COP0_SR         12
-#define COP0_CAUSE      13
-#define COP0_EPC        14
-#define COP0_PRID       15
-
-#define copn_reg(N, R) cpu.STRCAT(cop, N)[R]
 enum cpu_load_delay
 {
     UNUSED,
     TRANSFER,
     DELAY
-};
-
-/* coprocessor 0 SR struct */
-union cop0_sr
-{
-    uint32_t value;
-    struct
-    {
-        uint32_t IEc: 1;
-        uint32_t KUc: 1;
-        uint32_t IEp: 1;
-        uint32_t KUp: 1;
-        uint32_t IEo: 1;
-        uint32_t KUo: 1;
-        uint32_t    : 2;
-        uint32_t Im : 8;
-        uint32_t Isc: 1;
-        uint32_t Swc: 1;
-        uint32_t PZ : 1;
-        uint32_t CM : 1;
-        uint32_t PE : 1;
-        uint32_t TS : 1;
-        uint32_t BEV: 1;
-        uint32_t    : 2;
-        uint32_t RE : 1;
-        uint32_t    : 2;
-        uint32_t CU0: 1;
-        uint32_t CU1: 1;
-        uint32_t CU2: 1;
-        uint32_t CU3: 1;
-    };
-};
-
-/* coprocessor 0 CAUSE struct */
-union cop0_cause
-{
-    uint32_t value;
-    struct
-    {
-        uint32_t             :  2;
-        uint32_t excode      :  5;
-        uint32_t             :  1;
-        uint32_t Ip          :  8;
-        uint32_t             : 12;
-        uint32_t CE          :  2;
-        uint32_t             :  1;
-        uint32_t branch_delay:  1;
-    };
 };
 
 struct cpu
