@@ -2,10 +2,13 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#define TIMER_PRIVATE
 #include "timer.h"
 #include "memory.h"
 #include "gpu.h"
+
+#include "trace.h"
+#define TRACE_TIMERS(function, format, ...) \
+    trace(TRACE_TIMERS_EN, "timers.c", function, format, __VA_ARGS__)
 
 static struct timers timers;
 

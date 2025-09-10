@@ -4,19 +4,6 @@
 #include <stdint.h>
 #include <pthread.h>
 
-extern void init_timers( void );
-extern void task_timers( void );
-
-extern uint32_t  read_timers( uint32_t address );
-extern void     write_timers( uint32_t address, uint32_t data );
-
-#ifdef TIMER_PRIVATE
-
-#include "trace.h"
-
-#define TRACE_TIMERS(function, format, ...) \
-    trace(TRACE_TIMERS_EN, "timers.c", function, format, __VA_ARGS__)
-
 union timer_mode {
     uint16_t value;
     struct {
@@ -47,5 +34,10 @@ struct timers {
     struct timer t2;
 };
 
-#endif // TIMER_PRIVATE
+void init_timers( void );
+void task_timers( void );
+
+uint32_t  read_timers( uint32_t address );
+void     write_timers( uint32_t address, uint32_t data );
+
 #endif // TIMER_H_INCLUDED
