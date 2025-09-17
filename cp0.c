@@ -2,7 +2,12 @@
 
 #include "cpu.h"
 #include "cp0.h"
+#include "memory.h"
 #include "interrupts.h"
+
+#include "trace.h"
+#define TRACE_CPU(function, format, ...) \
+    trace(TRACE_CPU_EN, "cpu.c", function, format, __VA_ARGS__)
 
 /* cpu opcode breakdown */
 #define FUNCT    ((cpu.cir >>  0) & 0x3F)
@@ -24,6 +29,31 @@
 #define CP0_FUNC  ((cpu.cir >> 21) & 0x7)
 #define CP0_RT    ((cpu.cir >> 16) & 0x1F)
 #define CP0_IMM25  (cpu.cir & ((1 << 25) - 1))
+
+#define DO_LOAD_DELAY                \
+{                                    \
+    /* complete load delay */        \
+    _cp0.r[cpu.load_d] = cpu.load_v; \
+    /* set load delay to default */  \
+    _cp0.load_v = 0xffffffff;        \
+    _cp0.load_d = 0;                 \
+}
+
+static const char *exceptions[] = {
+    "INT",
+    "MOD",
+    "TLBL",
+    "TLBS",
+    "AdEL",
+    "AdES",
+    "IBE",
+    "DBE",
+    "SYSCALL",
+    "BP",
+    "RI",
+    "CpU",
+    "Ov",
+};
 
 /* externed in here since unique case */
 extern struct cpu cpu;
@@ -47,19 +77,20 @@ static inline void ctc(void) { }
 static inline void cp( void ) { }
 static inline void bcf( void ) { }
 static inline void bct( void ) { }
-static inline void lwc( void ) { }
-static inline void swc( void ) { }
 static inline void rfe( void ) {
     // Return From Exception
-    cpu_trace_instruction("RFE");
+    cpu_trace_instruction("rfe");
 
     union cp0_cause cause = { .value = _cp0.r[CP0_CAUSE] };
 
-    if ((cpu.cir & 0x1f) == 0x10) {
+    /* if returning from an interrupt acknowledge it */
+    if (cause.excode == INT)
+        interrupt_acknowledge();
+
+    if ((cpu.cir & 0x1f) == 0x10)
         /* increment exception stack */
         _cp0.r[CP0_SR] =  (_cp0.r[CP0_SR] & ~0X3F) |
                          ((_cp0.r[CP0_SR] &  0X3F) >> 2);
-    }
 }
 
 void write_cp0_reg(enum cp0_reg_e r, uint32_t  data) { _cp0.r[r] =  data; }
@@ -106,12 +137,20 @@ void cp0_exception( enum cpu_exception_type t ) {
 
     /* set pc to handler */
     cpu.pc = handler - 4;
+
+    /**
+     * cp0_exception
+     *     CAUSE:   cause
+     *     HANDLER: address
+     *     RETURN:  address
+     *     BRANCH:  true/false
+     * */
+    TRACE_CPU("cp0_exception","\n\tCAUSE: %s\n\tHANDLER: %08x\n\tRETURN: %08x\n",
+            exceptions[t], handler, epc);
 }
 
 void cp0(void) {
     // Coprocessor0 instructions
-    cpu_trace_instruction("cp0");
-
     switch(CP0_TYPE) {
     case 0x00: goto cp0_func;
     case 0x01: goto cp0_imm25;
@@ -152,4 +191,35 @@ cp0_imm25:
         assert(0 && "Unimplemented cp0 intstruction");
         break;
     } return;
+}
+void lwc0( void )
+{
+    // load word to coprocessor
+
+    cpu_trace_instruction("lwc0");
+
+    uint32_t result;
+    uint32_t address = reg(RS) + IMM16;
+
+    memory_read(address, &result, 4);
+
+    if (_cp0.load_d == RT) {
+        DO_LOAD_DELAY;
+    }
+
+    _cp0.load_v = result;
+    _cp0.load_d = RT;
+}
+void swc0( void )
+{
+    // store word from coprocessor
+
+    cpu_trace_instruction("swc0");
+
+    uint32_t s = reg(RS);
+    uint32_t t = _cp0.r[RT];
+
+    DO_LOAD_DELAY;
+
+    memory_write(s + IMM16, t, 4);
 }

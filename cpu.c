@@ -700,66 +700,6 @@ static inline void sw(void)
 
     memory_write(s + S_IMM16, t, 4);
 }
-static inline void lwc0(void)
-{
-    // Load Word Coprocessor 0
-    cpu_trace_instruction("lwc0");
-
-    cp0_exception(CpU);
-}
-static inline void lwc1(void)
-{
-    // Load Word Coprocessor 1
-    cpu_trace_instruction("lwc1");
-
-    cp0_exception(CpU);
-}
-static inline void lwc2(void)
-{
-    // Load Word Coprocessor 2
-    cpu_trace_instruction("lwc2");
-
-    uint32_t *reg, address = reg(RS) + IMM25;
-    // COPn_reg(2, RD, &reg);
-    memory_read(address, reg, 4);
-}
-static inline void lwc3(void)
-{
-    // Load Word Coprocessor 3
-    cpu_trace_instruction("lwc3");
-
-    cp0_exception(CpU);
-}
-static inline void swc0(void)
-{
-    // Store Word Coprocessor 0
-    cpu_trace_instruction("swc0");
-
-    cp0_exception(CpU);
-}
-static inline void swc1(void)
-{
-    // Store Word Coprocessor 1
-    cpu_trace_instruction("swc1");
-
-    cp0_exception(CpU);
-}
-static inline void swc2(void)
-{
-    // Store Word Coprocessor 2
-    cpu_trace_instruction("swc2");
-
-    uint32_t *value, address = reg(RS) + IMM25;
-    // COPn_reg(2, RD, &value);
-    memory_write(address, *value, 4);
-}
-static inline void swc3(void)
-{
-    // Store Word Coprocessor 3
-    cpu_trace_instruction("swc3");
-
-    cp0_exception(CpU);
-}
 static inline void sll(void)
 {
     // Shift Left Logical
@@ -1184,6 +1124,9 @@ static inline void cpu_execute( void )
         case 0x2a: swl();                break;
         case 0x2b: sw();                 break;
         case 0x2e: swr();                break;
+        case 0x30: lwc0();               break;
+        case 0x38: swc0();               break;
+        case 0x39:                       break;
         default:
             /* get info on instruction */
             trace_set_profile(TRACE_CPU_EN);

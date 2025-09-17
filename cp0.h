@@ -79,6 +79,8 @@ union cp0_cause
 
 struct cp0 {
     uint32_t r[16];
+
+    uint32_t load_d, load_v;
 };
 
 /* read/write register */
@@ -86,4 +88,6 @@ void write_cp0_reg(enum cp0_reg_e r, uint32_t  data);
 void  read_cp0_reg(enum cp0_reg_e r, uint32_t *data);
 
 void cp0(void);
+void swc0(void);
+void lwc0(void);
 void cp0_exception( enum cpu_exception_type t );
