@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "main.h"
 
@@ -90,6 +91,137 @@ void cpu_trace_instruction( char *mneumonic )
             cpu.pc, OP, cpu_register_names[RS], reg(RS), cpu_register_names[RT], reg(RT), cpu_register_names[RD], reg(RD), SHAMT, FUNCT, IMM16, IMM25, mneumonic);
 }
 
+bool ss_isfull( void ) {
+    return cpu.ss.head == SS_SIZE;
+}
+bool ss_isempty( void ) {
+    return cpu.ss.head == 0;
+}
+
+void ss_push( uint32_t call_to ) {
+    assert(!ss_isfull());
+
+    cpu.ss.items[(cpu.ss.head)++] =
+        (struct stack_entry) {call_to, cpu.r[CPU_RA]};
+}
+void ss_pop( uint32_t return_address ) {
+    /* ignore if stack is empty */
+    if (ss_isempty())
+        return;
+
+    int32_t i = (int32_t) cpu.ss.head - 1;
+    /* find return address in stack */
+    while (i >= 0) {
+        if (cpu.ss.items[i].call_at == return_address )
+            break;
+        i--;
+    }
+
+    /* if you cant find the return address */
+    if (i < 0)
+        return;
+
+    /* Decrement the shadow stack to the found value *
+     * Assume all skipped stack entries are invalid  */
+    cpu.ss.head = (uint32_t) i;
+}
+void ss_trace( void ) {
+    struct shadow_stack ss = cpu.ss;
+
+    /* decrement to stack base */
+    int32_t head = --ss.head;
+
+    fprintf(stderr, "STACK TRACE:\n");
+
+    /* print entries */
+    while (head >= 0) {
+        fprintf(stderr, "   CALL TO: 0x%08x| AT: 0x%08x\n",
+                ss.items[head].call_to, ss.items[head].call_at);
+
+        head--;
+    }
+}
+
+#define LOOKBACK  16
+#define STACK_TOP 0x801FFFF0
+void cpu_trace_stack( void ) {
+    /**
+     * sp+0              -  current return address
+     *  |> returns to previous execution
+     *
+     * sp+frame_size     - previous return address
+     *  |> returns to previous previous execution
+     *  |> marks the end of stack frame 0
+     *
+     * sp+frame_size * 2 - previous return address
+     *  |> returns to previous previous previous execution
+     *  |> marks the end of stack frame 1
+     *
+     * Given that:
+     * - The current return address is stored in the register RA.
+     * - The previous return address is stored on the stack.
+     *
+     * Then using the return addresses stored on the stack we can
+     * determine the start and end of each stack frame.
+     *
+     * If we know where each function call was made, we can look
+     * through the system stack until a return address is encountered
+     *
+     * Algorithm:
+     *  Get Return Address - 1
+     *
+     *  parse_stack_frame:
+     *      while (sp <= STACK_TOP) {
+     *          if (memory[sp] == Return Address - 1)
+     *              break;
+     *
+     *          HANDLE STACK FRAME DATA
+     *      }
+     *
+     *      Get next Return Address
+     *      Jump parse_stack_frame
+     */
+
+#if 0
+    uint32_t sp, ra;
+
+    struct shadow_stack ss = cpu.ss;
+
+    int32_t head = ss.head - 1;
+
+    read_cpu_reg(CPU_SP, &sp);
+    read_cpu_reg(CPU_RA, &ra);
+
+    while (ss.head > 0) {
+        /* print the function */
+        fprintf(stderr, "    Function: 0x%08x\n",
+                ss.items[head].call_to);
+
+        head--;
+
+        /* get head-1 return address */
+        uint32_t data, call_at = ss.items[head].call_at;
+
+        /* look for the return address */
+        while (sp <= STACK_TOP) {
+            /* read word from stack */
+            memory_read(sp, &data, 4);
+
+            /* check if the word is the return address */
+            if (data == call_at)
+                break;
+
+            /* increment stack pointer */
+            sp += 4;
+
+            /* if not, then print as part of stack frame */
+            fprintf(stderr, "        0x%08x\n", data);
+        }
+    }
+#endif
+    ss_trace();
+}
+
 static void cpu_branch( void )
 {
     cpu.branch_v = cpu.pc + 4 + (S_IMM16 << 2);
@@ -175,6 +307,9 @@ static inline void jal(void)
 
     cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
     cpu.branch_s = DELAY;
+
+    /* push to the shadow stack */
+    ss_push(cpu.branch_v);
 }
 static inline void beq(void)
 {
@@ -705,6 +840,9 @@ static inline void jr(void)
 
     cpu.branch_v = s;
     cpu.branch_s = DELAY;
+
+    /* pop from shadow stack */
+    ss_pop(s);
 }
 static inline void jalr(void)
 {
@@ -719,6 +857,9 @@ static inline void jalr(void)
 
     cpu.branch_v = s;
     cpu.branch_s = DELAY;
+
+    /* push to the shadow stack */
+    ss_push(cpu.pc + 4);
 }
 static inline void syscall(void)
 {
@@ -989,18 +1130,17 @@ static inline void sltu(void)
 static inline void cpu_execute( void )
 {
     /* handle branch delay */
-    switch (cpu.branch_s)
-    {
-        case DELAY:
-            cpu.branch_s = TRANSFER;
-            break;
-        case TRANSFER:
-            cpu.pc       = cpu.branch_v;
-            cpu.branch_s = UNUSED;
-            cpu.branch_v = 0;
-            break;
-        case UNUSED:
-            break;
+    switch (cpu.branch_s) {
+    case DELAY:
+        cpu.branch_s = TRANSFER;
+        break;
+    case TRANSFER:
+        cpu.pc       = cpu.branch_v;
+        cpu.branch_s = UNUSED;
+        cpu.branch_v = 0;
+        break;
+    case UNUSED:
+        break;
     }
 
 #ifdef ENABLE_SIDELOADING
@@ -1045,6 +1185,12 @@ static inline void cpu_execute( void )
         case 0x2b: sw();                 break;
         case 0x2e: swr();                break;
         default:
+            /* get info on instruction */
+            trace_set_profile(TRACE_CPU_EN);
+
+            cpu_trace_stack();
+            cpu_trace_instruction("Unknown");
+
             assert(0 && "Unhandled instruction\n");
             break;
     } goto cycle_complete;
@@ -1081,6 +1227,12 @@ secondary_op:
         case 0x2a: slt();                break;
         case 0x2b: sltu();               break;
         default:
+            /* get info on instruction */
+            trace_set_profile(TRACE_CPU_EN);
+
+            cpu_trace_stack();
+            cpu_trace_instruction("Unknown");
+
             assert(0 && "Unhandled instruction\n");
             break;
     } goto cycle_complete;
@@ -1093,6 +1245,12 @@ branch_op:
         case 0x16: bltzal();             break;
         case 0x17: bgezal();             break;
         default:
+            /* get info on instruction */
+            trace_set_profile(TRACE_CPU_EN);
+
+            cpu_trace_stack();
+            cpu_trace_instruction("Unknown");
+
             assert(0 && "Unhandled instruction\n");
             break;
     } goto cycle_complete;
@@ -1143,6 +1301,8 @@ void init_cpu(const char *file_bios,
     cpu.sideload_exe = file_exe;
 
     memory_load_bios(file_bios);
+
+    cpu.ss.head = 0;
 }
 
 void task_cpu( void ) {

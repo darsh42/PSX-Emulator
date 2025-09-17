@@ -1,8 +1,8 @@
 #ifndef CPU_H_INCLUDED
 #define CPU_H_INCLUDED
 
-#include <stdint.h>
 #include <limits.h>
+#include <stdint.h>
 
 enum cpu_reg_e {
     CPU_ZERO = 0,
@@ -22,6 +22,7 @@ enum cpu_reg_e {
     CPU_LO,
     CPU_PC,
     CPU_CIR,
+    CPU_REG_MAX
 };
 
 enum cpu_load_delay
@@ -31,6 +32,17 @@ enum cpu_load_delay
     DELAY
 };
 
+struct stack_entry {
+    uint32_t call_to;
+    uint32_t call_at;
+};
+#define SS_SIZE 32
+struct shadow_stack {
+    uint32_t size;
+    uint32_t head;
+
+    struct stack_entry items[SS_SIZE];
+};
 struct cpu
 {
     uint32_t pc;
@@ -54,6 +66,9 @@ struct cpu
 
     /* sideloading exe */
     const char *sideload_exe;
+
+    /* shadow stack */
+    struct shadow_stack ss;
 };
 
 uint32_t cpu_cop0_sr_isc( void );
