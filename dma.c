@@ -43,7 +43,7 @@ uint32_t read_dma( uint32_t address )
             assert(0 && "Unhandled DMA register read");
     }
 
-    TRACE_DMA("read_dma ", "address: %08x | data: %08x\n", address, data);
+    // TRACE_DMA("read_dma ", "address: %08x | data: %08x\n", address, data);
 
     return data;
 }
@@ -79,7 +79,7 @@ void write_dma( uint32_t address, uint32_t data )
             assert(0 && "Unhandled DMA register write");
     }
 
-    TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
+    // TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
 }
 
 void dma_transfer_manual_cdrom( void )
@@ -90,8 +90,6 @@ void dma_transfer_manual_cdrom( void )
 }
 void dma_transfer_manual_otc( void )
 {
-    TRACE_DMA("dma_transfer_manual_otc", "manual transfer otc\n", 0);
-
     union madr madr = { .value = dma.dma6_otc_madr };
     union brc   brc = { .value = dma.dma6_otc_brc  };
     union chcr chcr = { .value = dma.dma6_otc_chcr };
@@ -100,12 +98,14 @@ void dma_transfer_manual_otc( void )
     uint32_t size = brc.bc;
      int32_t step = (chcr.address_step) ? -4: +4;
 
+    TRACE_DMA("dma_transfer_manual_otc", "base address: %08x | size: %08x\n",
+            source, size);
+
     /* clear otc busy flag */
 
     /* clear */
-    while ( size > 1 )
-    {
-        TRACE_DMA("dma_transfer_manual_otc", "current: %08x, next: %08x\n", source, source + step);
+    while ( size > 1 ) {
+        // TRACE_DMA("dma_transfer_manual_otc", "current: %08x, next: %08x\n", source, source + step);
 
         memory_write(source, source + step, 4);
         source += step;
@@ -121,8 +121,6 @@ void dma_transfer_manual_otc( void )
 
     dma.dma6_otc_madr = madr.value;
     dma.dma6_otc_chcr = chcr.value;
-
-    /* unlock memory */
 }
 
 void dma_transfer_request_mdec_in( void )
@@ -216,8 +214,6 @@ void dma_transfer_linkedlist_gpu( void )
         !gpustat.dma_data_request)
         return;
 
-    TRACE_DMA("dma_transfer_linkedlist_gpu", "linked list transfer gpu\n", 0);
-
     /* lock the memory */
 
     static uint32_t next = 0x00FFFFFF;
@@ -226,8 +222,10 @@ void dma_transfer_linkedlist_gpu( void )
 
     /* new DMA transfer is determined by checking if the previous
      * DMA transfers end address was preserved                    */
-    if (next == 0x00FFFFFF)
+    if (next == 0x00FFFFFF) {
+        TRACE_DMA("dma_transfer_linkedlist_gpu", "linked list transfer gpu\n", 0);
         next = ((union madr) dma.dma2_gpu_madr).base_address;
+    }
 
     /* load next source address */
     source = next;
@@ -238,8 +236,9 @@ void dma_transfer_linkedlist_gpu( void )
     next = (header >>  0) & 0X00FFFFFF; /* store next address  */
     size = (header >> 24) & 0X000000FF; /* read size of packet */
 
-    TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n",
-                source, header, next, size);
+    if (size > 0)
+        TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n",
+                    source, header, next, size);
 
     source += 4;
 
@@ -247,6 +246,8 @@ void dma_transfer_linkedlist_gpu( void )
     {
         memory_read(source, &command, 4);       /* read command from memory */
         memory_write(gp0_gpu_read, command, 4); /* write command to device  */
+
+        TRACE_DMA("", "%08x\n", command);
 
         source += 4;
         size--;
@@ -261,6 +262,7 @@ void dma_transfer_linkedlist_gpu( void )
     /* end of link list is denoted by the packet 0x00FFFFFF, *
      * clear start busy                                      */
     if (next == 0x00FFFFFF) {
+        TRACE_DMA("dma_transfer_linkedlist_dma", "linked list transfer finished\n", 0);
         union chcr chcr = {.value = dma.dma2_gpu_chcr};
         dma.dma2_gpu_chcr = (chcr.start_busy = 0);
     }
