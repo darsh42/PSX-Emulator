@@ -5,6 +5,7 @@
 #include "timer.h"
 #include "memory.h"
 #include "gpu.h"
+#include "interrupts.h"
 
 #include "trace.h"
 #define TRACE_TIMERS(function, format, ...) \
@@ -65,8 +66,7 @@ static void timer_reset( struct timer *_timer )
 
             /* handle interrupt */
             if ( timer.mode.irq_when_target )
-            {
-            }
+                memory_write(i_stat, timer.irq, 4);
         }
     }
     else
@@ -79,8 +79,7 @@ static void timer_reset( struct timer *_timer )
 
             /* handle interrupt */
             if ( timer.mode.irq_when_max )
-            {
-            }
+                memory_write(i_stat, timer.irq, 4);
         }
     }
 }
@@ -156,11 +155,14 @@ static void timers_increment_timer2( void )
     timers.t2.current_count++;
 }
 
-void init_timers( void ) {}
+void init_timers( void )
+{
+    timers.t0.irq = IRQ4;
+    timers.t1.irq = IRQ5;
+    timers.t2.irq = IRQ6;
+}
 void task_timers( void )
 {
-    //usleep(20);
-
     timers_increment_timer0(); timer_reset(&timers.t0);
     timers_increment_timer1(); timer_reset(&timers.t1);
     timers_increment_timer2(); timer_reset(&timers.t2);

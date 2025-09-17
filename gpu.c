@@ -1148,6 +1148,8 @@ static void gpu_tick( void )
                     /* even odd interlace is always 0 during vblank */
                     if (gpu.gpustat.vertical_interlace)
                         gpu.gpustat.drawing_even_odd_interlace = 0;
+
+                    memory_write(i_stat, IRQ0, 4);
                 }
 
                 /* check for scanline max */
@@ -1200,6 +1202,8 @@ static void gpu_tick( void )
                     /* even odd interlace is always 0 during vblank */
                     if (gpu.gpustat.vertical_interlace)
                         gpu.gpustat.drawing_even_odd_interlace = 0;
+
+                    memory_write(i_stat, IRQ0, 4);
                 }
 
                 /* check for scanline max */

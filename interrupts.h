@@ -2,6 +2,7 @@
 #define INTERRUPTS_H_INCLUDED
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 
 enum irq {
@@ -38,6 +39,8 @@ union interrupt_status {
 struct interrupts {
     uint32_t interrupt_status;
     uint32_t interrupt_mask;
+
+    bool handling_irq;
 };
 
 void init_interrupts( void );

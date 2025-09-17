@@ -37,8 +37,8 @@ void write_interrupts( uint32_t address, uint32_t data )
 {
     switch ( address )
     {
-        case (i_stat):interrupts.interrupt_status = data; break;
-        case (i_mask):interrupts.interrupt_mask   = data; break;
+        case (i_stat):interrupts.interrupt_status |= data; break;
+        case (i_mask):interrupts.interrupt_mask    = data; break;
         default:
             assert(0 && "invalid address to interrupts\n");
             break;
@@ -78,6 +78,8 @@ void interrupt_acknowledge( void ) {
     case IRQ9:
     case IRQ10:
     }
+
+    interrupts.handling_irq = false;
 }
 
 void init_interrupts( void ) {}
@@ -86,9 +88,11 @@ void task_interrupts( void ) {
     uint32_t masked_status = interrupts.interrupt_mask &
                              interrupts.interrupt_status;
 
-    if (masked_status) {
+    if (masked_status && !interrupts.handling_irq) {
         TRACE_INTERRUPTS("task_interrupts",
                 "handling: %04x\n", masked_status);
+
+        interrupts.handling_irq = true;
 
         /* check for multiple interrupts at same time (value is
          * not a power of 2 then there are multiple interrupts)*/

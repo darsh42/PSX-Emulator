@@ -25,6 +25,8 @@ struct timer {
     uint16_t current_count;
     uint16_t target_count;
 
+    uint32_t irq;
+
     union timer_mode mode;
 };
 
