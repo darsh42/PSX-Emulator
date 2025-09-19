@@ -270,6 +270,38 @@ void dma_transfer_linkedlist_gpu( void )
     /* unlock memory */
 }
 
+void dma_trace_linked_list( void ) {
+    uint32_t source, size, next,
+             header, command;
+
+    fprintf(stderr, "Dma Linked List trace\n");
+
+    next = ((union madr) dma.dma2_gpu_madr).base_address;
+
+    while (next != 0xffffff) {
+        source = next;
+
+        memory_read(source, &header, 4);
+
+        next = (header >>  0) & 0xffffff;
+        size = (header >> 24) & 0x0000ff;
+
+        if (size == 0)
+            continue;
+
+        fprintf(stderr, "   Packet: %08x\n", source);
+
+        while (size > 0) {
+            memory_read(source, &command, 4);
+
+            fprintf(stderr, "       %08x\n", command);
+
+            source += 4;
+            size--;
+        }
+    }
+}
+
 void init_dma( void ) {}
 void task_dma( void )
 {
