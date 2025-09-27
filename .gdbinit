@@ -120,8 +120,26 @@ define gp0
 end
 
 # dma debugging features
+define dmadpcr
+    set $dpcr = dma.dpcr
+    printf "dma dpcr:\n"
+    printf "    dma0 mdec in priority    : %d\n", (($dpcr >> (0 * 4    )) & 7)
+    printf "    dma0 mdec in enable      : %d\n", (($dpcr >> (0 * 4 + 3)) & 1)
+    printf "    dma1 mdec out priority   : %d\n", (($dpcr >> (1 * 4    )) & 7)
+    printf "    dma1 mdec out enable     : %d\n", (($dpcr >> (1 * 4 + 3)) & 1)
+    printf "    dma2 gpu priority        : %d\n", (($dpcr >> (2 * 4    )) & 7)
+    printf "    dma2 gpu enable          : %d\n", (($dpcr >> (2 * 4 + 3)) & 1)
+    printf "    dma3 cdrom priority      : %d\n", (($dpcr >> (3 * 4    )) & 7)
+    printf "    dma3 cdrom enable        : %d\n", (($dpcr >> (3 * 4 + 3)) & 1)
+    printf "    dma4 spu priority        : %d\n", (($dpcr >> (4 * 4    )) & 7)
+    printf "    dma4 spu enable          : %d\n", (($dpcr >> (4 * 4 + 3)) & 1)
+    printf "    dma5 pio priority        : %d\n", (($dpcr >> (5 * 4    )) & 7)
+    printf "    dma5 pio enable          : %d\n", (($dpcr >> (5 * 4 + 3)) & 1)
+    printf "    dma6 otc priority        : %d\n", (($dpcr >> (6 * 4    )) & 7)
+    printf "    dma6 otc enable          : %d\n", (($dpcr >> (6 * 4 + 3)) & 1)
+end
 
-define chcr
+define dmachcr
     set $chcr = (union chcr)dma.dma0_mdec_in_chcr
     printf "dma 0: mdec in\n"
     printf "    transfer_direction      : %d\n", $chcr.transfer_direction
@@ -200,7 +218,7 @@ define chcr
     printf "    start_trigger           : %d\n", $chcr.start_trigger
 end
 
-define madr
+define dmamadr
     uint32_t dma0_mdec_in_madr;
     uint32_t dma1_mdec_out_madr;
     uint32_t dma2_gpu_madr;
@@ -211,7 +229,7 @@ define madr
     p (union madr) $arg0
 end
 
-define brc
+define dmabrc
     uint32_t dma0_mdec_in_brc;
     uint32_t dma1_mdec_out_brc;
     uint32_t dma2_gpu_brc;
