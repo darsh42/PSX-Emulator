@@ -13,8 +13,8 @@
 #define VRAM_HEIGHT  512
 
 /* c: color, s: size (bytes) */
-#define PUT_PIX(x, y, c, s) \
-    memory_write_vram((y) * VRAM_WIDTH + (x), (c), (s))
+#define PUT_PIX(x, y, c) \
+    sys.frame_buffer[y][x] = c
 
 #define ABS(a)    (a > 0) ? a : -a
 #define MAX(a, b) (a > b) ? a :  b
@@ -24,129 +24,93 @@
 extern struct system sys;
 
 /* function to place a horizontal line of pixels */
-void system_draw_horizontalline(uint16_t x0,
-                                uint16_t x1,
-                                uint16_t y,
-                                uint16_t c)
-{ for (uint16_t x = MIN(x0, x1); x < MAX(x0, x1); x++) PUT_PIX(x, y, c, 2); }
+static void system_draw_horizontalline(uint16_t x0,
+                                       uint16_t x1,
+                                       uint16_t y,
+                                       uint16_t c)
+{ assert(x0 < x1); for (uint16_t x = x0; x < x1; x++) PUT_PIX(x, y, c); }
 
 /* function to place a vertical line of pixels */
-void system_draw_verticalline(uint16_t x,
-                              uint16_t y0,
-                              uint16_t y1,
-                              uint16_t c)
-{ for (uint16_t y = MIN(y0, y1); y < MAX(y0, y1); y++) PUT_PIX(x, y, c, 2); }
+static void system_draw_verticalline(uint16_t x,
+                                     uint16_t y0,
+                                     uint16_t y1,
+                                     uint16_t c)
+{ for (uint16_t y = MIN(y0, y1); y < MAX(y0, y1); y++) PUT_PIX(x, y, c); }
 
-void system_draw_toptriangle(uint16_t x0, uint16_t x1, uint16_t x2,
-                             uint16_t y0, uint16_t y1, uint16_t y2)
-{
+static struct triangle_info {
+    int32_t x0, x1, x2;
+    int32_t y0, y1, y2;
+    int32_t c0, c1, c2;
+
+    int32_t maxx, minx;
+    int32_t maxy, miny;
+
+    double total_area;
+} info;
+
+static double signed_triangle_area(int32_t x0, int32_t x1, int32_t x2,
+                                   int32_t y0, int32_t y1, int32_t y2) {
+    return 0.5*((y1-y0)*(x1+x0)+(y2-y0)*(x2+x0)+(y2-y1)*(x2-x1));
 
 }
+static void *pthread_draw_triangle_segment(void *arg) {
+    int32_t y = *(int32_t *) arg;
 
-void system_draw_bottriangle(uint16_t x0, uint16_t x1, uint16_t x2,
-                             uint16_t y0, uint16_t y1, uint16_t y2)
-{
+    for (int32_t x = info.minx; x<info.maxx; x++) {
+        double alpha = signed_triangle_area(x, info.x1, info.x2, y, info.y1, info.y2) / info.total_area;
+        double beta  = signed_triangle_area(x, info.x2, info.x0, y, info.y2, info.y0) / info.total_area;
+        double gamma = signed_triangle_area(x, info.x0, info.x1, y, info.y0, info.y1) / info.total_area;
 
-}
+        if (alpha < 0 || beta < 0 || gamma < 0) 
+            continue;
 
-inline int32_t abs(int32_t a)            { return (a > 0) ? a : -a; }
-inline int32_t max(int32_t a, int32_t b) { return (a > b) ? a :  b; }
-inline int32_t min(int32_t a, int32_t b) { return (a < b) ? a :  b; }
-void system_draw_triangle_bresenham(uint16_t x0, uint16_t x1, uint16_t x2,
-                                    uint16_t y0, uint16_t y1, uint16_t y2,
-                                    uint16_t c0, uint16_t c1, uint16_t c2)
-{
-    /*
-     * GIVEN
-     *           (x0, y0)
-     *              /\
-     *             /  \
-     *            /    \
-     *           /      \
-     *          /        \
-     *         ------------
-     *      (x1, y1)    (x2, y2)
-     *               OR
-     *      (x1, y1)    (x2, y2)
-     *         ------------
-     *          \        /
-     *           \      /
-     *            \    /
-     *             \  /
-     *              \/
-     *           (x0, y0)
-     */
+        uint32_t color = 
+            ((uint32_t)(alpha*B(info.c0) + beta*B(info.c1) + gamma*B(info.c2)) << 16) |
+            ((uint32_t)(alpha*G(info.c0) + beta*G(info.c1) + gamma*G(info.c2)) <<  8) |
+            ((uint32_t)(alpha*R(info.c0) + beta*R(info.c1) + gamma*R(info.c2)) <<  0);
 
-    /* check if the triangle is flat bottom/top */
-    assert(y0 == y1 || y1 == y2 || y2 == y0);
-
-    /* line 0 */
-    int32_t l0dx =  abs(x1 - x0), l0sx = (x0 < x1) ? 1: -1;
-    int32_t l0dy = -abs(y1 - y0), l0sy = (y0 < y1) ? 1: -1;
-    /* line 1*/
-    int32_t l1dx =  abs(x2 - x0), l1sx = (x0 < x2) ? 1: -1;
-    int32_t l1dy = -abs(y2 - y0), l1sy = (y0 < y2) ? 1: -1;
-
-    /* make sure they are both heading in
-     * the same direction as each other */
-    assert(l0sy == l1sy);
-
-    /* error for each line */
-    int32_t l0e = l0dx + l0dy;
-    int32_t l1e = l1dx + l1dy;
-
-    /* cursors for each line (y0 is common y-axis cursor) */
-    int32_t l0x = x0, l1x = x0;
-
-    for (;;)
-    {
-        int32_t e2 = l0e * 2;
-        if (e2 >= l0dy) {
-            if (l0x == x1) { goto end; } /* reached end */
-            l0e += l0dy; l0x += l0sx;    /* increment x */
-        }
-        if (e2 <= l0dx) {
-            /* increment other line x until *
-             * increment in y reached       */
-            for (;;) {
-                e2 = l1e * 2;
-                if (e2 >= l1dy) {
-                    if (l1x == x2) { goto end; }
-                    l1e += l1dy; l1x += l1sx;
-                }
-
-                /* if increment in y needed break out
-                 * of loop to increment as per previous
-                 * request                              */
-                if (e2 <= l1dx) { break; }
-            }
-
-            /* draw horizontal line between (l0x, y0) to (l1x, y0) */
-            system_draw_horizontalline(l0x, l1x, y0, c0);
-
-            /* increment y0 */
-            if (y0 == y1) { goto end; } /* reached end */
-            l0e += l0dx; l1e += l1dx; y0 += l0sy;
-        }
+        PUT_PIX(x, y, color);
     }
-end:
-    return;
 }
-
 void system_draw_triangle(uint16_t x0, uint16_t x1, uint16_t x2,
                           uint16_t y0, uint16_t y1, uint16_t y2,
-                          uint16_t c0, uint16_t c1, uint16_t c2)
-{
-    if (y0 == y1 || y1 == y2 || y2 == y0)
-    {
-        // system_draw_triangle_bresenham(x0, x1, x2,
-        //                                y0, y1, y2,
-        //                                c0, c1, c2);
+                          uint16_t c0, uint16_t c1, uint16_t c2) {
+    /* populate the general read only data for all threads */
+    info.x0=x0; info.x1=x1; info.x2=x2;
+    info.y0=y0; info.y1=y1; info.y2=y2;
+    info.c0=c0; info.c1=c1; info.c2=c2;
+
+    info.minx = MIN(x0, x1); info.minx = MIN(info.minx, x2);
+    info.miny = MIN(y0, y1); info.miny = MIN(info.miny, y2);
+    info.maxx = MAX(x0, x1); info.maxx = MAX(info.maxx, x2);
+    info.maxy = MAX(y0, y1); info.maxy = MAX(info.maxy, y2);
+
+    info.total_area = signed_triangle_area(info.x0, info.x1, info.x2, 
+                                           info.y0, info.y1, info.y2);
+
+    /* create a thread for each row in the bounding box */
+    int32_t thread_count = info.maxy - info.miny;
+    pthread_t *threads = 
+        malloc(thread_count*sizeof(*threads));
+    int32_t *args = 
+        malloc(thread_count*sizeof(*args));
+
+    /* spawn each thread */
+    for (int32_t t = 0; t < thread_count; t++) {
+        /* create and populate arg */
+        int32_t *arg = &args[t]; *arg = t+info.miny;
+        /* dispatch to thread */
+        pthread_create(&threads[t], NULL, 
+                pthread_draw_triangle_segment, (void *) arg);
     }
-    else
-    {
-        /* sort and split triangle to have one flat bottom */
+
+    /* wait for threads */
+    for (int32_t t = 0; t < thread_count; t++) {
+        pthread_join(threads[t], NULL);
     }
+
+    free(threads);
+    free(args);
 }
 
 void render_line_monochrome(
@@ -225,7 +189,7 @@ void render_four_point_polygon_monochrome(uint32_t c1, uint32_t v1,
              semi_transparent);
     system_draw_triangle(X(v1), X(v2), X(v3),
                          Y(v1), Y(v2), Y(v3),
-                         c1 ,   c1 ,   c1 );
+                           c1 ,   c1 ,   c1 );
     system_draw_triangle(X(v1), X(v2), X(v4),
                          Y(v1), Y(v2), Y(v4),
                            c1 ,   c1 ,   c1 );
@@ -295,6 +259,9 @@ void render_three_point_polygon_shaded(
              X(v2), Y(v2), R(c2), G(c2), B(c2),
              X(v3), Y(v3), R(c3), G(c3), B(c3),
              semi_transparent);
+    system_draw_triangle(X(v1), X(v2), X(v3),
+                         Y(v1), Y(v2), Y(v3),
+                           c1 ,   c2 ,   c3 );
 }
 void render_four_point_polygon_shaded(uint32_t c1, uint32_t v1,
                                       uint32_t c2, uint32_t v2,

@@ -12,13 +12,13 @@
 #define Y(v)  (((v) >> 16) & 0xffff)
 #define TX(t) (((t) >>  0) & 0xff)
 #define TY(t) (((t) >>  8) & 0xff)
-#define R(c)  (((c) >>  0) & 0x1f)
-#define G(c)  (((c) >>  8) & 0x1f)
-#define B(c)  (((c) >> 16) & 0x1f)
+#define R(c)  (((c) >>  0) & 0xff)
+#define G(c)  (((c) >>  8) & 0xff)
+#define B(c)  (((c) >> 16) & 0xff)
 
 #define NAME "psx"
-#define WIN_W 1024
-#define WIN_H 512
+#define WIN_W 642
+#define WIN_H 482
 #define WIN_X 0
 #define WIN_Y 0
 
@@ -44,22 +44,6 @@ enum system_state {
 #define SDL_CHECK_RET(expr) {assert((expr) == 0);}
 #define SDL_CHECK_PTR(expr) {assert((expr) != NULL);}
 
-struct system 
-{
-    /* VIDEO */
-    uint8_t frame_buffer[1024 * 512][3];
-
-    SDL_Window   *window;
-    SDL_Renderer *renderer;
-    SDL_Texture  *screen;
-    SDL_Rect      scale;
-    
-    /* AUDIO */
-    SDL_AudioStream *audio_stream;
-
-    uint32_t render_next_frame;
-};
-
 #endif // RENDERER_SDL
 
 #ifdef RENDERER_OPENGL
@@ -67,6 +51,25 @@ struct system
 
 #ifdef RENDERER_VULKAN
 #endif // RENDERER_VULKAN
+
+struct system {
+    /* VIDEO */
+    uint32_t frame_buffer[WIN_H][WIN_W];
+
+#ifdef RENDERER_SDL
+    SDL_Window   *window;
+    SDL_Renderer *renderer;
+    SDL_Texture  *screen;
+    SDL_Rect      scale;
+#endif // RENDERER_SDL
+    
+    /* AUDIO */
+#ifdef RENDERER_SDL
+    SDL_AudioStream *audio_stream;
+#endif // RENDERER_SDL
+
+    uint32_t render_next_frame;
+};
 
 #endif // PRIVATE_SYSTEM
 
