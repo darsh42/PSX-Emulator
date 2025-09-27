@@ -161,7 +161,7 @@ extern void render_four_point_polygon_shaded_textured(
 );
 
 extern void wait_system_ready( void );
-extern void system_render( void );
+extern void system_render_next_frame( void );
 extern void system_write_audio_sample(int32_t sample);
 extern void *task_system( void *ignore );
 

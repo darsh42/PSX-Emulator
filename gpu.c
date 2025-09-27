@@ -24,55 +24,71 @@
 #define CYCLES_PER_DOT_512PIX  5
 #define CYCLES_PER_DOT_640PIX  4
 
-#define NTSC_DOTS_PER_SCANLINE_256PIX 341
-#define NTSC_DOTS_PER_SCANLINE_320PIX 426
-#define NTSC_DOTS_PER_SCANLINE_368PIX 487
-#define NTSC_DOTS_PER_SCANLINE_512PIX 628
-#define NTSC_DOTS_PER_SCANLINE_640PIX 853
-
 #define  PAL_DOTS_PER_SCANLINE_256PIX 340
 #define  PAL_DOTS_PER_SCANLINE_320PIX 426
 #define  PAL_DOTS_PER_SCANLINE_368PIX 486
 #define  PAL_DOTS_PER_SCANLINE_512PIX 621
 #define  PAL_DOTS_PER_SCANLINE_640PIX 851
-
-#define NTSC_CYCLES_PER_SCANLINE 3413
-#define NTSC_SCANLINES_PER_FRAME  263
-
 #define  PAL_CYCLES_PER_SCANLINE 3406
 #define  PAL_SCANLINES_PER_FRAME  314
+
+#define NTSC_DOTS_PER_SCANLINE_256PIX 341
+#define NTSC_DOTS_PER_SCANLINE_320PIX 426
+#define NTSC_DOTS_PER_SCANLINE_368PIX 487
+#define NTSC_DOTS_PER_SCANLINE_512PIX 628
+#define NTSC_DOTS_PER_SCANLINE_640PIX 853
+#define NTSC_CYCLES_PER_SCANLINE 3413
+#define NTSC_SCANLINES_PER_FRAME  263
 
 static struct gpu gpu;
 
 uint32_t read_gpu( uint32_t address )
 {
     uint32_t data;
-    switch ( address )
-    {
-        case( gp0_gpu_read ): data = gpu.gpuread;       break;
-        case( gp1_gpu_stat ): data = gpu.gpustat.value; break;
+    switch ( address ) {
+    case( gp0_gpu_read ):
+        /* notify gpu that gpuread has been read */
+        gpu.gpuread_clear = 1;
+        data = gpu.gpuread;
+        break;
+    case( gp1_gpu_stat ): data = gpu.gpustat.value; break;
     }
 
-    TRACE_DEVMEM("gpu.c", "read_gpu ", "address: %08x | data: %08x\n", address, data);
+    // TRACE_GPU("read_gpu ", "address: %08x | data: %08x\n",
+    //         address, data);
 
     return data;
 }
 
 void write_gpu( uint32_t address, uint32_t data )
 {
-    switch ( address )
-    {
-        case( gp0_gpu_read ): fifo_push(&gpu.gp0, data); break;
-        case( gp1_gpu_stat ): gpu.gp1 = data; gpu.state = GPU_PROCESS_GP1; break;
+    switch ( address ) {
+    case( gp0_gpu_read ): 
+        fifo_push(&gpu.gp0, data); 
+
+        /* only process the command if the *
+         * gpu isn't busy processing other */
+        if (gpu.state == GPU_IDLE)
+            gpu.state = GPU_PROCESS_GP0;
+
+        break;
+    case( gp1_gpu_stat ): 
+        gpu.gp1 = data; 
+
+        /* pause what was happening *
+         * and process GP1 command  */
+        gpu.previous_state = gpu.state;
+        gpu.state = GPU_PROCESS_GP1; 
+
+        break;
     }
 
-    TRACE_DEVMEM("gpu.c", "write_gpu ", "address: %08x | data: %08x\n", address, data);
+    // TRACE_GPU("write_gpu", "address: %08x | data: %08x\n",
+    //         address, data);
 }
 
 /* if gpu is transferring data to or from vram it computes next address */
-uint32_t gpu_get_vram_address( void )
-{
-    // #error BUG: computing correct vram memory addresses
+uint32_t gpu_get_vram_address( void ) {
     assert(gpu.gpustat.ready_send_vram_cpu);
 
     /* compute vram address */
@@ -82,16 +98,18 @@ uint32_t gpu_get_vram_address( void )
     /* increment count by number of pixels */
     gpu.vram_direct_access_cx += 2;
 
-    if (gpu.vram_direct_access_cx == gpu.vram_direct_access_w)
-    {
+    if (gpu.vram_direct_access_cx == gpu.vram_direct_access_w) {
         gpu.vram_direct_access_cy++;
         gpu.vram_direct_access_cx = 0;
 
-        if (gpu.vram_direct_access_cy == gpu.vram_direct_access_h)
-        {
+        if (gpu.vram_direct_access_cy == gpu.vram_direct_access_h) {
             /* if the address equal to the max coordinate end the transfer */
             gpu.gpustat.ready_send_vram_cpu = 0;
+
+            /* reset the state machine */
+            gpu.state = GPU_IDLE;
         }
+
     }
 
     return address;
@@ -106,77 +124,90 @@ void gpu_get_gpustat( union gpustat *stat ) { *stat = gpu.gpustat; }
 
 
 // gp0 instructions
-static void gp0_nop( void ) { TRACE_GPU("gp0_nop", "command: %08x\n", fifo_pop(&gpu.gp0)); }
+static void gp0_nop( void ) { 
+    TRACE_GPU("gp0_nop", "command: %08x\n", fifo_pop(&gpu.gp0)); 
+}
 static void gp0_direct_vram_access( void )
 {
     /* BUG: possible issue when transferring using non-dma */
-    switch (COMMAND(fifo_peek(&gpu.gp0)))
-    {
-        case 0x01: /* vram clear vram */
-        case 0x02: /* fill rectangle in vram */
-        case 0x80: /* copy vram to vram */
-            /* pop command */
-            TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
-            break;
-        case 0xa0: /* copy cpu to vram */
-        {
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
+    uint32_t command, destination, dimensions;
+    switch (COMMAND(fifo_peek(&gpu.gp0))) {
+    case 0x01: /* vram clear vram */
+    case 0x02: /* fill rectangle in vram */
+    case 0x80: /* copy vram to vram */
+        /* pop command */
+        TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
+        break;
+    case 0xa0: /* copy cpu to vram */
+        if (!fifo_has_length(&gpu.gp0, 3))
+            return;
 
-            /* pop command */
-            TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
+        /* pop command */
+        command = fifo_pop(&gpu.gp0);
 
-            uint32_t destination = fifo_pop(&gpu.gp0);
-            uint32_t dimensions  = fifo_pop(&gpu.gp0);
+        /* pop paramters */
+        destination = fifo_pop(&gpu.gp0);
+        dimensions  = fifo_pop(&gpu.gp0);
 
-            /* set the conditions */
-            gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
-            gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
-            gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
-            gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+        /* set the conditions */
+        gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
+        gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
+        gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
+        gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
 
-            /* set the counter to 0 */
-            gpu.vram_direct_access_cx = 0;
-            gpu.vram_direct_access_cy = 0;
+        TRACE_GPU("gp0_direct_vram_access", "command: %08x, direction: cpu to vram, x: %3d, y: %3d, w: %d, h: %d\n",
+                command, gpu.vram_direct_access_x, gpu.vram_direct_access_y, gpu.vram_direct_access_w, gpu.vram_direct_access_h);
 
-            /* set the direction to cpu to vram */
-            gpu.vram_direct_access_d = 0;
+        /* set the counter to 0 */
+        gpu.vram_direct_access_cx = 0;
+        gpu.vram_direct_access_cy = 0;
 
-            /* set the gpu state */
-            gpu.gpustat.ready_send_vram_cpu = 1;
-            break;
-        }
-        case 0xc0: /* copy vram to cpu */
-        {
-            if (!fifo_has_length(&gpu.gp0, 3))
-                return;
+        /* set the direction to cpu to vram */
+        gpu.vram_direct_access_d = 0;
 
-            /* pop command */
-            TRACE_GPU("gp0_direct_vram_access", "command: %08x\n", fifo_pop(&gpu.gp0));
+        /* set gpustat */
+        gpu.gpustat.ready_send_vram_cpu = 1;
 
-            uint32_t destination = fifo_pop(&gpu.gp0);
-            uint32_t dimensions  = fifo_pop(&gpu.gp0);
+        /* set internal state machine */
+        gpu.state = GPU_VRAM_TRANSFER;
+        break;
+    case 0xc0: /* copy vram to cpu */
+        if (!fifo_has_length(&gpu.gp0, 3))
+            return;
 
-            /* set the conditions */
-            gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
-            gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
-            gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
-            gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+        /* pop command */
+        command = fifo_pop(&gpu.gp0);
 
-            /* set the counter to 0 */
-            gpu.vram_direct_access_cx = 0;
-            gpu.vram_direct_access_cy = 0;
+        destination = fifo_pop(&gpu.gp0);
+        dimensions  = fifo_pop(&gpu.gp0);
 
-            /* set the direction to vram to cpu */
-            gpu.vram_direct_access_d = 1;
+        TRACE_GPU("gp0_direct_vram_access", "command: %08x, direction: vram to cpu, x: %3d, y: %3d, w: %d, h: %d\n",
+                command, gpu.vram_direct_access_x, gpu.vram_direct_access_y, gpu.vram_direct_access_w, gpu.vram_direct_access_h);
 
-            /* set the gpu state */
-            gpu.gpustat.ready_send_vram_cpu = 1;
-            break;
-        }
+        /* set the conditions */
+        gpu.vram_direct_access_x = (destination >>  0) & 0xffff;
+        gpu.vram_direct_access_y = (destination >> 16) & 0xffff;
+        gpu.vram_direct_access_w = (dimensions  >>  0) & 0xffff;
+        gpu.vram_direct_access_h = (dimensions  >> 16) & 0xffff;
+
+        /* set the counter to 0 */
+        gpu.vram_direct_access_cx = 0;
+        gpu.vram_direct_access_cy = 0;
+
+        /* set the direction to vram to cpu */
+        gpu.vram_direct_access_d = 1;
+
+        /* set gpustat */
+        gpu.gpustat.ready_send_vram_cpu = 1;
+
+        /* set internal state machine */
+        gpu.state = GPU_VRAM_TRANSFER;
+        break;
     }
 }
-static void gp0_interrupt_request( void ) {}
+static void gp0_interrupt_request( void ) {
+    TRACE_GPU("gp0_interrupt_request", "command: %08x\n", fifo_pop(&gpu.gp0)); 
+}
 static void gp0_render_polygons( void )
 {
     uint32_t c1,      c2,      c3, c4;
@@ -1007,82 +1038,87 @@ static inline void gp1_new_texture_disable( void ) {}
 static inline void gp1_special_or_prototype_texture_disable( void ) {}
 static inline void gp1_display_info( void ) {}
 
-static void gpu_process_gp0( void )
-{
-    if (gpu.gpustat.dma_data_request && fifo_empty(&gpu.gp0))
-    {
-        /* if a request dma transfer is initiated and the block has been consumed, request another block */
-        gpu.gpustat.ready_recieve_dma_block = 1;
+static void gpu_process_transfer( void ) {
+    uint32_t address;
+    switch (gpu.vram_direct_access_d) {
+    case TRANSFER_TO_VRAM:
+        /* when transferring from CPU to VRAM, check  *
+         * if there are any commands in the fifo from *
+         * the CPU, and if there are send them to the *
+         * appropriate location within the VRAM       */
+        if (fifo_empty(&gpu.gp0))
+            break;
+        address = gpu_get_vram_address();
+        memory_write_vram(address, fifo_pop(&gpu.gp0), 4);
+        break;
+    case TRANSFER_TO_MAIN:
+        /* when transferring from VRAM to CPU, read *
+         * the VRAM contents and store it in the    *
+         * gpuread register for the CPU to retrieve */
+        if (!gpu.gpuread_clear)
+            break;
+        address = gpu_get_vram_address();
+        memory_read_vram(address, &gpu.gpuread, 4);
+        gpu.gpuread_clear = 0;
+        break;
     }
-    else if (gpu.gpustat.ready_send_vram_cpu)
-    {
-        /* if the vram to cpu or cpu to vram transfer is non-dma */
-        if (gpu.vram_direct_access_d)
-        {
-            /* vram to cpu, read contents of vram and load into gpu read */
-            uint32_t data;
+}
 
-            memory_read_vram(gpu_get_vram_address(), &data, 4);
-
-            gpu.gpuread = data;
+static void gpu_process_gp0( void ) {
+    /* when recieving data from linked lists, complete all commands &
+     * in each transfered block. After the all the commands have    *
+     * been completed request another block of data from the DMA    */
+    switch ( COMMAND(fifo_peek(&gpu.gp0)) ) {
+    case 0X00: gp0_nop(); break;
+    case 0X01:
+    case 0X02:
+    case 0X80:
+    case 0XA0:
+    case 0XC0: gp0_direct_vram_access(); break;
+    case 0X1F: gp0_interrupt_request();  break;
+    case 0X03: break;
+    default:
+        switch ( COMMAND(fifo_peek(&gpu.gp0)) >> 4 ) {
+        case 0x02: case 0x03: gp0_render_polygons(); break;
+        case 0x04: case 0x05: gp0_render_lines(); break;
+        case 0x06: case 0x07: gp0_render_rectangles(); break;
+        case 0x0e:            gp0_rendering_attributes(); break;
+        default:
+            TRACE_GPU("gpu_process_gp0", "invalid command(%08x)\n", 
+                    fifo_pop(&gpu.gp0));
+            gpu.state = GPU_IDLE;
+            break;
         }
-        else
-        {
-            /* cpu to vram, if data in fifo, write to next vram address */
-            if (!fifo_empty(&gpu.gp0))
-                memory_write_vram(gpu_get_vram_address(), fifo_pop(&gpu.gp0), 4);
-        }
+        break;
     }
-    else if (!fifo_empty(&gpu.gp0))
-    {
-        /* otherwise treat as a basic gp0 command */
-        switch ( COMMAND(fifo_peek(&gpu.gp0)) )
-        {
-            case 0X00: gp0_nop(); break;
-            case 0X01:
-            case 0X02:
-            case 0X80:
-            case 0XA0:
-            case 0XC0: gp0_direct_vram_access(); break;
-            case 0X1F: gp0_interrupt_request();  break;
-            case 0X03: break;
-            default:
-                switch ( COMMAND(fifo_peek(&gpu.gp0)) >> 4 )
-                {
-                    case 0x02: case 0x03: gp0_render_polygons(); break;
-                    case 0x04: case 0x05: gp0_render_lines(); break;
-                    case 0x06: case 0x07: gp0_render_rectangles(); break;
-                    case 0x0e:            gp0_rendering_attributes(); break;
-                    default:
-                        break;
-                }
-                break;
-        }
+
+    if (fifo_empty(&gpu.gp0) && gpu.state == GPU_PROCESS_GP0) {
+        gpu.state = GPU_IDLE;
     }
 }
 
 static void gpu_process_gp1( void )
 {
-    switch ( COMMAND(gpu.gp1) )
-    {
-        case 0x00: gp1_reset(); break;
-        case 0x01: gp1_reset_command_buffer(); break;
-        case 0x02: gp1_acknowledge_interrupt(); break;
-        case 0x03: gp1_display_enable(); break;
-        case 0x04: gp1_dma_direction_or_data_request(); break;
-        case 0x05: gp1_start_of_display_area_in_vram(); break;
-        case 0x06: gp1_horiontal_display_range(); break;
-        case 0x07: gp1_vertical_display_range(); break;
-        case 0x08: gp1_display_mode(); break;
-        case 0x09: gp1_new_texture_disable(); break;
-        case 0x20: break;
-        default:
-            if (COMMAND(gpu.gp1) >> 4 == 0x01)
-                gp1_display_info();
-            break;
+    switch ( COMMAND(gpu.gp1) ) {
+    case 0x00: gp1_reset(); break;
+    case 0x01: gp1_reset_command_buffer(); break;
+    case 0x02: gp1_acknowledge_interrupt(); break;
+    case 0x03: gp1_display_enable(); break;
+    case 0x04: gp1_dma_direction_or_data_request(); break;
+    case 0x05: gp1_start_of_display_area_in_vram(); break;
+    case 0x06: gp1_horiontal_display_range(); break;
+    case 0x07: gp1_vertical_display_range(); break;
+    case 0x08: gp1_display_mode(); break;
+    case 0x09: gp1_new_texture_disable(); break;
+    case 0x20: break;
+    default:
+        if (COMMAND(gpu.gp1) >> 4 == 0x01)
+            gp1_display_info();
+        break;
     }
 
-    gpu.state = GPU_PROCESS_GP0;
+    gpu.state = gpu.previous_state;
+    gpu.previous_state = GPU_IDLE;
 }
 
 static void gpu_tick( void )
@@ -1108,7 +1144,7 @@ static void gpu_tick( void )
                                         (gpu.gpustat.horizontal_resolution_1 == 0) ? 256:
                                         (gpu.gpustat.horizontal_resolution_1 == 1) ? 320:
                                         (gpu.gpustat.horizontal_resolution_1 == 2) ? 512:
-                                                                                    640))
+                                                                                     640))
     {
         gpu.hblank = 1;
     }
@@ -1145,6 +1181,8 @@ static void gpu_tick( void )
                 {
                     gpu.vblank = 1;
 
+                    system_render_next_frame();
+
                     /* even odd interlace is always 0 during vblank */
                     if (gpu.gpustat.vertical_interlace)
                         gpu.gpustat.drawing_even_odd_interlace = 0;
@@ -1157,8 +1195,6 @@ static void gpu_tick( void )
                 {
                     gpu.scanlines = 0;
                     gpu.vblank    = 0;
-
-                    system_render();
 
                     if (gpu.gpustat.vertical_interlace && gpu.gpustat.vertical_resolution)
                     {
@@ -1199,6 +1235,8 @@ static void gpu_tick( void )
                 {
                     gpu.vblank = 1;
 
+                    system_render_next_frame();
+
                     /* even odd interlace is always 0 during vblank */
                     if (gpu.gpustat.vertical_interlace)
                         gpu.gpustat.drawing_even_odd_interlace = 0;
@@ -1211,8 +1249,6 @@ static void gpu_tick( void )
                 {
                     gpu.scanlines = 0;
                     gpu.vblank    = 0;
-
-                    system_render();
 
                     if (gpu.gpustat.vertical_interlace && gpu.gpustat.vertical_resolution)
                     {
@@ -1231,22 +1267,29 @@ static void gpu_render_frame( void )
 
 void init_gpu( void )
 {
-    /* destroy gp0 fifo */
-    // fifo_destroy( &gpu.gp0 );
-
     /* create gp0 fifo */
-    fifo_create( &gpu.gp0, 256 );
+    fifo_create( &gpu.gp0, 255 );
 
     /* clear stat register */
     gpu.gpustat.value = 0;
 
     /* set default values */
     gpu.gpustat.display_enable             = 1;
+
     gpu.gpustat.ready_recieve_cmd_word     = 1;
     gpu.gpustat.ready_recieve_dma_block    = 1;
+    gpu.gpustat.ready_send_vram_cpu        = 1;
+
+    /* resolution is set to 320x240 no interlacing */
+    gpu.gpustat.horizontal_resolution_1    = 1;
+
+    /* set to one since vertical interlace off */
+    gpu.gpustat.interlace_field            = 1;
+
     gpu.gpustat.drawing_even_odd_interlace = 0;
 
-    gpu.state = GPU_PROCESS_GP0;
+    gpu.state          = GPU_IDLE;
+    gpu.previous_state = GPU_IDLE;
 }
 
 void task_gpu( void )
@@ -1255,12 +1298,16 @@ void task_gpu( void )
     gpu_tick();
 
     /* process gpu commands */
-    switch (gpu.state)
-    {
-        case GPU_RENDERING:   gpu_render_frame(); break;
-        case GPU_PROCESS_GP0: gpu_process_gp0();  break;
-        case GPU_PROCESS_GP1: gpu_process_gp1();  break;
-        default:
-            break;
+    switch (gpu.state) {
+    case GPU_IDLE:
+        if (gpu.gpustat.dma_data_request)
+            gpu.gpustat.ready_recieve_dma_block = 1;
+        break;
+    case GPU_RENDERING:     gpu_render_frame();     break;
+    case GPU_PROCESS_GP0:   gpu_process_gp0();      break;
+    case GPU_PROCESS_GP1:   gpu_process_gp1();      break;
+    case GPU_VRAM_TRANSFER: gpu_process_transfer(); break;
+    default:
+        break;
     }
 }

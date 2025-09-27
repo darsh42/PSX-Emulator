@@ -53,12 +53,15 @@ union gpustat {
 
 struct gpu {
     enum gpu_state state;
+    enum gpu_state previous_state;
 
     struct fifo gp0;
     uint32_t    gp1;
 
     union gpustat gpustat;
     uint32_t      gpuread;
+    uint32_t      gpuread_clear; // if gpuread has been read
+                                 // notify for clear
 
     uint32_t cycles;    // gpu cycles 
     uint32_t dots;      // gpu dots (horizontal pixels)

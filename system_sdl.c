@@ -39,8 +39,11 @@ void system_render( void )
     // SDL_RenderPresent(sys.renderer);
 }
 
-void system_write_audio_sample(int32_t sample)
-{
+void system_render_next_frame( void ) {
+    sys.render_next_frame = 1;
+}
+
+void system_write_audio_sample(int32_t sample) {
     SDL_CHECK_RET(SDL_AudioStreamPut(sys.audio_stream, &sample, sizeof(sample)));
 }
 
