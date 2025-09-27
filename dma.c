@@ -9,77 +9,78 @@
 #include "timer.h"
 #include "memory.h"
 
+#define DISABLE_DMAn_DPCR(channel) \
+    dma.dpcr &= ~(1 << (4 * channel + 3))
+
 static struct dma dma;
 
 uint32_t read_dma( uint32_t address )
 {
     uint32_t data;
-    switch ( address )
-    {
-        case(dma0_mdec_in_madr ): data = dma.dma0_mdec_in_madr ; break;
-        case(dma0_mdec_in_brc  ): data = dma.dma0_mdec_in_brc  ; break;
-        case(dma0_mdec_in_chcr ): data = dma.dma0_mdec_in_chcr ; break;
-        case(dma1_mdec_out_madr): data = dma.dma1_mdec_out_madr; break;
-        case(dma1_mdec_out_brc ): data = dma.dma1_mdec_out_brc ; break;
-        case(dma1_mdec_out_chcr): data = dma.dma1_mdec_out_chcr; break;
-        case(dma2_gpu_madr     ): data = dma.dma2_gpu_madr     ; break;
-        case(dma2_gpu_brc      ): data = dma.dma2_gpu_brc      ; break;
-        case(dma2_gpu_chcr     ): data = dma.dma2_gpu_chcr     ; break;
-        case(dma3_cdrom_madr   ): data = dma.dma3_cdrom_madr   ; break;
-        case(dma3_cdrom_brc    ): data = dma.dma3_cdrom_brc    ; break;
-        case(dma3_cdrom_chcr   ): data = dma.dma3_cdrom_chcr   ; break;
-        case(dma4_spu_madr     ): data = dma.dma4_spu_madr     ; break;
-        case(dma4_spu_brc      ): data = dma.dma4_spu_brc      ; break;
-        case(dma4_spu_chcr     ): data = dma.dma4_spu_chcr     ; break;
-        case(dma5_pio_madr     ): data = dma.dma5_pio_madr     ; break;
-        case(dma5_pio_brc      ): data = dma.dma5_pio_brc      ; break;
-        case(dma5_pio_chcr     ): data = dma.dma5_pio_chcr     ; break;
-        case(dma6_otc_madr     ): data = dma.dma6_otc_madr     ; break;
-        case(dma6_otc_brc      ): data = dma.dma6_otc_brc      ; break;
-        case(dma6_otc_chcr     ): data = dma.dma6_otc_chcr     ; break;
-        case(dpcr              ): data = dma.dpcr              ; break;
-        case(dicr              ): data = dma.dicr              ; break;
-        default:
-            assert(0 && "Unhandled DMA register read");
+    switch ( address ) {
+    case(dma0_mdec_in_madr ): data = dma.dma0_mdec_in_madr ; break;
+    case(dma0_mdec_in_brc  ): data = dma.dma0_mdec_in_brc  ; break;
+    case(dma0_mdec_in_chcr ): data = dma.dma0_mdec_in_chcr ; break;
+    case(dma1_mdec_out_madr): data = dma.dma1_mdec_out_madr; break;
+    case(dma1_mdec_out_brc ): data = dma.dma1_mdec_out_brc ; break;
+    case(dma1_mdec_out_chcr): data = dma.dma1_mdec_out_chcr; break;
+    case(dma2_gpu_madr     ): data = dma.dma2_gpu_madr     ; break;
+    case(dma2_gpu_brc      ): data = dma.dma2_gpu_brc      ; break;
+    case(dma2_gpu_chcr     ): data = dma.dma2_gpu_chcr     ; break;
+    case(dma3_cdrom_madr   ): data = dma.dma3_cdrom_madr   ; break;
+    case(dma3_cdrom_brc    ): data = dma.dma3_cdrom_brc    ; break;
+    case(dma3_cdrom_chcr   ): data = dma.dma3_cdrom_chcr   ; break;
+    case(dma4_spu_madr     ): data = dma.dma4_spu_madr     ; break;
+    case(dma4_spu_brc      ): data = dma.dma4_spu_brc      ; break;
+    case(dma4_spu_chcr     ): data = dma.dma4_spu_chcr     ; break;
+    case(dma5_pio_madr     ): data = dma.dma5_pio_madr     ; break;
+    case(dma5_pio_brc      ): data = dma.dma5_pio_brc      ; break;
+    case(dma5_pio_chcr     ): data = dma.dma5_pio_chcr     ; break;
+    case(dma6_otc_madr     ): data = dma.dma6_otc_madr     ; break;
+    case(dma6_otc_brc      ): data = dma.dma6_otc_brc      ; break;
+    case(dma6_otc_chcr     ): data = dma.dma6_otc_chcr     ; break;
+    case(dpcr              ): data = dma.dpcr              ; break;
+    case(dicr              ): data = dma.dicr              ; break;
+    default:
+        assert(0 && "Unhandled DMA register read");
     }
 
-    // TRACE_DMA("read_dma ", "address: %08x | data: %08x\n", address, data);
+    TRACE_DMA("read_dma ", "address: %08x | data: %08x\n", address, data);
 
     return data;
 }
 
 void write_dma( uint32_t address, uint32_t data )
 {
-    switch ( address )
-    {
-        case(dma0_mdec_in_madr ): dma.dma0_mdec_in_madr  = data; break;
-        case(dma0_mdec_in_brc  ): dma.dma0_mdec_in_brc   = data; break;
-        case(dma0_mdec_in_chcr ): dma.dma0_mdec_in_chcr  = data; break;
-        case(dma1_mdec_out_madr): dma.dma1_mdec_out_madr = data; break;
-        case(dma1_mdec_out_brc ): dma.dma1_mdec_out_brc  = data; break;
-        case(dma1_mdec_out_chcr): dma.dma1_mdec_out_chcr = data; break;
-        case(dma2_gpu_madr     ): dma.dma2_gpu_madr      = data; break;
-        case(dma2_gpu_brc      ): dma.dma2_gpu_brc       = data; break;
-        case(dma2_gpu_chcr     ): dma.dma2_gpu_chcr      = data; break;
-        case(dma3_cdrom_madr   ): dma.dma3_cdrom_madr    = data; break;
-        case(dma3_cdrom_brc    ): dma.dma3_cdrom_brc     = data; break;
-        case(dma3_cdrom_chcr   ): dma.dma3_cdrom_chcr    = data; break;
-        case(dma4_spu_madr     ): dma.dma4_spu_madr      = data; break;
-        case(dma4_spu_brc      ): dma.dma4_spu_brc       = data; break;
-        case(dma4_spu_chcr     ): dma.dma4_spu_chcr      = data; break;
-        case(dma5_pio_madr     ): dma.dma5_pio_madr      = data; break;
-        case(dma5_pio_brc      ): dma.dma5_pio_brc       = data; break;
-        case(dma5_pio_chcr     ): dma.dma5_pio_chcr      = data; break;
-        case(dma6_otc_madr     ): dma.dma6_otc_madr      = data; break;
-        case(dma6_otc_brc      ): dma.dma6_otc_brc       = data; break;
-        case(dma6_otc_chcr     ): dma.dma6_otc_chcr      = data; break;
-        case(dpcr              ): dma.dpcr               = data; break;
-        case(dicr              ): dma.dicr               = data; break;
-        default:
-            assert(0 && "Unhandled DMA register write");
+    switch ( address ) {
+    case(dma0_mdec_in_madr ): dma.dma0_mdec_in_madr  = data; break;
+    case(dma0_mdec_in_brc  ): dma.dma0_mdec_in_brc   = data; break;
+    case(dma0_mdec_in_chcr ): dma.dma0_mdec_in_chcr  = data; break;
+    case(dma1_mdec_out_madr): dma.dma1_mdec_out_madr = data; break;
+    case(dma1_mdec_out_brc ): dma.dma1_mdec_out_brc  = data; break;
+    case(dma1_mdec_out_chcr): dma.dma1_mdec_out_chcr = data; break;
+    case(dma2_gpu_madr     ): dma.dma2_gpu_madr      = data; break;
+    case(dma2_gpu_brc      ): dma.dma2_gpu_brc       = data; break;
+    case(dma2_gpu_chcr     ): dma.dma2_gpu_chcr      = data; break;
+    case(dma3_cdrom_madr   ): dma.dma3_cdrom_madr    = data; break;
+    case(dma3_cdrom_brc    ): dma.dma3_cdrom_brc     = data; break;
+    case(dma3_cdrom_chcr   ): dma.dma3_cdrom_chcr    = data; break;
+    case(dma4_spu_madr     ): dma.dma4_spu_madr      = data; break;
+    case(dma4_spu_brc      ): dma.dma4_spu_brc       = data; break;
+    case(dma4_spu_chcr     ): dma.dma4_spu_chcr      = data; break;
+    case(dma5_pio_madr     ): dma.dma5_pio_madr      = data; break;
+    case(dma5_pio_brc      ): dma.dma5_pio_brc       = data; break;
+    case(dma5_pio_chcr     ): dma.dma5_pio_chcr      = data; break;
+    case(dma6_otc_madr     ): dma.dma6_otc_madr      = data; break;
+    case(dma6_otc_brc      ): dma.dma6_otc_brc       = data; break;
+    case(dma6_otc_chcr     ): dma.dma6_otc_chcr      = data; break;
+    case(dpcr              ): dma.dpcr               = data; break;
+    case(dicr              ): dma.dicr               = data; break;
+    default:
+        assert(0 && "Unhandled DMA register write");
     }
 
-    // TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
+    TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
 }
 
 void dma_transfer_manual_cdrom( void )
@@ -121,6 +122,9 @@ void dma_transfer_manual_otc( void )
 
     dma.dma6_otc_madr = madr.value;
     dma.dma6_otc_chcr = chcr.value;
+
+    /* disable the master enable */
+    DISABLE_DMAn_DPCR(DMA6_OTC);
 }
 
 void dma_transfer_request_mdec_in( void )
@@ -145,8 +149,6 @@ void dma_transfer_request_gpu( void )
         !gpustat.dma_data_request)
         return;
 
-    TRACE_DMA("dma_transfer_request_gpu", "request transfer gpu\n", 0);
-
     /* vram read and write */
     union madr madr = { .value = dma.dma2_gpu_madr };
     union brc   brc = { .value = dma.dma2_gpu_brc  };
@@ -160,19 +162,24 @@ void dma_transfer_request_gpu( void )
     uint32_t block_size  = brc.bs;
     uint32_t step = (chcr.address_step) ? -4: +4;
 
+    TRACE_DMA("dma_transfer_request_gpu", "direction: %s, base address: %08x, block_count: %d, block_size: %d\n", 
+            (chcr.transfer_direction) ? "RAM_TO_DEV": "DEV_TO_RAM", ram_address, block_count, block_size);
+
     while (block_count != 0) {
-        /* get next gpu address */
         vram_address = gpu_get_vram_address();
 
-        /* copy from source to destination depending on transfer direction */
-        if (chcr.transfer_direction == RAM_TO_DEVICE) {
+        switch (chcr.transfer_direction) {
+        case RAM_TO_DEVICE:
             memory_read(ram_address, &data, 4);
             memory_write_vram(vram_address,  data, 4);
-        } else {
+            break;
+        case DEVICE_TO_RAM:
             memory_read_vram(vram_address, &data, 4);
             memory_write(ram_address,  data, 4);
+            break;
         }
 
+        ram_address += step;
         block_size--;
 
         /* if end of block go to next block */
@@ -180,9 +187,11 @@ void dma_transfer_request_gpu( void )
             block_size = brc.bs;
             block_count--;
         }
-
-        ram_address += step;
     }
+
+    /* ensure all data has been transfered */
+    assert(block_count == 0 && 
+           block_size  == brc.bs);
 
     /* finished block */
     gpustat.ready_recieve_dma_block = 0;
@@ -190,10 +199,13 @@ void dma_transfer_request_gpu( void )
     /* notify gpu of block end */
     gpu_set_gpustat(gpustat);
 
-// #error BUG: incorrect dma transfer request for gpu
     /* finish dma transfer */
     chcr.start_busy   = 0;
+
     dma.dma2_gpu_chcr = chcr.value;
+
+    /* disable the master enable */
+    DISABLE_DMAn_DPCR(DMA2_GPU);
 }
 void dma_transfer_request_spu( void )
 {
@@ -236,9 +248,14 @@ void dma_transfer_linkedlist_gpu( void )
     next = (header >>  0) & 0X00FFFFFF; /* store next address  */
     size = (header >> 24) & 0X000000FF; /* read size of packet */
 
-    if (size > 0)
+    if (size > 0) {
         TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n",
                     source, header, next, size);
+
+        /* notify the gpu to process this block */
+        gpustat.ready_recieve_dma_block = 0;
+        gpu_set_gpustat(gpustat);
+    }
 
     source += 4;
 
@@ -253,21 +270,17 @@ void dma_transfer_linkedlist_gpu( void )
         size--;
     }
 
-    /* finished block */
-    gpustat.ready_recieve_dma_block = 0;
-
-    /* notify gpu of block end */
-    gpu_set_gpustat(gpustat);
-
-    /* end of link list is denoted by the packet 0x00FFFFFF, *
-     * clear start busy                                      */
+    /* end of link list is denoted by the packet 0x00FFFFFF */
     if (next == 0x00FFFFFF) {
         TRACE_DMA("dma_transfer_linkedlist_dma", "linked list transfer finished\n", 0);
+
+        /* clear start busy */
         union chcr chcr = {.value = dma.dma2_gpu_chcr};
         dma.dma2_gpu_chcr = (chcr.start_busy = 0);
-    }
 
-    /* unlock memory */
+        /* disable the master enable */
+        DISABLE_DMAn_DPCR(DMA2_GPU);
+    }
 }
 
 void dma_trace_linked_list( void ) {
@@ -302,9 +315,11 @@ void dma_trace_linked_list( void ) {
     }
 }
 
-void init_dma( void ) {}
-void task_dma( void )
-{
+void init_dma( void ) {
+    dma.dpcr = 0x07654321;
+}
+
+void task_dma( void ) {
     // reverse iterate over all dma channels
     // until a channel has the following:
     //  - enabled in DPRC
