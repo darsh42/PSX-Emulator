@@ -52,9 +52,21 @@ enum system_state {
 #ifdef RENDERER_VULKAN
 #endif // RENDERER_VULKAN
 
+struct box {
+    int32_t minx, miny;
+    int32_t maxx, maxy;
+    int32_t height, width;
+};
+
 struct system {
     /* VIDEO */
     uint32_t frame_buffer[WIN_H][WIN_W];
+
+    size_t thread_count;
+    size_t allocations;
+
+    pthread_t  *threads;
+    struct box *tiles;
 
 #ifdef RENDERER_SDL
     SDL_Window   *window;

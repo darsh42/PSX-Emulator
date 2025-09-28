@@ -7,12 +7,12 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build Type" FORCE)
 endif()
 
-project(PSX-Emulator 
+project(PSX-Emulator
     VERSION 1.0
     DESCRIPTION "Simple Playstation 1 Emulator"
     LANGUAGES C)
 ########################################################################
-# list of all packages 
+# list of all packages
 find_package(SDL2 REQUIRED)
 find_package(Threads REQUIRED)
 ########################################################################
@@ -96,11 +96,14 @@ add_library(psx-core
     ${CMAKE_CURRENT_SOURCE_DIR}/gpu.h
     ${CMAKE_CURRENT_SOURCE_DIR}/interrupts.h
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/simd_avx512.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/simd_avx256.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/simd_sse128.h
     ${CMAKE_CURRENT_SOURCE_DIR}/spu.h
     ${CMAKE_CURRENT_SOURCE_DIR}/system.h
     ${CMAKE_CURRENT_SOURCE_DIR}/timer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/trace.h)
-target_link_libraries(psx-core 
+target_link_libraries(psx-core
     PUBLIC
     PRIVATE
     $<$<CONFIG:RELEASE>: release-flags>

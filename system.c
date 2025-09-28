@@ -9,16 +9,15 @@
 #include "gpu.h"
 #include "memory.h"
 
+#define RENDERER_SIMD_SSE_H_
+#include "simd_sse128.h"
+
 #define VRAM_WIDTH  2048
 #define VRAM_HEIGHT  512
 
 /* c: color, s: size (bytes) */
 #define PUT_PIX(x, y, c) \
     sys.frame_buffer[y][x] = c
-
-#define ABS(a)    (a > 0) ? a : -a
-#define MAX(a, b) (a > b) ? a :  b
-#define MIN(a, b) (a < b) ? a :  b
 
 /* externed from whatever os interface used */
 extern struct system sys;
@@ -35,82 +34,175 @@ static void system_draw_verticalline(uint16_t x,
                                      uint16_t y0,
                                      uint16_t y1,
                                      uint16_t c)
-{ for (uint16_t y = MIN(y0, y1); y < MAX(y0, y1); y++) PUT_PIX(x, y, c); }
+{ assert(y0 < y1); for (uint16_t y = y0; y < y1; y++) PUT_PIX(x, y, c); }
 
-static struct triangle_info {
-    int32_t x0, x1, x2;
-    int32_t y0, y1, y2;
-    int32_t c0, c1, c2;
-
-    int32_t maxx, minx;
-    int32_t maxy, miny;
-
-    double total_area;
-} info;
-
-static double signed_triangle_area(int32_t x0, int32_t x1, int32_t x2,
-                                   int32_t y0, int32_t y1, int32_t y2) {
-    return 0.5*((y1-y0)*(x1+x0)+(y2-y0)*(x2+x0)+(y2-y1)*(x2-x1));
-
+#define KERNEL_SIZE 256
+void init_threads(void) {
+    sys.thread_count = 0;
+    sys.allocations  = 0;
+    sys.threads      = NULL;
+    sys.tiles        = NULL;
 }
-static void *pthread_draw_triangle_segment(void *arg) {
-    int32_t y = *(int32_t *) arg;
-
-    for (int32_t x = info.minx; x<info.maxx; x++) {
-        double alpha = signed_triangle_area(x, info.x1, info.x2, y, info.y1, info.y2) / info.total_area;
-        double beta  = signed_triangle_area(x, info.x2, info.x0, y, info.y2, info.y0) / info.total_area;
-        double gamma = signed_triangle_area(x, info.x0, info.x1, y, info.y0, info.y1) / info.total_area;
-
-        if (alpha < 0 || beta < 0 || gamma < 0) 
-            continue;
-
-        uint32_t color = 
-            ((uint32_t)(alpha*B(info.c0) + beta*B(info.c1) + gamma*B(info.c2)) << 16) |
-            ((uint32_t)(alpha*G(info.c0) + beta*G(info.c1) + gamma*G(info.c2)) <<  8) |
-            ((uint32_t)(alpha*R(info.c0) + beta*R(info.c1) + gamma*R(info.c2)) <<  0);
-
-        PUT_PIX(x, y, color);
+void free_threads(void) {
+    free(sys.threads);
+    free(sys.tiles);
+}
+static void allocate_threads(size_t thread_count) {
+    /* TODO: implement a pooling technique,     *
+     *       allocate threads only when there   *
+     *       arent enough threads, otherwise    *
+     *       reuse the currently allocated ones.*
+     *       After each frame de-allocate the   *
+     *       threads and arguments              */
+    if (thread_count > sys.thread_count) {
+        /* set new thread count */
+        sys.allocations++;
+        sys.thread_count = thread_count;
+        /* reallocate */
+        sys.threads = 
+            realloc(sys.threads, 
+                    sys.thread_count*sizeof(*sys.threads));
+        sys.tiles = 
+            realloc(sys.tiles, 
+                    sys.thread_count*sizeof(*sys.tiles));
     }
 }
-void system_draw_triangle(uint16_t x0, uint16_t x1, uint16_t x2,
-                          uint16_t y0, uint16_t y1, uint16_t y2,
-                          uint16_t c0, uint16_t c1, uint16_t c2) {
-    /* populate the general read only data for all threads */
-    info.x0=x0; info.x1=x1; info.x2=x2;
-    info.y0=y0; info.y1=y1; info.y2=y2;
-    info.c0=c0; info.c1=c1; info.c2=c2;
 
-    info.minx = MIN(x0, x1); info.minx = MIN(info.minx, x2);
-    info.miny = MIN(y0, y1); info.miny = MIN(info.miny, y2);
-    info.maxx = MAX(x0, x1); info.maxx = MAX(info.maxx, x2);
-    info.maxy = MAX(y0, y1); info.maxy = MAX(info.maxy, y2);
+static float compute_equations(int32_t x, int32_t y, enum equation_component c) {
+    return triangle.recp_area[0]* (x * triangle.xm[c][0] + y * triangle.ym[c][0] + triangle.add[c][0]);
+}
+static int32_t compute_pixel(float alpha, float beta, float gamma) {
+    int32_t alpha_test = (triangle.alpha_top_left) ? (alpha >= 0) : (alpha > 0);
+    int32_t  beta_test = (triangle.beta_top_left)  ? ( beta >= 0) : ( beta > 0);
+    int32_t gamma_test = (triangle.gamma_top_left) ? (gamma >= 0) : (gamma > 0);
 
-    info.total_area = signed_triangle_area(info.x0, info.x1, info.x2, 
-                                           info.y0, info.y1, info.y2);
+    return (alpha_test & beta_test & gamma_test);
+}
+static uint32_t compute_color(float alpha, float beta, float gamma) {
+    return ((uint32_t) (alpha*triangle.r[0][0] + beta*triangle.r[1][0] + gamma*triangle.r[1][0]) << 16) |
+           ((uint32_t) (alpha*triangle.g[0][0] + beta*triangle.g[1][0] + gamma*triangle.g[1][0]) <<  8) |
+           ((uint32_t) (alpha*triangle.b[0][0] + beta*triangle.b[1][0] + gamma*triangle.b[1][0]) <<  0);
+}
 
-    /* create a thread for each row in the bounding box */
-    int32_t thread_count = info.maxy - info.miny;
-    pthread_t *threads = 
-        malloc(thread_count*sizeof(*threads));
-    int32_t *args = 
-        malloc(thread_count*sizeof(*args));
+static void *fill_tile(void *arg) {
+    /* get tile */
+    struct box *t = 
+        (struct box *) arg;
 
-    /* spawn each thread */
+    vectorf zeros           = simd_fill_vector(  0);
+    vectorf min_color_value = simd_fill_vector(  0);
+    vectorf max_color_value = simd_fill_vector(255);
+    
+    uint32_t colors[SIMD_WIDTH];
+
+    for (int32_t cy = t->miny; cy < t->maxy; cy++) {
+        int32_t aligned_end = 
+            t->maxx - (t->maxx - t->minx) % SIMD_WIDTH;
+
+        for (int32_t cx = t->minx; cx < t->maxx; cx += SIMD_WIDTH) {
+            vectorf x = simd_calculate_x_values(cx);
+            vectorf y = simd_calculate_y_values(cy);
+
+            vectorf alpha = simd_compute_equation(x, y, ALPHA);
+            vectorf  beta = simd_compute_equation(x, y,  BETA);
+            vectorf gamma = simd_compute_equation(x, y, GAMMA);
+
+            int32_t pixels =
+                simd_compute_pixels(alpha, beta, gamma, zeros);
+
+            if (!pixels)
+                continue;
+
+            simd_compute_colors(colors, alpha, beta, gamma, 
+                                min_color_value, max_color_value);
+
+            for (int32_t pix = 0; pixels > 0; pix++, pixels >>= 1) {
+                /* if the pixel is not set skip */
+                if (!(pixels & 1)) 
+                    continue;
+
+                /* place pixel */
+                PUT_PIX(cx + pix, cy, colors[pix]);
+            }
+        }
+
+        for (int32_t cx = aligned_end; cx < t->maxx; cx++) {
+            float alpha = compute_equations(cx, cy, ALPHA);
+            float  beta = compute_equations(cx, cy,  BETA);
+            float gamma = compute_equations(cx, cy, GAMMA);
+
+            int32_t pixel = compute_pixel(alpha, beta, gamma);
+
+            if (!pixel) 
+                continue;
+
+            int32_t color = compute_color(alpha, beta, gamma);
+
+            PUT_PIX(cx, cy, color);
+        }
+    }
+}
+
+#define MIN3(a, b, c) min(min(a, b), c)
+#define MAX3(a, b, c) max(max(a, b), c)
+static inline int32_t min(int32_t a, int32_t b) { return (a < b) ? a: b; }
+static inline int32_t max(int32_t a, int32_t b) { return (a > b) ? a: b; }
+static inline int32_t clamp(int32_t a, int32_t low, int32_t high) {
+    return max(low, min(high, a));
+}
+
+static inline int32_t is_top_left_edge(int32_t x0, int32_t x1, int32_t y0, int32_t y1) {
+    return (y0 < y1) || (y0 == y1 && x0 < x1);
+}
+void fill_triangle( int32_t x0,  int32_t x1,  int32_t x2, 
+                    int32_t y0,  int32_t y1,  int32_t y2, 
+                   uint32_t c0, uint32_t c1, uint32_t c2) {
+    /* set the global triangle data state */
+    simd_set_triangle_data(x0, y0, c0, x1, y1, c1, x2, y2, c2,
+                           is_top_left_edge(x1, y1, x2, y2),
+                           is_top_left_edge(x2, y2, x0, y0),
+                           is_top_left_edge(x0, y0, x1, y1));
+
+    /* calculate bounding box */
+    struct box bb = {
+        .minx = min(x0, min(x1, x2)),
+        .maxx = max(x0, max(x1, x2)),
+        .miny = min(y0, min(y1, y2)),
+        .maxy = max(y0, max(y1, y2))
+    };
+
+    /* find bounding box length and width */
+    bb.width  = bb.maxx - bb.minx;
+    bb.height = bb.maxy - bb.miny;
+
+    /* find number of tiles in bounding box */
+    int32_t xtiles = 
+        (bb.width +KERNEL_SIZE-1)/KERNEL_SIZE;
+    int32_t ytiles =
+        (bb.height+KERNEL_SIZE-1)/KERNEL_SIZE;
+
+    /* allocate thread and arg for each tile    */
+    int32_t thread_count = xtiles * ytiles;
+    allocate_threads(thread_count);
+
+
+    /* dispatch thread to render tile */
     for (int32_t t = 0; t < thread_count; t++) {
-        /* create and populate arg */
-        int32_t *arg = &args[t]; *arg = t+info.miny;
+        /* calculate next minimum and current maximum */
+        sys.tiles[t].minx = bb.minx+(t%xtiles)*KERNEL_SIZE,
+        sys.tiles[t].miny = bb.miny+(t/xtiles)*KERNEL_SIZE,
+        sys.tiles[t].maxx = min(sys.tiles[t].minx+KERNEL_SIZE, WIN_W);
+        sys.tiles[t].maxy = min(sys.tiles[t].miny+KERNEL_SIZE, WIN_H);
+
         /* dispatch to thread */
-        pthread_create(&threads[t], NULL, 
-                pthread_draw_triangle_segment, (void *) arg);
+        pthread_create(&sys.threads[t], NULL, 
+                fill_tile, (void *) &sys.tiles[t]);
     }
 
     /* wait for threads */
     for (int32_t t = 0; t < thread_count; t++) {
-        pthread_join(threads[t], NULL);
+        pthread_join(sys.threads[t], NULL);
     }
-
-    free(threads);
-    free(args);
 }
 
 void render_line_monochrome(
@@ -187,12 +279,12 @@ void render_four_point_polygon_monochrome(uint32_t c1, uint32_t v1,
              X(v3), Y(v3), R(c1), G(c1), B(c1),
              X(v4), Y(v4), R(c1), G(c1), B(c1),
              semi_transparent);
-    system_draw_triangle(X(v1), X(v2), X(v3),
-                         Y(v1), Y(v2), Y(v3),
-                           c1 ,   c1 ,   c1 );
-    system_draw_triangle(X(v1), X(v2), X(v4),
-                         Y(v1), Y(v2), Y(v4),
-                           c1 ,   c1 ,   c1 );
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c1 ,   c1 );
+    fill_triangle(X(v2), X(v3), X(v4),
+                  Y(v2), Y(v3), Y(v4),
+                    c1 ,   c1 ,   c1 );
 }
 void render_three_point_polygon_textured(uint32_t c1, uint32_t v1, uint32_t t1_clut,
                                                       uint32_t v2, uint32_t t2_page,
@@ -259,9 +351,9 @@ void render_three_point_polygon_shaded(
              X(v2), Y(v2), R(c2), G(c2), B(c2),
              X(v3), Y(v3), R(c3), G(c3), B(c3),
              semi_transparent);
-    system_draw_triangle(X(v1), X(v2), X(v3),
-                         Y(v1), Y(v2), Y(v3),
-                           c1 ,   c2 ,   c3 );
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c2 ,   c3 );
 }
 void render_four_point_polygon_shaded(uint32_t c1, uint32_t v1,
                                       uint32_t c2, uint32_t v2,
