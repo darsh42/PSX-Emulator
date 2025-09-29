@@ -9,8 +9,7 @@
 #include "gpu.h"
 #include "memory.h"
 
-#define RENDERER_SIMD_SSE_H_
-#include "simd_sse128.h"
+#include "simd.h"
 
 #define VRAM_WIDTH  2048
 #define VRAM_HEIGHT  512

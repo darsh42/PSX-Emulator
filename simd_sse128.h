@@ -1,4 +1,4 @@
-#ifdef RENDERER_SIMD_SSE_H_
+#ifdef RENDERER_SIMD_SSE128_H_
 
 #include <stdint.h>
 #include <immintrin.h>
@@ -26,7 +26,7 @@ struct triangle {
              beta_top_left,
             gamma_top_left;
 } triangle;
-static inline void print_vector(const char *label, __m128 val) {
+static inline void print_vector(const char *label, vectorf val) {
     float values[4]; _mm_storeu_ps(values, val);
     printf("%s: %f, %f, %f, %f\n", 
             label, values[0], values[1], values[2], values[3]);
@@ -109,30 +109,36 @@ static inline vectorf simd_compute_equation(vectorf x, vectorf y, enum equation_
     /* (x * xm + y * ym + add) * recipricol_area */
     return _mm_mul_ps(triangle.recp_area,
                       _mm_add_ps(triangle.add[c], 
-                                 _mm_add_ps(_mm_mul_ps(triangle.xm[c], x),
-                                            _mm_mul_ps(triangle.ym[c], y))));
+                      _mm_add_ps(_mm_mul_ps(triangle.xm[c], x),
+                                 _mm_mul_ps(triangle.ym[c], y))));
 }
 static inline int32_t simd_compute_pixels(vectorf alphas, vectorf betas, vectorf gammas, vectorf zeros) {
     vectorf alpha_test = 
-        (triangle.alpha_top_left) ? _mm_cmpge_ps(alphas, zeros) : _mm_cmpgt_ps(alphas, zeros);
+        (triangle.alpha_top_left) ? _mm_cmpge_ps(alphas, zeros): 
+                                    _mm_cmpgt_ps(alphas, zeros);
     vectorf  beta_test = 
-        (triangle.beta_top_left)  ? _mm_cmpge_ps( betas, zeros) : _mm_cmpgt_ps( betas, zeros);
+        (triangle.beta_top_left)  ? _mm_cmpge_ps( betas, zeros): 
+                                    _mm_cmpgt_ps( betas, zeros);
     vectorf gamma_test = 
-        (triangle.gamma_top_left) ? _mm_cmpge_ps(gammas, zeros) : _mm_cmpgt_ps(gammas, zeros);
+        (triangle.gamma_top_left) ? _mm_cmpge_ps(gammas, zeros): 
+                                    _mm_cmpgt_ps(gammas, zeros);
 
     return _mm_movemask_ps(_mm_and_ps(alpha_test, _mm_and_ps(beta_test, gamma_test)));
 }
 static inline void simd_compute_colors(uint32_t *colors, vectorf alphas, vectorf betas, vectorf gammas, vectorf min, vectorf max) {
     /* compute red, blue and green components for each vertex color and add them */
     vectorf   redf = 
-        _mm_add_ps(_mm_mul_ps(triangle.r[0], alphas), _mm_add_ps(_mm_mul_ps(triangle.r[1], betas), 
-                                                                 _mm_mul_ps(triangle.r[2], gammas)));
+        _mm_add_ps(_mm_mul_ps(triangle.r[0], alphas), 
+                  _mm_add_ps(_mm_mul_ps(triangle.r[1], betas), 
+                             _mm_mul_ps(triangle.r[2], gammas)));
     vectorf greenf = 
-        _mm_add_ps(_mm_mul_ps(triangle.g[0], alphas), _mm_add_ps(_mm_mul_ps(triangle.g[1], betas), 
-                                                                 _mm_mul_ps(triangle.g[2], gammas)));
+        _mm_add_ps(_mm_mul_ps(triangle.g[0], alphas), 
+                   _mm_add_ps(_mm_mul_ps(triangle.g[1], betas), 
+                              _mm_mul_ps(triangle.g[2], gammas)));
     vectorf  bluef = 
-        _mm_add_ps(_mm_mul_ps(triangle.b[0], alphas), _mm_add_ps(_mm_mul_ps(triangle.b[1], betas), 
-                                                                 _mm_mul_ps(triangle.b[2], gammas)));
+        _mm_add_ps(_mm_mul_ps(triangle.b[0], alphas), 
+                   _mm_add_ps(_mm_mul_ps(triangle.b[1], betas), 
+                              _mm_mul_ps(triangle.b[2], gammas)));
 
     /* clamp the color ranges */
       redf = _mm_min_ps(max, _mm_max_ps(min,   redf));
@@ -155,4 +161,4 @@ static inline void simd_compute_colors(uint32_t *colors, vectorf alphas, vectorf
     _mm_storeu_si128((__m128i *) colors, _mm_or_si128(_mm_or_si128(red, green), 
                                                       _mm_or_si128(blue, alpha)));
 }
-#endif // RENDERER_SIMD_SSE_INCLUDED_H_
+#endif // RENDERER_SIMD_SSE128_INCLUDED_H_
