@@ -68,7 +68,9 @@ static void allocate_threads(size_t thread_count) {
 }
 
 static float compute_equations(int32_t x, int32_t y, enum equation_component c) {
-    return triangle.recp_area[0]* (x * triangle.xm[c][0] + y * triangle.ym[c][0] + triangle.add[c][0]);
+    return triangle.recp_area[0]* (x * triangle.components[c].xm[0] + 
+                                   y * triangle.components[c].ym[0] + 
+                                       triangle.components[c].add[0]);
 }
 static int32_t compute_pixel(float alpha, float beta, float gamma) {
     int32_t alpha_test = (triangle.alpha_top_left) ? (alpha >= 0) : (alpha > 0);
@@ -78,9 +80,15 @@ static int32_t compute_pixel(float alpha, float beta, float gamma) {
     return (alpha_test & beta_test & gamma_test);
 }
 static uint32_t compute_color(float alpha, float beta, float gamma) {
-    return ((uint32_t) (alpha*triangle.r[0][0] + beta*triangle.r[1][0] + gamma*triangle.r[1][0]) << 16) |
-           ((uint32_t) (alpha*triangle.g[0][0] + beta*triangle.g[1][0] + gamma*triangle.g[1][0]) <<  8) |
-           ((uint32_t) (alpha*triangle.b[0][0] + beta*triangle.b[1][0] + gamma*triangle.b[1][0]) <<  0);
+    return ((uint32_t) (alpha*triangle.components[ALPHA].red[0]   + 
+                         beta*triangle.components[ BETA].red[0]   + 
+                        gamma*triangle.components[GAMMA].red[0])   << 16) |
+           ((uint32_t) (alpha*triangle.components[ALPHA].green[0] + 
+                         beta*triangle.components[ BETA].green[0] + 
+                        gamma*triangle.components[GAMMA].green[0]) <<  8) |
+           ((uint32_t) (alpha*triangle.components[ALPHA].blue[0]  + 
+                         beta*triangle.components[ BETA].blue[0]  + 
+                        gamma*triangle.components[GAMMA].blue[0]  ) <<  0);
 }
 
 static void *fill_tile(void *arg) {
@@ -106,22 +114,24 @@ static void *fill_tile(void *arg) {
             vectorf  beta = simd_compute_equation(x, y,  BETA);
             vectorf gamma = simd_compute_equation(x, y, GAMMA);
 
+            /* compute what pixels are set */
             int32_t pixels =
                 simd_compute_pixels(alpha, beta, gamma, zeros);
 
             if (!pixels)
                 continue;
 
+            /* compute the pixel colors */
             simd_compute_colors(colors, alpha, beta, gamma, 
                                 min_color_value, max_color_value);
-
-            for (int32_t pix = 0; pixels > 0; pix++, pixels >>= 1) {
-                /* if the pixel is not set skip */
-                if (!(pixels & 1)) 
-                    continue;
-
-                /* place pixel */
-                PUT_PIX(cx + pix, cy, colors[pix]);
+            
+            /* get the base location of the framebuffer */
+            uint32_t *location = &sys.frame_buffer[cy][cx];
+            for (int32_t pix = 0; pix < SIMD_WIDTH; pix++) {
+                /* if pixel set place color *
+                 * else replace old pixel   */
+                location[pix] = (pixels &(1 << pix)) ?
+                    colors[pix]: location[pix];
             }
         }
 
@@ -371,6 +381,12 @@ void render_four_point_polygon_shaded(uint32_t c1, uint32_t v1,
              X(v3), Y(v3), R(c3), G(c3), B(c3),
              X(v4), Y(v4), R(c4), G(c4), B(c4),
              semi_transparent);
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c2 ,   c3 );
+    fill_triangle(X(v2), X(v3), X(v4),
+                  Y(v2), Y(v3), Y(v4),
+                    c2 ,   c3 ,   c4 );
 }
 void render_three_point_polygon_shaded_textured(
     uint32_t c1, uint32_t v1, uint32_t t1_clut,

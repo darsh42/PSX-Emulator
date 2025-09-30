@@ -10,8 +10,6 @@ typedef __m128i vectori;
 
 enum equation_component { ALPHA, BETA, GAMMA, };
 struct triangle {
-    uint32_t c0, c1, c2;
-    
     vectorf r[3]; /* extracted red color values */
     vectorf g[3]; /* extracted green color values */
     vectorf b[3]; /* extracted blue color values */
@@ -21,6 +19,8 @@ struct triangle {
     vectorf add[3]; /* values that add to overall computation */
 
     vectorf recp_area; /* recipricol of area */
+
+    uint32_t c0, c1, c2;
 
     int32_t alpha_top_left,
              beta_top_left,

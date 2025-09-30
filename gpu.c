@@ -1278,15 +1278,8 @@ void init_gpu( void )
 
     gpu.gpustat.ready_recieve_cmd_word     = 1;
     gpu.gpustat.ready_recieve_dma_block    = 1;
-    gpu.gpustat.ready_send_vram_cpu        = 1;
 
-    /* resolution is set to 320x240 no interlacing */
-    gpu.gpustat.horizontal_resolution_1    = 1;
-
-    /* set to one since vertical interlace off */
-    gpu.gpustat.interlace_field            = 1;
-
-    gpu.gpustat.drawing_even_odd_interlace = 0;
+    gpu.gpustat.drawing_even_odd_interlace = 1;
 
     gpu.state          = GPU_IDLE;
     gpu.previous_state = GPU_IDLE;

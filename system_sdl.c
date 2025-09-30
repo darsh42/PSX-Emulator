@@ -58,8 +58,10 @@ void *task_system( void *ignore )
     /* VIDEO  */
     SDL_CHECK_PTR(sys.window   = SDL_CreateWindow(NAME, WIN_X, WIN_Y, WIN_W, WIN_H, WINDOW_FLAGS));
     SDL_CHECK_PTR(sys.renderer = SDL_CreateRenderer(sys.window, -1, SDL_RENDERER_ACCELERATED));
-    SDL_CHECK_PTR(sys.screen   = SDL_CreateTexture(sys.renderer, SDL_PIXELFORMAT_ABGR8888, 
+    SDL_CHECK_PTR(sys.screen   = SDL_CreateTexture(sys.renderer, SDL_PIXELFORMAT_ARGB8888, 
                                                    SDL_TEXTUREACCESS_STREAMING, WIN_W, WIN_H));
+
+    init_threads();
 
     sys.scale = (SDL_Rect) {0, 0, WIN_W, WIN_H};
 
@@ -79,6 +81,8 @@ void *task_system( void *ignore )
                 ~sys.render_next_frame;
         }
     }
+
+    free_threads();
 
     /* AUDIO */
     SDL_FreeAudioStream(sys.audio_stream);

@@ -572,6 +572,7 @@ static void gdb_stub_register_read_all ( void )
         sprintf(registers, "%08x", __builtin_bswap32(cpu.r[r]));
     }
 
+#if 0
     /** retrieve COP0 SR register */
     sprintf(registers, "%08x", __builtin_bswap32(cpu.cop0[12])); i+= 8;
     registers = &stub.response.data[i];
@@ -589,6 +590,7 @@ static void gdb_stub_register_read_all ( void )
     /** retrieve COP0 BADV registers */
     sprintf(registers, "%08x", __builtin_bswap32(cpu.cop0[10]));  i+= 8;
     registers = &stub.response.data[i];
+#endif
 
     /** retrieve Pc register */
     sprintf(registers, "%08x", __builtin_bswap32(cpu.pc)); i+= 8;

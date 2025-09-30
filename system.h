@@ -30,9 +30,6 @@ enum system_state {
 #define TRACE_SYS(function, format, ...) \
     trace(TRACE_SYSTEM_EN, "system.c", function, format, __VA_ARGS__)
 
-/* renderer type specific structures */
-#ifdef RENDERER_SDL
-
 #include <SDL2/SDL.h>
 
 #define TRACE_SYS(function, format, ...) \
@@ -43,8 +40,6 @@ enum system_state {
 
 #define SDL_CHECK_RET(expr) {assert((expr) == 0);}
 #define SDL_CHECK_PTR(expr) {assert((expr) != NULL);}
-
-#endif // RENDERER_SDL
 
 #ifdef RENDERER_OPENGL
 #endif // RENDERER_OPENGL
@@ -60,7 +55,13 @@ struct box {
 
 struct system {
     /* VIDEO */
-    uint32_t frame_buffer[WIN_H][WIN_W];
+    SDL_Window   *window;
+    SDL_Renderer *renderer;
+    SDL_Texture  *screen;
+    SDL_Rect      scale;
+    
+    /* AUDIO */
+    SDL_AudioStream *audio_stream;
 
     size_t thread_count;
     size_t allocations;
@@ -68,19 +69,8 @@ struct system {
     pthread_t  *threads;
     struct box *tiles;
 
-#ifdef RENDERER_SDL
-    SDL_Window   *window;
-    SDL_Renderer *renderer;
-    SDL_Texture  *screen;
-    SDL_Rect      scale;
-#endif // RENDERER_SDL
-    
-    /* AUDIO */
-#ifdef RENDERER_SDL
-    SDL_AudioStream *audio_stream;
-#endif // RENDERER_SDL
-
     uint32_t render_next_frame;
+    uint32_t frame_buffer[WIN_H][WIN_W];
 };
 
 #endif // PRIVATE_SYSTEM
@@ -175,6 +165,8 @@ extern void render_four_point_polygon_shaded_textured(
     bool semi_transparent, bool texture_blending
 );
 
+extern void init_threads(void);
+extern void free_threads(void);
 extern void wait_system_ready( void );
 extern void system_render_next_frame( void );
 extern void system_write_audio_sample(int32_t sample);
