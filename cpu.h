@@ -43,18 +43,13 @@ struct shadow_stack {
 
     struct stack_entry items[SS_SIZE];
 };
-struct cpu
-{
-    uint32_t pc;
-    uint32_t cir;
+struct cpu {
     uint32_t r[32];
-    uint32_t hi, lo;
-
-    /* coprocessor registers */
-    uint32_t cop0[16];
-    uint32_t cop2[64];
 
     uint32_t cycles;
+
+    uint32_t pc;
+    uint32_t cir;
 
     /* load delay destinaion and value */
     uint32_t load_d, load_v;
@@ -63,6 +58,22 @@ struct cpu
     /* branch delay value */
     uint32_t branch_v;
     enum cpu_load_delay branch_s;
+
+    uint32_t hi, lo;
+
+    uint32_t imm25;
+    uint32_t target;
+    uint32_t relative;
+    
+    /* instruction components */
+    uint8_t funct;
+    uint8_t shamt;
+    uint8_t rd;
+    uint8_t rt;
+    uint8_t rs;
+    uint8_t op;
+
+    uint16_t imm16;
 
     /* sideloading exe */
     const char *sideload_exe;

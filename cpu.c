@@ -20,21 +20,19 @@
 #define sign16(a) (int32_t) (int16_t) a
 #define sign32(a) (int32_t)           a
 #define sign64(a) (int64_t) (int32_t) a
-#define overflow(a, b) (a > 0 && (a + b) > 0xffffffff)
-#define underflow(a,b) ((b < 0) && (a > INT_MAX + b))
 
 /* main opcode breakdown */
-#define FUNCT    ((cpu.cir >>  0) & 0x3F)
-#define SHAMT    ((cpu.cir >>  6) & 0x1F)
-#define RD       ((cpu.cir >> 11) & 0x1F)
-#define RT       ((cpu.cir >> 16) & 0x1F)
-#define RS       ((cpu.cir >> 21) & 0x1F)
-#define OP       ((cpu.cir >> 26) & 0x3F)
-#define TARGET    (cpu.cir & ((1 << 26) - 1))
-#define IMM16     (cpu.cir & ((1 << 16) - 1))
-#define S_IMM16   sign16(IMM16)
-#define IMM25     (cpu.cir & ((1 << 25) - 1))
-#define RELATIVE  (cpu.cir & ((1 << 16) - 1))
+#define FUNCT    cpu.funct     
+#define SHAMT    cpu.shamt     
+#define RD       cpu.rd        
+#define RT       cpu.rt        
+#define RS       cpu.rs        
+#define OP       cpu.op        
+#define TARGET   cpu.target    
+#define IMM16    cpu.imm16     
+#define IMM25    cpu.imm25    
+#define RELATIVE cpu.relative 
+#define S_IMM16  sign16(cpu.imm16)
 
 #define reg(R) cpu.r[R]
 
@@ -228,6 +226,14 @@ static void cpu_branch( void )
     cpu.branch_s = DELAY;
 }
 
+static inline bool overflow(int32_t a, int32_t b) {
+    int32_t r = a + b; return ((a ^ r) & (b ^ r)) < 0;
+}
+
+static inline bool underflow(int32_t a, int32_t b) {
+    int32_t r = a - b; return ((a ^ r) & (b ^ r)) < 0;
+}
+
 static inline void bltz(void)
 {
     // Branch Less Than Zero
@@ -237,10 +243,8 @@ static inline void bltz(void)
 
     DO_LOAD_DELAY;
 
-    if (s < 0)
-    {
+    if (s < 0) 
         cpu_branch();
-    }
 }
 static inline void bgez(void)
 {
@@ -252,9 +256,7 @@ static inline void bgez(void)
     DO_LOAD_DELAY;
 
     if (s >= 0)
-    {
         cpu_branch();
-    }
 }
 static inline void bltzal(void)
 {
@@ -265,9 +267,8 @@ static inline void bltzal(void)
 
     DO_LOAD_DELAY;
 
-    if (s < 0)
-    {
-        cpu.r[31] = cpu.pc;
+    if (s < 0) {
+        cpu.r[CPU_RA] = cpu.pc + 8;
         cpu_branch();
     }
 }
@@ -280,9 +281,8 @@ static inline void bgezal(void)
 
     DO_LOAD_DELAY;
 
-    if (s >= 0)
-    {
-        cpu.r[31] = cpu.pc;
+    if (s >= 0) {
+        cpu.r[CPU_RA] = cpu.pc + 8;
         cpu_branch();
     }
 }
@@ -303,7 +303,7 @@ static inline void jal(void)
 
     DO_LOAD_DELAY;
 
-    cpu.r[31] = cpu.pc + 4;
+    cpu.r[CPU_RA] = cpu.pc + 8;
 
     cpu.branch_v = (cpu.pc & 0XF0000000) | (TARGET << 2);
     cpu.branch_s = DELAY;
@@ -322,9 +322,7 @@ static inline void beq(void)
     DO_LOAD_DELAY;
 
     if (s == t)
-    {
         cpu_branch();
-    }
 }
 static inline void bne(void)
 {
@@ -337,9 +335,7 @@ static inline void bne(void)
     DO_LOAD_DELAY;
 
     if (s != t )
-    {
         cpu_branch();
-    }
 }
 static inline void blez(void)
 {
@@ -351,9 +347,7 @@ static inline void blez(void)
     DO_LOAD_DELAY;
 
     if (s <= 0)
-    {
         cpu_branch();
-    }
 }
 static inline void bgtz(void)
 {
@@ -365,9 +359,7 @@ static inline void bgtz(void)
     DO_LOAD_DELAY;
 
     if (s > 0)
-    {
         cpu_branch();
-    }
 }
 static inline void addi(void)
 {
@@ -378,12 +370,9 @@ static inline void addi(void)
 
     DO_LOAD_DELAY;
 
-    if (overflow(s, S_IMM16))
-    {
+    if (overflow(s, S_IMM16)) {
         cp0_exception(Ov);
-    }
-    else
-    {
+    } else {
         reg(RT) = s + S_IMM16;
     }
 }
@@ -418,7 +407,7 @@ static inline void sltiu(void)
 
     DO_LOAD_DELAY;
 
-    reg(RT) = s < (uint32_t) S_IMM16;
+    reg(RT) = s < S_IMM16;
 }
 static inline void andi(void)
 {
@@ -458,7 +447,6 @@ static inline void lui(void)
     // shift immediate << 16 and store in RT
     cpu_trace_instruction("lui");
 
-
     DO_LOAD_DELAY;
 
     reg(RT) = IMM16 << 16;
@@ -473,9 +461,7 @@ static inline void lb(void)
     memory_read(address, &result, 1);
 
     if (cpu.load_d != RT)
-    {
         DO_LOAD_DELAY;
-    }
 
     cpu.load_d = RT;
     cpu.load_v = sign8(result);
@@ -490,9 +476,7 @@ static inline void lh(void)
     memory_read(address, &result, 2);
 
     if (cpu.load_d != RT)
-    {
         DO_LOAD_DELAY;
-    }
 
     cpu.load_d = RT;
     cpu.load_v = sign16(result);
@@ -507,9 +491,7 @@ static inline void lw(void)
     memory_read(address, &result, 4);
 
     if (cpu.load_d != RT)
-    {
         DO_LOAD_DELAY;
-    }
 
     cpu.load_d = RT;
     cpu.load_v = result;
@@ -522,29 +504,24 @@ static inline void lwl(void)
     uint32_t s = reg(RS);
 
     if (cpu.load_d != RT)
-    {
         DO_LOAD_DELAY;
-    }
 
     uint32_t mask, result, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &result, 2);
 
-    switch ((s + S_IMM16) & 0X3)
-    {
-        case 0: mask = 0X00FFFFFF; result <<= 24; break;
-        case 1: mask = 0X0000FFFF; result <<= 16; break;
-        case 2: mask = 0X000000FF; result <<= 8;  break;
-        case 3: mask = 0X00000000; result <<= 0;  break;
+    switch ((s + S_IMM16) & 0X3) {
+    case 0: mask = 0XFFFFFF; result <<= 24; break;
+    case 1: mask = 0X00FFFF; result <<= 16; break;
+    case 2: mask = 0X0000FF; result <<=  8; break;
+    case 3: mask = 0X000000; result <<=  0; break;
     }
 
     cpu.load_v &= mask;
     cpu.load_v |= result;
 
     if (cpu.load_s == UNUSED)
-    {
         cpu.load_s = DELAY;
-    }
 }
 static inline void lwr(void)
 {
@@ -554,29 +531,24 @@ static inline void lwr(void)
     uint32_t s = reg(RS);
 
     if (cpu.load_d != RT)
-    {
         DO_LOAD_DELAY;
-    }
 
     uint32_t mask, result, address = (s + (S_IMM16 & ~0X3));
 
     memory_read(address, &result, 2);
 
-    switch ((s + S_IMM16) & 0X3)
-    {
-        case 1: mask = 0X00000000; result <<= 0;  break;
-        case 2: mask = 0X000000FF; result <<= 8;  break;
-        case 3: mask = 0X0000FFFF; result <<= 16; break;
-        case 4: mask = 0X00FFFFFF; result <<= 24; break;
+    switch ((s + S_IMM16) & 0X3) {
+    case 0: mask = 0X000000; result <<=  0; break;
+    case 1: mask = 0X0000FF; result <<=  8; break;
+    case 2: mask = 0X00FFFF; result <<= 16; break;
+    case 3: mask = 0XFFFFFF; result <<= 24; break;
     }
 
     cpu.load_v &= mask;
     cpu.load_v |= result;
 
     if (cpu.load_s == UNUSED)
-    {
         cpu.load_s = DELAY;
-    }
 }
 static inline void lbu(void)
 {
@@ -587,10 +559,8 @@ static inline void lbu(void)
 
     memory_read(address, &result, 1);
 
-    if (cpu.load_d == RT)
-    {
+    if (cpu.load_d != RT)
         DO_LOAD_DELAY;
-    }
 
     cpu.load_v = result;
     cpu.load_d = RT;
@@ -604,10 +574,8 @@ static inline void lhu(void)
 
     memory_read(address, &result, 2);
 
-    if (cpu.load_d == RT)
-    {
+    if (cpu.load_d != RT)
         DO_LOAD_DELAY;
-    }
 
     cpu.load_v = result;
     cpu.load_d = RT;
@@ -649,12 +617,11 @@ static inline void swl(void)
 
     memory_read(address, &current, 2);
 
-    switch ((s + S_IMM16) & 0X3)
-    {
-        case 0: mask = 0X00FFFFFF; value = current << 24; break;
-        case 1: mask = 0X0000FFFF; value = current << 16; break;
-        case 2: mask = 0X000000FF; value = current << 8;  break;
-        case 3: mask = 0X00000000; value = current << 0;  break;
+    switch ((s + S_IMM16) & 0X3) {
+    case 0: mask = 0XFFFFFF; value = current << 24; break;
+    case 1: mask = 0X00FFFF; value = current << 16; break;
+    case 2: mask = 0X0000FF; value = current <<  8; break;
+    case 3: mask = 0X000000; value = current <<  0; break;
     }
 
     current &= mask;
@@ -675,12 +642,11 @@ static inline void swr(void)
 
     memory_read(address, &current, 2);
 
-    switch ((s + S_IMM16) & 0X3)
-    {
-        case 0: mask = 0X00000000; value = current << 0;  break;
-        case 1: mask = 0X000000FF; value = current << 8;  break;
-        case 2: mask = 0X0000FFFF; value = current << 16; break;
-        case 3: mask = 0X00FFFFFF; value = current << 24; break;
+    switch ((s + S_IMM16) & 0X3) {
+    case 0: mask = 0X000000; value = current <<  0; break;
+    case 1: mask = 0X0000FF; value = current <<  8; break;
+    case 2: mask = 0X00FFFF; value = current << 16; break;
+    case 3: mask = 0XFFFFFF; value = current << 24; break;
     }
 
     current &= mask;
@@ -793,7 +759,7 @@ static inline void jalr(void)
 
     DO_LOAD_DELAY;
 
-    reg(RD) = cpu.pc + 4;
+    reg(RD) = cpu.pc + 8;
 
     cpu.branch_v = s;
     cpu.branch_s = DELAY;
@@ -893,19 +859,14 @@ static inline void div(void)
 
     DO_LOAD_DELAY;
 
-    if (t == 0)
-    {
+    if (t == 0) {
         cpu.hi = s;
-        cpu.lo = (s < 0) ? 0X00000001: 0XFFFFFFFF;
-    }
-    else if ((uint32_t) t == 0XFFFFFFFF &&
-             (uint32_t) s == 0X80000000)
-    {
-        cpu.hi = 0X00000000;
-        cpu.lo = 0X80000000;
-    }
-    else
-    {
+        cpu.lo = (s < 0) ? 1: -1;
+    } else if ((uint32_t) t == -1 &&
+               (uint32_t) s == (1 << 31)) {
+        cpu.hi = 0;
+        cpu.lo = (1 << 31);
+    } else {
         cpu.hi = s % t;
         cpu.lo = s / t;
     }
@@ -920,13 +881,10 @@ static inline void divu(void)
 
     DO_LOAD_DELAY;
 
-    if (t == 0)
-    {
+    if (t == 0) {
         cpu.hi = s;
-        cpu.lo = 0XFFFFFFFF;
-    }
-    else
-    {
+        cpu.lo = -1;
+    } else {
         cpu.hi = s % t;
         cpu.lo = s / t;
     }
@@ -942,12 +900,9 @@ static inline void add(void)
     DO_LOAD_DELAY;
 
     if (overflow((uint32_t) s,
-                 (uint32_t) t))
-    {
+                 (uint32_t) t)) {
         cp0_exception(Ov);
-    }
-    else
-    {
+    } else {
         reg(RD) = s + t;
     }
 }
@@ -973,12 +928,9 @@ static inline void sub(void)
 
     DO_LOAD_DELAY;
 
-    if (underflow(s, t))
-    {
+    if (underflow(s, t)) {
         cp0_exception(Ov);
-    }
-    else
-    {
+    } else {
         reg(RD) = s - t;
     }
 }
@@ -1092,6 +1044,18 @@ static inline void cpu_execute( void )
     /* read and increment program counter */
     memory_read(cpu.pc, &cpu.cir, 4);
 
+    /* compute instruction components */
+    cpu.funct    = (cpu.cir >>  0) & 0x3f;
+    cpu.shamt    = (cpu.cir >>  6) & 0x1f;
+    cpu.rd       = (cpu.cir >> 11) & 0x1f;
+    cpu.rt       = (cpu.cir >> 16) & 0x1f;
+    cpu.rs       = (cpu.cir >> 21) & 0x1f;
+    cpu.op       = (cpu.cir >> 26) & 0x3f;
+    cpu.target   = cpu.cir & 0x03ffffff;
+    cpu.imm16    = cpu.cir & 0x0000ffff;
+    cpu.imm25    = cpu.cir & 0x02ffffff;
+    cpu.relative = cpu.cir & 0x0000ffff;
+
     switch (OP)
     {
         case 0X00: goto secondary_op;
@@ -1200,11 +1164,10 @@ branch_op:
 
 cycle_complete:
     /* write tty */
-#ifdef TRACE_TTY
     if (((cpu.pc & 0x1fffffff) == 0xa0 && cpu.r[9] == 0x3c) ||
-        ((cpu.pc & 0x1fffffff) == 0xb0 && cpu.r[9] == 0x3d))
+        ((cpu.pc & 0x1fffffff) == 0xb0 && cpu.r[9] == 0x3d)) {
         if (cpu.r[4] != 0) putchar((char) (cpu.r[4]));
-#endif
+    }
 
     cpu.pc  += 4;
     cpu.r[0] = 0;
