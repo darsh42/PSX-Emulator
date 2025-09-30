@@ -9,23 +9,26 @@ typedef __m128  vectorf;
 typedef __m128i vectori;
 
 enum equation_component { ALPHA, BETA, GAMMA, };
-struct triangle {
-    vectorf r[3]; /* extracted red color values */
-    vectorf g[3]; /* extracted green color values */
-    vectorf b[3]; /* extracted blue color values */
+struct component {
+    /* components of the formula:
+     *  x * xm + y * ym + add */
+    vectorf xm, ym, add;
 
-    vectorf  xm[3]; /* values that multiply x component */
-    vectorf  ym[3]; /* values that multiply y component */
-    vectorf add[3]; /* values that add to overall computation */
+    /* extracted color values */
+    vectorf red, green, blue;
+};
+struct triangle {
+    struct component components[3];
 
     vectorf recp_area; /* recipricol of area */
 
     uint32_t c0, c1, c2;
-
+    
     int32_t alpha_top_left,
              beta_top_left,
             gamma_top_left;
 } triangle;
+
 static inline void print_vector(const char *label, vectorf val) {
     float values[4]; _mm_storeu_ps(values, val);
     printf("%s: %f, %f, %f, %f\n", 
@@ -57,36 +60,34 @@ static inline void simd_set_triangle_data(int32_t x0, int32_t y0, uint32_t c0,
     /* populate global triangle info */
     triangle = (struct triangle) {
         .c0 = c0, .c1 = c1, .c2 = c2,
-        .r = { 
-            _mm_set1_ps(R(c0)), 
-            _mm_set1_ps(R(c1)), 
-            _mm_set1_ps(R(c2)),
+        .components = {
+            {
+                .xm    = _mm_set1_ps(y1 - y2),
+                .ym    = _mm_set1_ps(x2 - x1),
+                .add   = _mm_set1_ps(y2*x1 - y1*x2),
+
+                .red   = _mm_set1_ps(R(c0)), 
+                .green = _mm_set1_ps(G(c0)), 
+                .blue  = _mm_set1_ps(B(c0)), 
+            },
+            {
+                .xm    = _mm_set1_ps(y2 - y0),
+                .ym    = _mm_set1_ps(x0 - x2),
+                .add   = _mm_set1_ps(y0*x2 - y2*x0),
+                .red   = _mm_set1_ps(R(c1)), 
+                .green = _mm_set1_ps(G(c1)), 
+                .blue  = _mm_set1_ps(B(c1)), 
+            },
+            {
+                .xm    = _mm_set1_ps(y0 - y1),
+                .ym    = _mm_set1_ps(x1 - x0),
+                .add   = _mm_set1_ps(y1*x0 - y0*x1),
+                .red   = _mm_set1_ps(R(c2)), 
+                .green = _mm_set1_ps(G(c2)), 
+                .blue  = _mm_set1_ps(B(c2)), 
+            },
         },
-        .g = { 
-            _mm_set1_ps(G(c0)), 
-            _mm_set1_ps(G(c1)), 
-            _mm_set1_ps(G(c2)),
-        },
-        .b = { 
-            _mm_set1_ps(B(c0)), 
-            _mm_set1_ps(B(c1)), 
-            _mm_set1_ps(B(c2)),
-        },
-        .xm = {
-            _mm_set1_ps(y1 - y2),
-            _mm_set1_ps(y2 - y0),
-            _mm_set1_ps(y0 - y1),
-        },
-        .ym = {
-            _mm_set1_ps(x2 - x1),
-            _mm_set1_ps(x0 - x2),
-            _mm_set1_ps(x1 - x0),
-        },
-        .add = {
-            _mm_set1_ps(y2*x1 - y1*x2),
-            _mm_set1_ps(y0*x2 - y2*x0),
-            _mm_set1_ps(y1*x0 - y0*x1),
-        },
+
         .recp_area =
             _mm_set1_ps(1.0f/double_area),
 
@@ -108,9 +109,9 @@ static inline vectorf simd_calculate_y_values(int32_t y) {
 static inline vectorf simd_compute_equation(vectorf x, vectorf y, enum equation_component c) {
     /* (x * xm + y * ym + add) * recipricol_area */
     return _mm_mul_ps(triangle.recp_area,
-                      _mm_add_ps(triangle.add[c], 
-                      _mm_add_ps(_mm_mul_ps(triangle.xm[c], x),
-                                 _mm_mul_ps(triangle.ym[c], y))));
+                         _mm_add_ps(triangle.components[c].add, 
+                         _mm_add_ps(_mm_mul_ps(triangle.components[c].xm, x),
+                                    _mm_mul_ps(triangle.components[c].ym, y))));
 }
 static inline int32_t simd_compute_pixels(vectorf alphas, vectorf betas, vectorf gammas, vectorf zeros) {
     vectorf alpha_test = 
@@ -128,17 +129,17 @@ static inline int32_t simd_compute_pixels(vectorf alphas, vectorf betas, vectorf
 static inline void simd_compute_colors(uint32_t *colors, vectorf alphas, vectorf betas, vectorf gammas, vectorf min, vectorf max) {
     /* compute red, blue and green components for each vertex color and add them */
     vectorf   redf = 
-        _mm_add_ps(_mm_mul_ps(triangle.r[0], alphas), 
-                  _mm_add_ps(_mm_mul_ps(triangle.r[1], betas), 
-                             _mm_mul_ps(triangle.r[2], gammas)));
+        _mm_add_ps(_mm_mul_ps(triangle.components[ALPHA].red, alphas), 
+                      _mm_add_ps(_mm_mul_ps(triangle.components[ BETA].red, betas), 
+                                 _mm_mul_ps(triangle.components[GAMMA].red, gammas)));
     vectorf greenf = 
-        _mm_add_ps(_mm_mul_ps(triangle.g[0], alphas), 
-                   _mm_add_ps(_mm_mul_ps(triangle.g[1], betas), 
-                              _mm_mul_ps(triangle.g[2], gammas)));
+        _mm_add_ps(_mm_mul_ps(triangle.components[ALPHA].green, alphas), 
+                      _mm_add_ps(_mm_mul_ps(triangle.components[ BETA].green, betas), 
+                                 _mm_mul_ps(triangle.components[GAMMA].green, gammas)));
     vectorf  bluef = 
-        _mm_add_ps(_mm_mul_ps(triangle.b[0], alphas), 
-                   _mm_add_ps(_mm_mul_ps(triangle.b[1], betas), 
-                              _mm_mul_ps(triangle.b[2], gammas)));
+        _mm_add_ps(_mm_mul_ps(triangle.components[ALPHA].blue, alphas), 
+                      _mm_add_ps(_mm_mul_ps(triangle.components[ BETA].blue, betas), 
+                                 _mm_mul_ps(triangle.components[GAMMA].blue, gammas)));
 
     /* clamp the color ranges */
       redf = _mm_min_ps(max, _mm_max_ps(min,   redf));
@@ -158,7 +159,8 @@ static inline void simd_compute_colors(uint32_t *colors, vectorf alphas, vectorf
      blue = _mm_slli_epi32( blue,  0);
     
     /* pack into final colors */
-    _mm_storeu_si128((__m128i *) colors, _mm_or_si128(_mm_or_si128(red, green), 
+    _mm_storeu_si128((vectori *) colors, _mm_or_si128(_mm_or_si128(red, green), 
                                                       _mm_or_si128(blue, alpha)));
+
 }
 #endif // RENDERER_SIMD_SSE128_INCLUDED_H_
