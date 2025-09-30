@@ -23,6 +23,8 @@
 #define VRAM_SIZE      0x100000
 #define SOUND_RAM_SIZE 0x80000
 
+enum read_write { WRITE = 0, READ };
+
 struct memory {
     uint8_t        ram[      RAM_SIZE];
     uint8_t scratchpad[    SCRPD_SIZE];

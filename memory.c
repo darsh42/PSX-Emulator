@@ -69,10 +69,161 @@ void memory_load_bios( const char *bios )
     assert(!fclose(fp));
 }
 
+uint32_t read_memory_registers( uint32_t address ) {
+    uint32_t data;
+    switch (address) {
+    case(expansion_1_base_address): data = memory.expansion_1_base_address; break;
+    case(expansion_2_base_address): data = memory.expansion_2_base_address; break;
+    case(expansion_1_delay_size  ): data = memory.expansion_1_delay_size  ; break;
+    case(expansion_3_delay_size  ): data = memory.expansion_3_delay_size  ; break;
+    case(bios_rom_delay_size     ): data = memory.bios_rom_delay_size     ; break;
+    case(spu_delay_size          ): data = memory.spu_delay_size          ; break;
+    case(cdrom_delay_size        ): data = memory.cdrom_delay_size        ; break;
+    case(expansion_2_delay_size  ): data = memory.expansion_2_delay_size  ; break;
+    case(com_delay_size          ): data = memory.com_delay_size          ; break;
+    case(cache_control           ): data = memory.cache_control           ; break;
+    default:
+        assert(0 && "Unhandled memory register write");
+    }
+    return data;
+}
+
+void write_memory_registers(uint32_t address, uint32_t data) {
+    switch (address) {
+    case(expansion_1_base_address): memory.expansion_1_base_address = data; break;
+    case(expansion_2_base_address): memory.expansion_2_base_address = data; break;
+    case(expansion_1_delay_size  ): memory.expansion_1_delay_size   = data; break;
+    case(expansion_3_delay_size  ): memory.expansion_3_delay_size   = data; break;
+    case(bios_rom_delay_size     ): memory.bios_rom_delay_size      = data; break;
+    case(spu_delay_size          ): memory.spu_delay_size           = data; break;
+    case(cdrom_delay_size        ): memory.cdrom_delay_size         = data; break;
+    case(expansion_2_delay_size  ): memory.expansion_2_delay_size   = data; break;
+    case(com_delay_size          ): memory.com_delay_size           = data; break;
+    case(cache_control           ): memory.cache_control            = data; break;
+    default:
+        assert(0 && "Unhandled memory register write");
+    }
+}
+
+void memory_mmio(uint32_t address, enum read_write rw, void **handler) {
+    *handler = NULL;
+
+    switch ((enum memory_map) address) {
+    default: break;
+    /* INTERRUPT REGISTERS */
+    case (i_stat):
+    case (i_mask):
+        *handler = (rw == WRITE) ? (void *) write_interrupts:
+                                   (void *)  read_interrupts;
+        return;
+    /* DMA REGISTERS */
+    case(dma0_mdec_in_madr ):
+    case(dma0_mdec_in_brc  ):
+    case(dma0_mdec_in_chcr ):
+    case(dma1_mdec_out_madr):
+    case(dma1_mdec_out_brc ):
+    case(dma1_mdec_out_chcr):
+    case(dma2_gpu_madr     ):
+    case(dma2_gpu_brc      ):
+    case(dma2_gpu_chcr     ):
+    case(dma3_cdrom_madr   ):
+    case(dma3_cdrom_brc    ):
+    case(dma3_cdrom_chcr   ):
+    case(dma4_spu_madr     ):
+    case(dma4_spu_brc      ):
+    case(dma4_spu_chcr     ):
+    case(dma5_pio_madr     ):
+    case(dma5_pio_brc      ):
+    case(dma5_pio_chcr     ):
+    case(dma6_otc_madr     ):
+    case(dma6_otc_brc      ):
+    case(dma6_otc_chcr     ):
+    case(dpcr              ):
+    case(dicr              ):
+        *handler = (rw == WRITE) ? (void *) write_dma:
+                                   (void *)  read_dma;
+        return;
+    /* GPU REGISTERS */
+    case(gp0_gpu_read      ):
+    case(gp1_gpu_stat      ):
+        *handler = (rw == WRITE) ? (void *) write_gpu:
+                                   (void *)  read_gpu;
+        return;
+    /* TIMER REGISTERS */
+    case(timer_0_current_counter):
+    case(timer_0_mode           ):
+    case(timer_0_target         ):
+    case(timer_1_current_counter):
+    case(timer_1_mode           ):
+    case(timer_1_target         ):
+    case(timer_2_current_counter):
+    case(timer_2_mode           ):
+    case(timer_2_target         ):
+        *handler = (rw == WRITE) ? (void *) write_timers:
+                                   (void *)  read_timers;
+        return;
+    /* SPU */
+    case(spu_main_volume_left_right                  ):
+    case(spu_reverb_output_volume_left_right         ):
+    case(spu_voice_key_on                            ):
+    case(spu_voice_key_off                           ):
+    case(spu_channel_fm                              ):
+    case(spu_channel_noise                           ):
+    case(spu_channel_reverb                          ):
+    case(spu_channel_status                          ):
+    case(spu_sound_ram_reverb_work_area_start_address):
+    case(spu_sound_ram_irq_address                   ):
+    case(spu_sound_ram_data_transfer_address         ):
+    case(spu_sound_ram_data_transfer_fifo            ):
+    case(spucnt                                      ):
+    case(spu_sound_ram_data_transfer_control         ):
+    case(spustat                                     ):
+    case(spu_cd_volume_left_right                    ):
+    case(spu_extern_volume_left_right                ):
+    case(spu_current_main_volume_left_right          ):
+        *handler = (rw == WRITE) ? (void *) write_spu:
+                                   (void *)  read_spu;
+        return;
+    /* MEMORY CONTROL 1 */
+    case(expansion_1_base_address):
+    case(expansion_2_base_address):
+    case(expansion_1_delay_size  ):
+    case(expansion_3_delay_size  ):
+    case(bios_rom_delay_size     ):
+    case(spu_delay_size          ):
+    case(cdrom_delay_size        ):
+    case(expansion_2_delay_size  ):
+    case(com_delay_size          ):
+    /* CACHE CONTROL / KSEG2 */
+    case(cache_control           ):
+        *handler = (rw == WRITE) ? (void *) write_memory_registers:
+                                   (void *)  read_memory_registers;
+        return;
+    }
+
+#if 0
+    /* spu voice registers */
+    if (address >= 0x1F801C00 && address <= 0x1F801D7E) {
+        switch (address & 0xFFFFFE0F) {
+            case (spu_voice_volume_left_base         ):
+            case (spu_voice_volume_right_base        ):
+            case (spu_voice_adpcm_sample_rate_base   ):
+            case (spu_voice_adpcm_start_address_base ):
+            case (spu_voice_adsr_lower_base          ):
+            case (spu_voice_adsr_upper_base          ):
+            case (spu_voice_adsr_current_volume_base ):
+            case (spu_voice_adpcm_repeat_address_base):
+                write_spu_voice(address , data);
+                return;
+        }
+    }
+#endif 
+}
+
 void memory_write(uint32_t address, uint32_t data, uint32_t size)
 {
     assert(size == 4 || size == 2 || size == 1);
-
+ 
     /* segment to write to in case of non-device address */
     uint8_t *segment = NULL;
 
@@ -82,144 +233,31 @@ void memory_write(uint32_t address, uint32_t data, uint32_t size)
     /* trace signals to memory */
     TRACE_MEM("memory_write", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
-    if ((physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130)
-    {
-        switch ((enum memory_map) address)
-        {
-            default: break;
-            /* INTERRUPT REGISTERS */
-            case (i_stat):
-            case (i_mask):
-                write_interrupts(address, data);
-                return;
-            /* DMA REGISTERS */
-            case(dma0_mdec_in_madr ):
-            case(dma0_mdec_in_brc  ):
-            case(dma0_mdec_in_chcr ):
-            case(dma1_mdec_out_madr):
-            case(dma1_mdec_out_brc ):
-            case(dma1_mdec_out_chcr):
-            case(dma2_gpu_madr     ):
-            case(dma2_gpu_brc      ):
-            case(dma2_gpu_chcr     ):
-            case(dma3_cdrom_madr   ):
-            case(dma3_cdrom_brc    ):
-            case(dma3_cdrom_chcr   ):
-            case(dma4_spu_madr     ):
-            case(dma4_spu_brc      ):
-            case(dma4_spu_chcr     ):
-            case(dma5_pio_madr     ):
-            case(dma5_pio_brc      ):
-            case(dma5_pio_chcr     ):
-            case(dma6_otc_madr     ):
-            case(dma6_otc_brc      ):
-            case(dma6_otc_chcr     ):
-            case(dpcr              ):
-            case(dicr              ):
-                write_dma(address, data);
-                return;
-            /* GPU REGISTERS */
-            case(gp0_gpu_read      ):
-            case(gp1_gpu_stat      ):
-                write_gpu(address, data);
-                return;
-            /* TIMER REGISTERS */
-            case(timer_0_current_counter):
-            case(timer_0_mode           ):
-            case(timer_0_target         ):
-            case(timer_1_current_counter):
-            case(timer_1_mode           ):
-            case(timer_1_target         ):
-            case(timer_2_current_counter):
-            case(timer_2_mode           ):
-            case(timer_2_target         ):
-                write_timers(address, data);
-                return;
-            /* SPU */
-            case(spu_main_volume_left_right                  ):
-            case(spu_reverb_output_volume_left_right         ):
-            case(spu_voice_key_on                            ):
-            case(spu_voice_key_off                           ):
-            case(spu_channel_fm                              ):
-            case(spu_channel_noise                           ):
-            case(spu_channel_reverb                          ):
-            case(spu_channel_status                          ):
-            case(spu_sound_ram_reverb_work_area_start_address):
-            case(spu_sound_ram_irq_address                   ):
-            case(spu_sound_ram_data_transfer_address         ):
-            case(spu_sound_ram_data_transfer_fifo            ):
-            case(spucnt                                      ):
-            case(spu_sound_ram_data_transfer_control         ):
-            case(spustat                                     ):
-            case(spu_cd_volume_left_right                    ):
-            case(spu_extern_volume_left_right                ):
-            case(spu_current_main_volume_left_right          ):
-                write_spu(address, data);
-                return;
-            /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address):
-            case(expansion_2_base_address):
-            case(expansion_1_delay_size  ):
-            case(expansion_3_delay_size  ):
-            case(bios_rom_delay_size     ):
-            case(spu_delay_size          ):
-            case(cdrom_delay_size        ):
-            case(expansion_2_delay_size  ):
-            case(com_delay_size          ):
-            /* CACHE CONTROL / KSEG2 */
-            case(cache_control           ):
-                goto memory_registers_write;
-        }
+    if ((physical >= 0x1F801000 && physical < 0x1F802000 ) || physical == 0xFFFE0130) {
+        /* define the function pointer */
+        void (*write_mmio)(uint32_t, uint32_t);
 
-        /* spu voice registers */
-        if (address >= 0x1F801C00 && address <= 0x1F801D7E)
-        {
-            switch (address & 0xFFFFFE0F)
-            {
-                case (spu_voice_volume_left_base         ):
-                case (spu_voice_volume_right_base        ):
-                case (spu_voice_adpcm_sample_rate_base   ):
-                case (spu_voice_adpcm_start_address_base ):
-                case (spu_voice_adsr_lower_base          ):
-                case (spu_voice_adsr_upper_base          ):
-                case (spu_voice_adsr_current_volume_base ):
-                case (spu_voice_adpcm_repeat_address_base):
-                    write_spu_voice(address , data);
-                    return;
-            }
-        }
+        /* retrieve the function pointer */
+        memory_mmio(physical, WRITE, (void *) &write_mmio);
+    
+        if (write_mmio == NULL)
+            return;
 
+        /* process the write function */
+        write_mmio(physical, data);
+
+        return;
     }
 
-/* if the memory registers are accessed treat them as non-devices*/
-memory_registers_write:
     if (physical < 0x00200000)
     {
         union cp0_sr sr; read_cp0_reg(CP0_SR, &sr.value);
 
         /* if cache is isolated do scratchpad, else do main ram */
-        if ( sr.Isc )
-        {
-            segment = memory.scratchpad;
-            physical &= 0x3FF;
-        }
-        else
-        {
-            segment =  memory.ram;
-        }
+        if ( sr.Isc ) { segment = memory.scratchpad; physical &= 0x3FF; }
+        else          { segment = memory.ram; }
     }
     else if (physical >= 0x1FC00000 && physical < 0x1FC80000) { segment = memory.bios; physical -= 0x1FC00000; }
-    /* internal memory registers */
-    else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
-    else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
-    else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
-    else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
-    else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
-    else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
-    else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
-    else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
-    else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
-    else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
     else
     {
             // assert(0 && "Unhandled memory address");
@@ -228,21 +266,20 @@ memory_registers_write:
 
     assert(segment);
 
-    switch ( size )
-    {
-        case 1:
-            *(segment + physical + 0) = (uint8_t) (data >>  0);
-            break;
-        case 2:
-            *(segment + physical + 0) = (uint8_t) (data >>  0);
-            *(segment + physical + 1) = (uint8_t) (data >>  8);
-            break;
-        case 4:
-            *(segment + physical + 0) = (uint8_t) (data >>  0);
-            *(segment + physical + 1) = (uint8_t) (data >>  8);
-            *(segment + physical + 2) = (uint8_t) (data >> 16);
-            *(segment + physical + 3) = (uint8_t) (data >> 24);
-            break;
+    switch (size) {
+    case 1:
+        *(segment + physical + 0) = (uint8_t) (data >>  0);
+        break;
+    case 2:
+        *(segment + physical + 0) = (uint8_t) (data >>  0);
+        *(segment + physical + 1) = (uint8_t) (data >>  8);
+        break;
+    case 4:
+        *(segment + physical + 0) = (uint8_t) (data >>  0);
+        *(segment + physical + 1) = (uint8_t) (data >>  8);
+        *(segment + physical + 2) = (uint8_t) (data >> 16);
+        *(segment + physical + 3) = (uint8_t) (data >> 24);
+        break;
     }
 }
 
@@ -258,183 +295,71 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
     uint32_t physical = address & segment_lookup[address >> 29];
 
     /* clear data pointer */
-    *data = 0;
+    uint32_t _data = 0;
 
-    if ( (physical >= 0x1F801000 && physical < 0x1F802000) || physical == 0xFFFE0130 )
-    {
-        switch ((enum memory_map) address)
-        {
-            default: return;
-            /* INTERRUPT REGISTERS */
-            case (i_stat):
-            case (i_mask):
-                *data = read_interrupts(address);
-                break;
-            /* DMA REGISTERS */
-            case(dma0_mdec_in_madr ):
-            case(dma0_mdec_in_brc  ):
-            case(dma0_mdec_in_chcr ):
-            case(dma1_mdec_out_madr):
-            case(dma1_mdec_out_brc ):
-            case(dma1_mdec_out_chcr):
-            case(dma2_gpu_madr     ):
-            case(dma2_gpu_brc      ):
-            case(dma2_gpu_chcr     ):
-            case(dma3_cdrom_madr   ):
-            case(dma3_cdrom_brc    ):
-            case(dma3_cdrom_chcr   ):
-            case(dma4_spu_madr     ):
-            case(dma4_spu_brc      ):
-            case(dma4_spu_chcr     ):
-            case(dma5_pio_madr     ):
-            case(dma5_pio_brc      ):
-            case(dma5_pio_chcr     ):
-            case(dma6_otc_madr     ):
-            case(dma6_otc_brc      ):
-            case(dma6_otc_chcr     ):
-            case(dpcr              ):
-            case(dicr              ):
-                *data = read_dma(address);
-                break;
-            /* GPU REGISTERS */
-            case(gp0_gpu_read      ):
-            case(gp1_gpu_stat      ):
-                *data = read_gpu(address);
-                break;
-            /* TIMER REGISTERS */
-            case(timer_0_current_counter):
-            case(timer_0_mode           ):
-            case(timer_0_target         ):
-            case(timer_1_current_counter):
-            case(timer_1_mode           ):
-            case(timer_1_target         ):
-            case(timer_2_current_counter):
-            case(timer_2_mode           ):
-            case(timer_2_target         ):
-                *data = read_timers(address);
-                break;
-            /* SPU */
-            case(spu_main_volume_left_right                  ):
-            case(spu_reverb_output_volume_left_right         ):
-            case(spu_voice_key_on                            ):
-            case(spu_voice_key_off                           ):
-            case(spu_channel_fm                              ):
-            case(spu_channel_noise                           ):
-            case(spu_channel_reverb                          ):
-            case(spu_channel_status                          ):
-            case(spu_sound_ram_reverb_work_area_start_address):
-            case(spu_sound_ram_irq_address                   ):
-            case(spu_sound_ram_data_transfer_address         ):
-            case(spu_sound_ram_data_transfer_fifo            ):
-            case(spucnt                                      ):
-            case(spu_sound_ram_data_transfer_control         ):
-            case(spustat                                     ):
-            case(spu_cd_volume_left_right                    ):
-            case(spu_extern_volume_left_right                ):
-            case(spu_current_main_volume_left_right          ):
-                *data = read_spu(address);
-                break;
-            /* MEMORY CONTROL 1 */
-            case(expansion_1_base_address):
-            case(expansion_2_base_address):
-            case(expansion_1_delay_size  ):
-            case(expansion_3_delay_size  ):
-            case(bios_rom_delay_size     ):
-            case(spu_delay_size          ):
-            case(cdrom_delay_size        ):
-            case(expansion_2_delay_size  ):
-            case(com_delay_size          ):
-            /* CACHE CONTROL / KSEG2 */
-            case(cache_control           ):
-                goto memory_registers_read;
+    if ((physical >= 0x1F801000 && physical < 0x1F802000) || physical == 0xFFFE0130) {
+        /* define the function pointer */
+        uint32_t (*read_mmio)(uint32_t);
+
+        /* retrieve the function pointer */
+        memory_mmio(physical, READ, (void *)&read_mmio);
+
+        if (read_mmio == NULL)
+            return;
+
+        /* process the read */
+        _data = read_mmio(physical);
+
+        /* mask for appropriate size access  */
+        switch (size) {
+        case 1: _data = (uint32_t) ( uint8_t) _data; break;
+        case 2: _data = (uint32_t) (uint16_t) _data; break;
+        case 4: _data = (uint32_t) (uint32_t) _data; break;
         }
 
-        if (address >= 0x1F801C00 && address <= 0x1F801D7E)
-        {
-            /* spu voice registers */
-            switch (address & 0xFFFFFE0F)
-            {
-                case (spu_voice_volume_left_base         ):
-                case (spu_voice_volume_right_base        ):
-                case (spu_voice_adpcm_sample_rate_base   ):
-                case (spu_voice_adpcm_start_address_base ):
-                case (spu_voice_adsr_lower_base          ):
-                case (spu_voice_adsr_upper_base          ):
-                case (spu_voice_adsr_current_volume_base ):
-                case (spu_voice_adpcm_repeat_address_base):
-                    *data = read_spu_voice(address);
-                    break;
-            }
-        }
-
-        switch (size)
-        {
-            case 1: *data = (uint32_t) ( uint8_t) *data; break;
-            case 2: *data = (uint32_t) (uint16_t) *data; break;
-            case 4: *data = (uint32_t) (uint32_t) *data; break;
-        }
+        /* set the data pointer */
+        *data = _data;
 
         return;
     }
-
-/* if the memory registers are accessed treat them as non-devices*/
-memory_registers_read:
 
     if (physical < 0x00200000)
     {
         union cp0_sr sr; read_cp0_reg(CP0_SR, &sr.value);
 
         /* if cache is isolated do scratchpad, else do main ram */
-        if ( sr.Isc )
-        {
-            segment = memory.scratchpad;
-            physical &= 0x3FF;
-        }
-        else
-        {
-            segment =  memory.ram;
-        }
+        if ( sr.Isc ) { segment = memory.scratchpad; physical &= 0x3FF; }
+        else          { segment = memory.ram; }
     }
     else if (physical >= 0x1FC00000 && physical < 0x1FC80000) { segment = memory.bios; physical -= 0x1FC00000; }
-    /* internal memory registers */
-    else if (physical == expansion_1_base_address ) {segment = (uint8_t *) &memory.expansion_1_base_address; physical = 0; }
-    else if (physical == expansion_2_base_address ) {segment = (uint8_t *) &memory.expansion_2_base_address; physical = 0; }
-    else if (physical == expansion_1_delay_size   ) {segment = (uint8_t *) &memory.expansion_1_delay_size  ; physical = 0; }
-    else if (physical == expansion_3_delay_size   ) {segment = (uint8_t *) &memory.expansion_3_delay_size  ; physical = 0; }
-    else if (physical == bios_rom_delay_size      ) {segment = (uint8_t *) &memory.bios_rom_delay_size     ; physical = 0; }
-    else if (physical == spu_delay_size           ) {segment = (uint8_t *) &memory.spu_delay_size          ; physical = 0; }
-    else if (physical == cdrom_delay_size         ) {segment = (uint8_t *) &memory.cdrom_delay_size        ; physical = 0; }
-    else if (physical == expansion_2_delay_size   ) {segment = (uint8_t *) &memory.expansion_2_delay_size  ; physical = 0; }
-    else if (physical == com_delay_size           ) {segment = (uint8_t *) &memory.com_delay_size          ; physical = 0; }
-    else if (physical == cache_control            ) {segment = (uint8_t *) &memory.cache_control           ; physical = 0; }
     else
     {
-    // assert(0 && "Unhandled memory address");
-                return;
+        // assert(0 && "Unhandled memory address");
+        return;
     }
 
     assert(segment);
 
-    switch ( size )
-    {
-        case 1:
-            *data |= *(segment + physical + 0) <<  0;
-            break;
-        case 2:
-            *data |= *(segment + physical + 0) <<  0;
-            *data |= *(segment + physical + 1) <<  8;
-            break;
-        case 4:
-            *data |= *(segment + physical + 0) <<  0;
-            *data |= *(segment + physical + 1) <<  8;
-            *data |= *(segment + physical + 2) << 16;
-            *data |= *(segment + physical + 3) << 24;
-            break;
+    switch (size) {
+    case 1:
+        _data |= *(segment + physical + 0) <<  0;
+        break;
+    case 2:
+        _data |= *(segment + physical + 0) <<  0;
+        _data |= *(segment + physical + 1) <<  8;
+        break;
+    case 4:
+        _data |= *(segment + physical + 0) <<  0;
+        _data |= *(segment + physical + 1) <<  8;
+        _data |= *(segment + physical + 2) << 16;
+        _data |= *(segment + physical + 3) << 24;
+        break;
     }
 
+    *data = _data;
 
     /* trace signals to memory */
-    TRACE_MEM("memory_read ", "address: %08x | data: %08x | size: %d\n", address, *data, size);
+    TRACE_MEM("memory_read ", "address: %08x | data: %08x | size: %d\n", address, _data, size);
 }
 
 void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
