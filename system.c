@@ -269,6 +269,9 @@ void render_three_point_polygon_monochrome(
              X(v2), Y(v2), R(c1), G(c1), B(c1),
              X(v3), Y(v3), R(c1), G(c1), B(c1),
              semi_transparent);
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c1 ,   c1 );
 }
 void render_four_point_polygon_monochrome(uint32_t c1, uint32_t v1,
                                                        uint32_t v2,
@@ -315,6 +318,9 @@ void render_three_point_polygon_textured(uint32_t c1, uint32_t v1, uint32_t t1_c
              TX(t2_page), TY(t2_page),
              TX(t3     ), TY(t3     ),
              semi_transparent);
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c1 ,   c1 );
 }
 void render_four_point_polygon_textured(
     uint32_t c1, uint32_t v1, uint32_t t1_clut,
@@ -343,6 +349,12 @@ void render_four_point_polygon_textured(
              TX(t3     ), TY(t3     ),
              TX(t4     ), TY(t4     ),
              semi_transparent);
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c1 ,   c1 );
+    fill_triangle(X(v2), X(v3), X(v4),
+                  Y(v2), Y(v3), Y(v4),
+                    c1 ,   c1 ,   c1 );
 }
 void render_three_point_polygon_shaded(
     uint32_t c1, uint32_t v1,
@@ -412,6 +424,9 @@ void render_three_point_polygon_shaded_textured(
              TX(t3     ), TY(t3     ),
              semi_transparent,
              texture_blending);
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c2 ,   c3 );
 }
 void render_four_point_polygon_shaded_textured(
     uint32_t c1, uint32_t v1, uint32_t t1_clut,
@@ -442,4 +457,10 @@ void render_four_point_polygon_shaded_textured(
              TX(t4     ), TY(t4     ),
              semi_transparent,
              texture_blending);
+    fill_triangle(X(v1), X(v2), X(v3),
+                  Y(v1), Y(v2), Y(v3),
+                    c1 ,   c2 ,   c3 );
+    fill_triangle(X(v2), X(v3), X(v4),
+                  Y(v2), Y(v3), Y(v4),
+                    c2 ,   c3 ,   c4 );
 }
