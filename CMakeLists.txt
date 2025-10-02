@@ -172,9 +172,9 @@ add_custom_target(run-debug
     COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/.gdbinit ${CMAKE_CURRENT_BINARY_DIR}
     COMMAND gdb -iex "set auto-load safe-path ${CMAKE_CURRENT_SOURCE_DIR}" --args emulator -b BIOS.bin -g GAME.bin
     VERBATIM)
-add_custom_target(perf-stat
-    COMMAND perf record emulator BIOS.bin GAME.bin
+add_custom_target(perf-record-general
+    COMMAND perf record ./emulator -b BIOS.bin -g GAME.bin
     VERBATIM)
-add_custom_target(perf-cache
-    COMMAND perf record -e cache-refrences,cache-misses emulator BIOS.bin GAME.bin
+add_custom_target(perf-record-cache
+    COMMAND perf record -e cache-references,cache-misses ./emulator -b BIOS.bin -g GAME.bin
     VERBATIM)
