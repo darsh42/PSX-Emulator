@@ -89,12 +89,14 @@ struct spu
     /* voice sample decode buffer */
     int16_t decode_buffers[24][28];
     int16_t decode_buffers_index[24];
+    int16_t decode_history_old[24];
+    int16_t decode_history_older[24];
 
     /* adpcm */
     uint16_t adpcm_sample_rate[24];
     uint16_t adpcm_start_address[24];
     uint16_t adpcm_repeat_address[24];
-    uint16_t adpcm_current_address[24];
+    uint32_t adpcm_current_address[24];
     
     /* pitch */
     uint32_t pmon;
@@ -102,7 +104,7 @@ struct spu
     
     /* adsr generator */
     uint32_t adsr[24];
-    uint16_t adsr_current_volume[24];
+    uint16_t adsr_volume[24];
 
     /* volume */
     uint32_t voice_volume[24];
@@ -124,9 +126,9 @@ struct spu
     union spustat spustat;
 
     /* spu memory control registers */
-    uint16_t sound_ram_data_transfer_current_address;
-    uint16_t sound_ram_data_transfer_address;
-    uint16_t sound_ram_data_transfer_control;
+    uint32_t sram_current;
+    uint16_t sram_address;
+    uint16_t sram_control;
 
     /*
 

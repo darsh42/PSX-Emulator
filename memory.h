@@ -17,20 +17,27 @@
 #define TRACE_MEM(function, format, ...) \
     trace(TRACE_MEMORY_EN, "memory.c", function, format, __VA_ARGS__)
 
-#define RAM_SIZE       0x200000
-#define SCRPD_SIZE     0x400
-#define BIOS_SIZE      0x80000
-#define VRAM_SIZE      0x100000
-#define SOUND_RAM_SIZE 0x80000
+#define SIZE_RAM   0x200000
+#define SIZE_SCRPD 0x400
+#define SIZE_BIOS  0x80000
+#define SIZE_VRAM  0x100000
+#define SIZE_SRAM  0x80000
 
 enum read_write { WRITE = 0, READ };
 
 struct memory {
-    uint8_t        ram[      RAM_SIZE];
-    uint8_t scratchpad[    SCRPD_SIZE];
-    uint8_t       bios[     BIOS_SIZE];
-    uint8_t       vram[     VRAM_SIZE];
-    uint8_t  sound_ram[SOUND_RAM_SIZE];
+    uint8_t        ram[SIZE_RAM];
+    uint8_t scratchpad[SIZE_SCRPD];
+    uint8_t       bios[SIZE_BIOS];
+    uint8_t       vram[SIZE_VRAM];
+    /* layout:
+     * 00000h - 003ffh   CD audio left    *
+     * 00400h - 007ffh   CD audio right   *
+     * 00800h - 00bffh   voice 1 mono     *
+     * 00C00h - 00fffh   voice 3 mono     *
+     * 01000h - xxxxxh   ADPCM samples    *
+     * xxxxxh - 7ffffh   Reverb work area */
+    uint8_t  sram[SIZE_SRAM];
     
     /* memory control 1 */
     uint32_t expansion_1_base_address;
@@ -108,33 +115,37 @@ enum memory_map
     gp1_gpu_stat             = 0x1F801814,
     
     /* spu registers */
-    spu_voice_volume_left_base                   = 0x1F801C00, // base, base + N * 0x10 for each voice
-    spu_voice_volume_right_base                  = 0x1F801C02, // base, base + N * 0x10 for each voice
-    spu_voice_adpcm_sample_rate_base             = 0x1F801C04, // base, base + N * 0x10 for each voice 
-    spu_voice_adpcm_start_address_base           = 0x1F801C06, // base, base + N * 0x10 for each voice 
-    spu_voice_adsr_lower_base                    = 0x1F801C08, // base, base + N * 0x10 for each voice 
-    spu_voice_adsr_upper_base                    = 0x1F801C0A, // base, base + N * 0x10 for each voice 
-    spu_voice_adsr_current_volume_base           = 0x1F801C0C, // base, base + N * 0x10 for each voice 
-    spu_voice_adpcm_repeat_address_base          = 0x1F801C0E, // base, base + N * 0x10 for each voice 
+    spu_voice_start                              = 0x1F801C00,
+    spu_voice_end                                = 0x1F801D7F,
 
-    spu_main_volume_left_right                   = 0x1F801D80,
-    spu_reverb_output_volume_left_right          = 0x1F801D84,
-    spu_voice_key_on                             = 0x1F801D88,
-    spu_voice_key_off                            = 0x1F801D8C,
-    spu_channel_fm                               = 0x1F801D90,
-    spu_channel_noise                            = 0x1F801D94,
-    spu_channel_reverb                           = 0x1F801D98,
-    spu_channel_status                           = 0x1F801D9C,
-    spu_sound_ram_reverb_work_area_start_address = 0x1F801DA2,
-    spu_sound_ram_irq_address                    = 0x1F801DA4,
-    spu_sound_ram_data_transfer_address          = 0x1F801DA6,
-    spu_sound_ram_data_transfer_fifo             = 0x1F801DA8,
-    spucnt                                       = 0x1F801DAA,
-    spu_sound_ram_data_transfer_control          = 0x1F801DAC,
-    spustat                                      = 0x1F801DAE,
-    spu_cd_volume_left_right                     = 0x1F801DB0,
-    spu_extern_volume_left_right                 = 0x1F801DB4,
-    spu_current_main_volume_left_right           = 0x1F801DB8,
+    /* voice registers come in chunks of 0x10, one for each voice */
+    spu_voice_volume_left_base              = 0x1F801C00, // base, base + N * 0x10 for each voice
+    spu_voice_volume_right_base             = 0x1F801C02, // base, base + N * 0x10 for each voice
+    spu_voice_adpcm_sample_rate_base        = 0x1F801C04, // base, base + N * 0x10 for each voice 
+    spu_voice_adpcm_start_address_base      = 0x1F801C06, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_lower_base               = 0x1F801C08, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_upper_base               = 0x1F801C0A, // base, base + N * 0x10 for each voice 
+    spu_voice_adsr_current_volume_base      = 0x1F801C0C, // base, base + N * 0x10 for each voice 
+    spu_voice_adpcm_repeat_address_base     = 0x1F801C0E, // base, base + N * 0x10 for each voice 
+
+    spu_main_volume_left_right              = 0x1F801D80,
+    spu_reverb_output_volume_left_right     = 0x1F801D84,
+    spu_voice_key_on                        = 0x1F801D88,
+    spu_voice_key_off                       = 0x1F801D8C,
+    spu_channel_fm                          = 0x1F801D90,
+    spu_channel_noise                       = 0x1F801D94,
+    spu_channel_reverb                      = 0x1F801D98,
+    spu_channel_status                      = 0x1F801D9C,
+    spu_sram_reverb_work_area_start_address = 0x1F801DA2,
+    spu_sram_irq_address                    = 0x1F801DA4,
+    spu_sram_data_transfer_address          = 0x1F801DA6,
+    spu_sram_data_transfer_fifo             = 0x1F801DA8,
+    spucnt                                  = 0x1F801DAA,
+    spu_sram_data_transfer_control          = 0x1F801DAC,
+    spustat                                 = 0x1F801DAE,
+    spu_cd_volume_left_right                = 0x1F801DB0,
+    spu_extern_volume_left_right            = 0x1F801DB4,
+    spu_current_main_volume_left_right      = 0x1F801DB8,
 
     /* cache control */
     cache_control            = 0xFFFE0130,
@@ -147,10 +158,12 @@ extern void memory_load_bios( const char *bios );
 
 extern void memory_write(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read(uint32_t address, uint32_t *data, uint32_t size);
+
 extern void memory_write_vram(uint32_t address, uint32_t data, uint32_t size);
 extern void memory_read_vram(uint32_t address, uint32_t *data, uint32_t size);
-extern void memory_write_sound_ram(uint32_t address, uint32_t data, uint32_t size);
-extern void memory_read_sound_ram(uint32_t address, uint32_t *data, uint32_t size);
-extern void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **sector);
+
+extern void memory_write_sram(uint32_t address, uint32_t data, uint32_t size);
+extern void memory_read_sram(uint32_t address, uint32_t *data, uint32_t size);
+extern void memory_read_sram_sector(uint32_t address, struct spu_adpcm_sector **sector);
 
 #endif // MEMORY_H_INCLUDED

@@ -108,6 +108,11 @@ void write_memory_registers(uint32_t address, uint32_t data) {
 void memory_mmio(uint32_t address, enum read_write rw, void **handler) {
     *handler = NULL;
 
+    /* clamp for register ranges */
+    if (address >= spu_voice_start && address <= spu_voice_end) {
+        address &= 0xFFFFFE0F;
+    }
+
     switch ((enum memory_map) address) {
     default: break;
     /* INTERRUPT REGISTERS */
@@ -163,26 +168,38 @@ void memory_mmio(uint32_t address, enum read_write rw, void **handler) {
                                    (void *)  read_timers;
         return;
     /* SPU */
-    case(spu_main_volume_left_right                  ):
-    case(spu_reverb_output_volume_left_right         ):
-    case(spu_voice_key_on                            ):
-    case(spu_voice_key_off                           ):
-    case(spu_channel_fm                              ):
-    case(spu_channel_noise                           ):
-    case(spu_channel_reverb                          ):
-    case(spu_channel_status                          ):
-    case(spu_sound_ram_reverb_work_area_start_address):
-    case(spu_sound_ram_irq_address                   ):
-    case(spu_sound_ram_data_transfer_address         ):
-    case(spu_sound_ram_data_transfer_fifo            ):
-    case(spucnt                                      ):
-    case(spu_sound_ram_data_transfer_control         ):
-    case(spustat                                     ):
-    case(spu_cd_volume_left_right                    ):
-    case(spu_extern_volume_left_right                ):
-    case(spu_current_main_volume_left_right          ):
+    case(spu_main_volume_left_right             ):
+    case(spu_reverb_output_volume_left_right    ):
+    case(spu_voice_key_on                       ):
+    case(spu_voice_key_off                      ):
+    case(spu_channel_fm                         ):
+    case(spu_channel_noise                      ):
+    case(spu_channel_reverb                     ):
+    case(spu_channel_status                     ):
+    case(spu_sram_reverb_work_area_start_address):
+    case(spu_sram_irq_address                   ):
+    case(spu_sram_data_transfer_address         ):
+    case(spu_sram_data_transfer_fifo            ):
+    case(spucnt                                 ):
+    case(spu_sram_data_transfer_control         ):
+    case(spustat                                ):
+    case(spu_cd_volume_left_right               ):
+    case(spu_extern_volume_left_right           ):
+    case(spu_current_main_volume_left_right     ):
         *handler = (rw == WRITE) ? (void *) write_spu:
                                    (void *)  read_spu;
+        return;
+    /* SPU VOICE */
+    case (spu_voice_volume_left_base         ):
+    case (spu_voice_volume_right_base        ):
+    case (spu_voice_adpcm_sample_rate_base   ):
+    case (spu_voice_adpcm_start_address_base ):
+    case (spu_voice_adsr_lower_base          ):
+    case (spu_voice_adsr_upper_base          ):
+    case (spu_voice_adsr_current_volume_base ):
+    case (spu_voice_adpcm_repeat_address_base):
+        *handler = (rw == WRITE) ? (void *) write_spu_voice:
+                                   (void *)  read_spu_voice;
         return;
     /* MEMORY CONTROL 1 */
     case(expansion_1_base_address):
@@ -200,24 +217,6 @@ void memory_mmio(uint32_t address, enum read_write rw, void **handler) {
                                    (void *)  read_memory_registers;
         return;
     }
-
-#if 0
-    /* spu voice registers */
-    if (address >= 0x1F801C00 && address <= 0x1F801D7E) {
-        switch (address & 0xFFFFFE0F) {
-            case (spu_voice_volume_left_base         ):
-            case (spu_voice_volume_right_base        ):
-            case (spu_voice_adpcm_sample_rate_base   ):
-            case (spu_voice_adpcm_start_address_base ):
-            case (spu_voice_adsr_lower_base          ):
-            case (spu_voice_adsr_upper_base          ):
-            case (spu_voice_adsr_current_volume_base ):
-            case (spu_voice_adpcm_repeat_address_base):
-                write_spu_voice(address , data);
-                return;
-        }
-    }
-#endif 
 }
 
 void memory_write(uint32_t address, uint32_t data, uint32_t size)
@@ -364,7 +363,7 @@ void memory_read(uint32_t address, uint32_t *data, uint32_t size)
 
 void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
 {
-    assert(address < VRAM_SIZE);
+    assert(address < SIZE_VRAM);
     assert(size == 1 || size == 2 || size == 4);
 
     /* trace signals to memory */
@@ -391,7 +390,7 @@ void memory_write_vram( uint32_t address, uint32_t data, uint32_t size )
 void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
 {
     assert(data);
-    assert(address < VRAM_SIZE);
+    assert(address < SIZE_VRAM);
     assert(size == 1 || size == 2 || size == 4);
 
     /* clear data pointer */
@@ -418,13 +417,13 @@ void memory_read_vram( uint32_t address, uint32_t *data, uint32_t size )
     TRACE_MEM("memory_read_vram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
 }
 
-void memory_write_sound_ram( uint32_t address, uint32_t data, uint32_t size )
+void memory_write_sram( uint32_t address, uint32_t data, uint32_t size )
 {
-    assert(address < SOUND_RAM_SIZE);
+    assert(address < SIZE_SRAM);
     assert(size == 1 || size == 2 || size == 4);
 
     /* trace signals to memory */
-    TRACE_MEM("memory_write_sound_ram", "address: %08x | data: %08x | size: %d\n", address, data, size);
+    TRACE_MEM("memory_write_sram", "address: %08x | data: %08x | size: %d\n", address, data, size);
 
     switch ( size )
     {
@@ -435,22 +434,22 @@ void memory_write_sound_ram( uint32_t address, uint32_t data, uint32_t size )
                 break;
             // fall through
         case 2:
-            *(memory.sound_ram + address + 0)  = (data >>  0);
-            *(memory.sound_ram + address + 1)  = (data >>  8);
+            *(memory.sram + address + 0)  = (data >>  0);
+            *(memory.sram + address + 1)  = (data >>  8);
             break;
         case 4:
-            *(memory.sound_ram + address + 0)  = (data >>  0);
-            *(memory.sound_ram + address + 1)  = (data >>  8);
-            *(memory.sound_ram + address + 2)  = (data >> 16);
-            *(memory.sound_ram + address + 3)  = (data >> 24);
+            *(memory.sram + address + 0)  = (data >>  0);
+            *(memory.sram + address + 1)  = (data >>  8);
+            *(memory.sram + address + 2)  = (data >> 16);
+            *(memory.sram + address + 3)  = (data >> 24);
             break;
     }
 }
 
-void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
+void memory_read_sram( uint32_t address, uint32_t *data, uint32_t size )
 {
     assert(data);
-    assert(address < SOUND_RAM_SIZE);
+    assert(address < SIZE_SRAM);
     assert(size == 1 || size == 2 || size == 4);
 
     /* clear data pointer */
@@ -459,28 +458,28 @@ void memory_read_sound_ram( uint32_t address, uint32_t *data, uint32_t size )
     switch ( size )
     {
         case 1:
-            *data |= *(memory.sound_ram + address + 0) <<  0;
+            *data |= *(memory.sram + address + 0) <<  0;
             break;
         case 2:
-            *data |= *(memory.sound_ram + address + 0) <<  0;
-            *data |= *(memory.sound_ram + address + 1) <<  8;
+            *data |= *(memory.sram + address + 0) <<  0;
+            *data |= *(memory.sram + address + 1) <<  8;
             break;
         case 4:
-            *data |= *(memory.sound_ram + address + 0) <<  0;
-            *data |= *(memory.sound_ram + address + 1) <<  8;
-            *data |= *(memory.sound_ram + address + 2) << 16;
-            *data |= *(memory.sound_ram + address + 3) << 24;
+            *data |= *(memory.sram + address + 0) <<  0;
+            *data |= *(memory.sram + address + 1) <<  8;
+            *data |= *(memory.sram + address + 2) << 16;
+            *data |= *(memory.sram + address + 3) << 24;
             break;
     }
 
     /* trace signals to memory */
-    TRACE_MEM("memory_read_sound_ram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
+    TRACE_MEM("memory_read_sram", "address: %08x | data: %08x | size: %d\n", address, *data, size);
 }
 
-void memory_read_sound_ram_sector(uint32_t address, struct spu_adpcm_sector **sector)
+void memory_read_sram_sector(uint32_t address, struct spu_adpcm_sector **sector)
 {
     assert(sector);
-    assert(address < SOUND_RAM_SIZE - sizeof(struct spu_adpcm_sector));
+    assert(address < SIZE_SRAM- sizeof(struct spu_adpcm_sector));
 
-    *sector = (struct spu_adpcm_sector *) &memory.sound_ram[address];
+    *sector = (struct spu_adpcm_sector *) &memory.sram[address];
 }

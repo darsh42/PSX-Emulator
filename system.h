@@ -6,6 +6,12 @@
 
 #ifdef PRIVATE_SYSTEM
 
+#ifdef RENDERER_OPENGL
+#endif // RENDERER_OPENGL
+
+#ifdef RENDERER_VULKAN
+#endif // RENDERER_VULKAN
+
 #include "trace.h"
 
 #define X(v)  (((v) >>  0) & 0xffff)
@@ -38,14 +44,16 @@ enum system_state {
 #define INITIALIZE_FLAGS SDL_INIT_VIDEO | SDL_INIT_AUDIO
 #define     WINDOW_FLAGS SDL_WINDOW_SHOWN
 
+#define BUFFERING 3
+#define SAMPLES_BUFFER_SIZE 512
+
+#define AUDIO_WANT_FREQUENCY 44100
+#define AUDIO_WANT_FORMAT    AUDIO_S16SYS
+#define AUDIO_WANT_CHANNELS  2
+#define AUDIO_WANT_BUFFER    SAMPLES_BUFFER_SIZE
+
 #define SDL_CHECK_RET(expr) {assert((expr) == 0);}
 #define SDL_CHECK_PTR(expr) {assert((expr) != NULL);}
-
-#ifdef RENDERER_OPENGL
-#endif // RENDERER_OPENGL
-
-#ifdef RENDERER_VULKAN
-#endif // RENDERER_VULKAN
 
 struct box {
     int32_t minx, miny;
@@ -54,14 +62,19 @@ struct box {
 };
 
 struct system {
+    /* AUDIO */
+    SDL_AudioSpec     au_want, au_have;
+    SDL_AudioDeviceID au_device;
+
+    int32_t *audio_produce;
+    int32_t *audio_consume;
+    int32_t *audio_complete;
+
     /* VIDEO */
     SDL_Window   *window;
     SDL_Renderer *renderer;
     SDL_Texture  *screen;
     SDL_Rect      scale;
-    
-    /* AUDIO */
-    SDL_AudioStream *audio_stream;
 
     size_t thread_count;
     size_t allocations;
@@ -70,6 +83,10 @@ struct system {
     struct box *tiles;
 
     uint32_t render_next_frame;
+
+    /* will create three audio buffers, 
+     * one consumer and two producers  */
+    int32_t  samples[BUFFERING * SAMPLES_BUFFER_SIZE * AUDIO_WANT_CHANNELS];
     uint32_t frame_buffer[WIN_H][WIN_W];
 };
 
@@ -169,7 +186,7 @@ extern void init_threads(void);
 extern void free_threads(void);
 extern void wait_system_ready( void );
 extern void system_render_next_frame( void );
-extern void system_write_audio_sample(int32_t sample);
+extern void system_audio_push_sample(int16_t left, int16_t right);
 extern void *task_system( void *ignore );
 
 #endif // SYSTEM_H_INCLUDED
