@@ -66,16 +66,19 @@ void *task_core( void *_args )
         /* devices synched to cpu clock */
         if (ticks_till_cpu == 11)
         {
+            ticks_till_cpu = 0;
+            ticks_till_spu++;
+
             task_cpu();
             task_dma();
 
-            if (ticks_till_spu == 768)
+
+            if (ticks_till_spu == 768) {
+                ticks_till_spu = 0;
+
                 task_spu();
-
-            ticks_till_cpu = 0;
-            ticks_till_spu++;
+            }
         }
-
 
         /* devices synched to gpu clock */
         if (ticks_till_gpu ==  7)
