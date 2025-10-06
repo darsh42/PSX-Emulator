@@ -45,7 +45,7 @@ enum system_state {
 #define     WINDOW_FLAGS SDL_WINDOW_SHOWN
 
 #define BUFFERING 3
-#define SAMPLES_BUFFER_SIZE 512
+#define SAMPLES_BUFFER_SIZE 4096
 
 #define AUDIO_WANT_FREQUENCY 44100
 #define AUDIO_WANT_FORMAT    AUDIO_S16SYS
@@ -60,15 +60,32 @@ struct box {
     int32_t maxx, maxy;
     int32_t height, width;
 };
+struct system_shared_variables {
+    pthread_mutex_t m_system_ready;
+    pthread_mutex_t m_render_frame;
+    pthread_mutex_t m_framebuffer;
+    pthread_mutex_t m_audiobuffer;
 
+    pthread_cond_t  c_system_ready;
+
+    int32_t system_ready;   /* notify when system start up finished */
+    int32_t render_frame;   /* notify when system can render frame  */
+    int32_t filled_audio;   /* notify when next audio buffer filled */
+
+    int16_t *audio_produce;  /* current pointer where spu is filling samples  */
+    int16_t *audio_consume;  /* current pointer where SDL will read samples   */
+    int16_t *audio_complete; /* handoff buffer that can either contain        *
+                                samples or be empty depending on filled_audio */
+
+    /* will create three audio buffers, 
+     * one consumer and two producers  */
+     int16_t audiobuffer[BUFFERING * SAMPLES_BUFFER_SIZE * AUDIO_WANT_CHANNELS];
+    uint32_t framebuffer[WIN_H][WIN_W];
+};
 struct system {
     /* AUDIO */
     SDL_AudioSpec     au_want, au_have;
     SDL_AudioDeviceID au_device;
-
-    int32_t *audio_produce;
-    int32_t *audio_consume;
-    int32_t *audio_complete;
 
     /* VIDEO */
     SDL_Window   *window;
@@ -81,13 +98,6 @@ struct system {
 
     pthread_t  *threads;
     struct box *tiles;
-
-    uint32_t render_next_frame;
-
-    /* will create three audio buffers, 
-     * one consumer and two producers  */
-    int32_t  samples[BUFFERING * SAMPLES_BUFFER_SIZE * AUDIO_WANT_CHANNELS];
-    uint32_t frame_buffer[WIN_H][WIN_W];
 };
 
 #endif // PRIVATE_SYSTEM

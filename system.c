@@ -16,10 +16,19 @@
 
 /* c: color, s: size (bytes) */
 #define PUT_PIX(x, y, c) \
-    sys.frame_buffer[y][x] = c
+    sys_shared.framebuffer[y][x] = c
 
 /* externed from whatever os interface used */
-extern struct system sys;
+extern struct system                  sys;
+extern struct system_shared_variables sys_shared;
+
+#define MIN3(a, b, c) min(min(a, b), c)
+#define MAX3(a, b, c) max(max(a, b), c)
+static inline int32_t min(int32_t a, int32_t b) { return (a < b) ? a: b; }
+static inline int32_t max(int32_t a, int32_t b) { return (a > b) ? a: b; }
+static inline int32_t clamp(int32_t a, int32_t low, int32_t high) {
+    return max(low, min(high, a));
+}
 
 /* function to place a horizontal line of pixels */
 static void system_draw_horizontalline(uint16_t x0,
@@ -64,6 +73,7 @@ static void allocate_threads(size_t thread_count) {
         sys.tiles = 
             realloc(sys.tiles, 
                     sys.thread_count*sizeof(*sys.tiles));
+        printf("thread_count: %ld\n", thread_count);
     }
 }
 
@@ -126,7 +136,7 @@ static void *fill_tile(void *arg) {
                                 min_color_value, max_color_value);
             
             /* get the base location of the framebuffer */
-            uint32_t *location = &sys.frame_buffer[cy][cx];
+            uint32_t *location = &sys_shared.framebuffer[cy][cx];
             for (int32_t pix = 0; pix < SIMD_WIDTH; pix++) {
                 /* if pixel set place color *
                  * else replace old pixel   */
@@ -152,20 +162,13 @@ static void *fill_tile(void *arg) {
     }
 }
 
-#define MIN3(a, b, c) min(min(a, b), c)
-#define MAX3(a, b, c) max(max(a, b), c)
-static inline int32_t min(int32_t a, int32_t b) { return (a < b) ? a: b; }
-static inline int32_t max(int32_t a, int32_t b) { return (a > b) ? a: b; }
-static inline int32_t clamp(int32_t a, int32_t low, int32_t high) {
-    return max(low, min(high, a));
-}
-
 static inline int32_t is_top_left_edge(int32_t x0, int32_t x1, int32_t y0, int32_t y1) {
     return (y0 < y1) || (y0 == y1 && x0 < x1);
 }
 void fill_triangle( int32_t x0,  int32_t x1,  int32_t x2, 
                     int32_t y0,  int32_t y1,  int32_t y2, 
                    uint32_t c0, uint32_t c1, uint32_t c2) {
+    assert(!pthread_mutex_lock(&sys_shared.m_framebuffer));
     /* set the global triangle data state */
     simd_set_triangle_data(x0, y0, c0, x1, y1, c1, x2, y2, c2,
                            is_top_left_edge(x1, y1, x2, y2),
@@ -212,6 +215,7 @@ void fill_triangle( int32_t x0,  int32_t x1,  int32_t x2,
     for (int32_t t = 0; t < thread_count; t++) {
         pthread_join(sys.threads[t], NULL);
     }
+    assert(!pthread_mutex_unlock(&sys_shared.m_framebuffer));
 }
 
 void render_line_monochrome(
@@ -349,12 +353,14 @@ void render_four_point_polygon_textured(
              TX(t3     ), TY(t3     ),
              TX(t4     ), TY(t4     ),
              semi_transparent);
+#if 0
     fill_triangle(X(v1), X(v2), X(v3),
                   Y(v1), Y(v2), Y(v3),
                     c1 ,   c1 ,   c1 );
     fill_triangle(X(v2), X(v3), X(v4),
                   Y(v2), Y(v3), Y(v4),
                     c1 ,   c1 ,   c1 );
+#endif
 }
 void render_three_point_polygon_shaded(
     uint32_t c1, uint32_t v1,
@@ -424,9 +430,11 @@ void render_three_point_polygon_shaded_textured(
              TX(t3     ), TY(t3     ),
              semi_transparent,
              texture_blending);
+#if 0
     fill_triangle(X(v1), X(v2), X(v3),
                   Y(v1), Y(v2), Y(v3),
                     c1 ,   c2 ,   c3 );
+#endif
 }
 void render_four_point_polygon_shaded_textured(
     uint32_t c1, uint32_t v1, uint32_t t1_clut,
@@ -457,10 +465,12 @@ void render_four_point_polygon_shaded_textured(
              TX(t4     ), TY(t4     ),
              semi_transparent,
              texture_blending);
+#if 0
     fill_triangle(X(v1), X(v2), X(v3),
                   Y(v1), Y(v2), Y(v3),
                     c1 ,   c2 ,   c3 );
     fill_triangle(X(v2), X(v3), X(v4),
                   Y(v2), Y(v3), Y(v4),
                     c2 ,   c3 ,   c4 );
+#endif
 }
