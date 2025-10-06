@@ -11,12 +11,10 @@
 
 #include <stdint.h>
 
-union spucnt
-{
+union spucnt {
     uint16_t value;
 
-    struct 
-    {
+    struct {
         uint16_t cd_audio_enable         : 1;
         uint16_t external_audio_enable   : 1;
         uint16_t cd_audio_reverb         : 1;
@@ -31,12 +29,10 @@ union spucnt
     };
 };
 
-union spustat
-{
+union spustat {
     uint16_t value;
 
-    struct
-    {
+    struct {
         uint16_t spu_mode                                      : 6;
         uint16_t irq9_request                                  : 1;
         uint16_t data_transfer_dma_request_read_write          : 1;
@@ -47,8 +43,7 @@ union spustat
     };
 };
 
-struct adsr
-{
+struct adsr {
     uint32_t sustain_level     : 4;
     uint32_t decay_shift       : 4;
     uint32_t attack_step       : 2;
@@ -64,17 +59,14 @@ struct adsr
     uint32_t sustain_mode      : 1;
 };
 
-union volume
-{
+union volume {
     uint16_t value;
 
-    struct
-    {
+    struct {
         uint16_t voice_vol_half: 15;
     };
 
-    struct
-    {
+    struct {
         uint32_t sweep_step      : 2;
         uint32_t sweep_shift     : 5;
         uint32_t                 : 1;
@@ -84,30 +76,37 @@ union volume
     };
 };
 
-struct spu
-{
-    /* voice sample decode buffer */
-    int16_t decode_buffers[24][28];
-    int16_t decode_buffers_index[24];
-    int16_t decode_history_old[24];
-    int16_t decode_history_older[24];
+struct spu_voice {
+    /* volume */
+    uint32_t volume;
 
     /* adpcm */
-    uint16_t adpcm_sample_rate[24];
-    uint16_t adpcm_start_address[24];
-    uint16_t adpcm_repeat_address[24];
-    uint32_t adpcm_current_address[24];
-    
+    uint32_t current_address;
+    uint16_t repeat_address;
+    uint16_t start_address;
+    uint16_t sample_rate;
+
+    /* adsr */
+    uint32_t adsr;
+    uint16_t adsr_volume;
+
+    /* pitch */
+    uint16_t pitch_counter;
+
+    /* samples */
+    int16_t index;
+    int16_t decoded[28];
+    int16_t old, older;
+};
+
+struct spu {
+    /* voices */
+    struct spu_voice voices[24];
+
     /* pitch */
     uint32_t pmon;
-    uint16_t pitch_counter[24];
     
-    /* adsr generator */
-    uint32_t adsr[24];
-    uint16_t adsr_volume[24];
-
     /* volume */
-    uint32_t voice_volume[24];
     uint32_t main_volume;
 
     /* voice flags */
@@ -221,6 +220,11 @@ struct spu_adpcm_sector
     uint8_t loop_end   : 1;
     uint8_t            : 5;
     
+    /* layout:                            *
+     *  lsb (sample  1), msb (sample  2), *
+     *  lsb (sample  3), msb (sample  4), *
+     *  ...                               *
+     *  lsb (sample 27), msb (sample 28), */
     uint8_t data[14];
 };
 #endif
