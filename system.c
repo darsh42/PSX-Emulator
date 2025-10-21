@@ -250,12 +250,30 @@ void render_rectangle_monochrome(
         bool semi_transparent
 )
 {
+    TRACE_SYS("render_rectangle_monochrome", 
+            "\n\tr: %03d | g: %03d | b: %03d \
+             \n\tx: %03d | y: %03d | \
+             \n\tx: %03d | y: %03d | \
+             \n\tx: %03d | y: %03d | \
+             \n\tsemitransparent: %d\n",
+             R(c), G(c), B(c),
+             X(v), Y(v),
+             semi_transparent);
 }
 void render_rectangle_textured(
         uint32_t c, uint32_t v, uint32_t t_clut, uint32_t s,
         bool semi_transparent, bool texture_blending
 )
 {
+    TRACE_SYS("render_rectangle_monochrome", 
+            "\n\tr: %03d | g: %03d | b: %03d \
+             \n\tx: %03d | y: %03d | \
+             \n\tsemitransparent: %d\n \
+             \n\ttextureblending: %d\n",
+             R(c), G(c), B(c),
+             X(v), Y(v),
+             semi_transparent,
+             texture_blending);
 }
 void render_three_point_polygon_monochrome(
     uint32_t c1, uint32_t v1,
@@ -353,14 +371,12 @@ void render_four_point_polygon_textured(
              TX(t3     ), TY(t3     ),
              TX(t4     ), TY(t4     ),
              semi_transparent);
-#if 0
     fill_triangle(X(v1), X(v2), X(v3),
                   Y(v1), Y(v2), Y(v3),
                     c1 ,   c1 ,   c1 );
     fill_triangle(X(v2), X(v3), X(v4),
                   Y(v2), Y(v3), Y(v4),
                     c1 ,   c1 ,   c1 );
-#endif
 }
 void render_three_point_polygon_shaded(
     uint32_t c1, uint32_t v1,
@@ -430,11 +446,9 @@ void render_three_point_polygon_shaded_textured(
              TX(t3     ), TY(t3     ),
              semi_transparent,
              texture_blending);
-#if 0
     fill_triangle(X(v1), X(v2), X(v3),
                   Y(v1), Y(v2), Y(v3),
                     c1 ,   c2 ,   c3 );
-#endif
 }
 void render_four_point_polygon_shaded_textured(
     uint32_t c1, uint32_t v1, uint32_t t1_clut,
@@ -465,12 +479,10 @@ void render_four_point_polygon_shaded_textured(
              TX(t4     ), TY(t4     ),
              semi_transparent,
              texture_blending);
-#if 0
     fill_triangle(X(v1), X(v2), X(v3),
                   Y(v1), Y(v2), Y(v3),
                     c1 ,   c2 ,   c3 );
     fill_triangle(X(v2), X(v3), X(v4),
                   Y(v2), Y(v3), Y(v4),
                     c2 ,   c3 ,   c4 );
-#endif
 }

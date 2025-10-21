@@ -23,8 +23,8 @@
 #define B(c)  (((c) >> 16) & 0xff)
 
 #define NAME "psx"
-#define WIN_W 642
-#define WIN_H 482
+#define WIN_W 640
+#define WIN_H 480
 #define WIN_X 0
 #define WIN_Y 0
 

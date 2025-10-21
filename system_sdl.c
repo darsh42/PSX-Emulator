@@ -30,15 +30,8 @@ static void system_input(void) {
     SDL_Event keypress;
     while (SDL_PollEvent(&keypress)) {
         switch (keypress.type) {
-        case SDL_QUIT: running = 0; break;
-        case SDL_KEYDOWN: 
-           switch (keypress.key.keysym.sym) { 
-               case SDLK_q: running = 0; break; 
-           } break;
-        case SDL_KEYUP: 
-           switch (keypress.key.keysym.sym) { 
-               case SDLK_q: running = 0; break; 
-           } break;
+        case SDL_QUIT: 
+            psx_quit(); break;
         }
     }
 }
@@ -215,7 +208,7 @@ void *task_system( void *ignore ) {
 
     notify_system_ready();
 
-    while (running) {
+    while (psx_check_running()) {
         system_input();
         system_video();
     }
