@@ -18,6 +18,9 @@ void trace_set_output( const char *filename ) {
     assert(tracer.fp = fopen(filename, "w"));
 }
 
+uint32_t trace_get_profile( void ) { 
+    return tracer.enabled.profile;
+}
 void trace_set_profile( uint32_t profile ) {
     tracer.enabled.profile = profile;
 }
