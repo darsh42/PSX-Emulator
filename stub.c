@@ -548,7 +548,7 @@ static void gdb_stub_memory_write ( void )
 /** quits the application */
 static void gdb_stub_quit ( void )
 {
-    running = false;
+    psx_quit();
     gdb_stub_pause = false;
     gdb_stub_default_response();
 }
