@@ -1051,13 +1051,16 @@ static inline void cpu_execute( void )
     cpu.rt       = (cpu.cir >> 16) & 0x1f;
     cpu.rs       = (cpu.cir >> 21) & 0x1f;
     cpu.op       = (cpu.cir >> 26) & 0x3f;
-    cpu.target   = cpu.cir & 0x03ffffff;
-    cpu.imm16    = cpu.cir & 0x0000ffff;
-    cpu.imm25    = cpu.cir & 0x02ffffff;
-    cpu.relative = cpu.cir & 0x0000ffff;
+    cpu.target   =  cpu.cir & 0x03ffffff;
+    cpu.imm16    =  cpu.cir & 0x0000ffff;
+    cpu.imm25    =  cpu.cir & 0x02ffffff;
+    cpu.relative =  cpu.cir & 0x0000ffff;
 
-    switch (OP)
-    {
+    /* opcode decode gotos:         *
+     *   op 0x00 -> secondary ops   *
+     *   op 0x01 -> branch ops      *
+     *   defaults -> unhandled_ops  */
+    switch (OP) {
         case 0X00: goto secondary_op;
         case 0x01: goto branch_op;
         case 0x10: cp0();                break;
@@ -1089,22 +1092,15 @@ static inline void cpu_execute( void )
         case 0x2b: sw();                 break;
         case 0x2e: swr();                break;
         case 0x30: lwc0();               break;
+        case 0x33:                       break;
         case 0x38: swc0();               break;
         case 0x39:                       break;
-        default:
-            /* get info on instruction */
-            trace_set_profile(TRACE_CPU_EN);
-
-            cpu_trace_stack();
-            cpu_trace_instruction("Unknown");
-
-            assert(0 && "Unhandled instruction\n");
-            break;
+        default:   
+            goto illegal_op;
     } goto cycle_complete;
 
 secondary_op:
-    switch (FUNCT)
-    {
+    switch (FUNCT) {
         case 0x00: sll();                break;
         case 0x02: srl();                break;
         case 0x03: sra();                break;
@@ -1133,35 +1129,37 @@ secondary_op:
         case 0x27: nor();                break;
         case 0x2a: slt();                break;
         case 0x2b: sltu();               break;
-        default:
-            /* get info on instruction */
-            trace_set_profile(TRACE_CPU_EN);
-
-            cpu_trace_stack();
-            cpu_trace_instruction("Unknown");
-
-            assert(0 && "Unhandled instruction\n");
-            break;
+        default:   
+            goto illegal_op;
     } goto cycle_complete;
 
 branch_op:
-    switch (RT)
-    {
+    switch (RT) {
         case 0x00: bltz();               break;
         case 0x01: bgez();               break;
         case 0x16: bltzal();             break;
         case 0x17: bgezal();             break;
         default:
-            /* get info on instruction */
-            trace_set_profile(TRACE_CPU_EN);
+            /* alternate way of calling these conditionals *
+             * bltz -> xxxx0                               *
+             * bgez -> xxxx1                               */
+            if (!(RT & 0x1)) { bltz(); goto cycle_complete; }
+            if (  RT & 0x1)  { bgez(); goto cycle_complete; }
 
-            cpu_trace_stack();
-            cpu_trace_instruction("Unknown");
-
-            assert(0 && "Unhandled instruction\n");
-            break;
+            goto illegal_op;
     } goto cycle_complete;
 
+illegal_op:
+    /*  - log "stack" and "pc" to know where exception occurred */
+    // uint32_t prev_profile;
+    // prev_profile = trace_get_profile();
+    trace_set_profile(TRACE_CPU_EN);
+    cpu_trace_stack(); 
+    cpu_trace_instruction("illegal");
+    // trace_set_profile(prev_profile);
+
+    /* "reserved instruction exception" triggered */
+    cp0_exception(RI);
 cycle_complete:
     /* write tty */
     if (((cpu.pc & 0x1fffffff) == 0xa0 && cpu.r[9] == 0x3c) ||
