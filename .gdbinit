@@ -5,6 +5,39 @@ tui focus cmd
 
 set pagination off
 
+# -------------------------- HOOKS --------------------------- #
+define hook-run
+python
+import datetime, os
+
+logdir  = "../logs/"
+logfile = os.path.normpath(os.path.join(logdir,
+    f"gdb_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.log"))
+
+print(f'\n[+] logging to {logfile}')
+
+gdb.execute(f'set logging file {logfile}')
+gdb.execute(f'set logging overwrite on')
+gdb.execute(f'set logging redirect on')
+gdb.execute(f'set logging enabled on')
+end
+end
+
+# ------------------------- COMMANDS ------------------------- #
+define cpu
+    printf "cpu\n"
+    printf "    funct:    %x\n", ((cpu.cir >>  0) & 0x3F)
+    printf "    shamt:    %x\n", 
+    printf "    rd:       %x\n",
+    printf "    rt:       %x\n",
+    printf "    rs:       %x\n",
+    printf "    op:       %x\n",
+    printf "    target:   %x\n",
+    printf "    imm16:    %x\n",
+    printf "    imm25:    %x\n",
+    printf "    relative: %x\n",
+end
+
 # cpu debugging features
 define FUNCT
     p/x ((cpu.cir >>  0) & 0x3F)
