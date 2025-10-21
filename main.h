@@ -1,6 +1,9 @@
 #ifndef MAIN_H_
 #define MAIN_H_
 
-extern uint32_t running;
+#include <stdbool.h>
+
+void psx_quit(void);
+bool psx_check_running(void);
 
 #endif // MAIN_H_

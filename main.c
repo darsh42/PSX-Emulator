@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdatomic.h>
 
 #include "cpu.h"
 #include "gpu.h"
@@ -17,10 +18,18 @@
 
 #include "stub.h"
 
-uint32_t running = 1;
+/* needs mutex lock */
+atomic_bool running = true;
 
-struct task_core_args
-{
+bool psx_check_running(void) {
+    return running;
+}
+
+void psx_quit(void) {
+    running = false;
+}
+
+struct task_core_args {
     const char *bios;
     const char *exe;
     const char *tty;
@@ -41,6 +50,7 @@ void *task_core( void *_args )
     init_cpu(args->bios,
              args->exe);
     init_gpu();
+    init_spu();
     init_dma();
     init_timers();
     init_interrupts();
@@ -49,8 +59,7 @@ void *task_core( void *_args )
     uint32_t ticks_till_gpu = 0;
     uint32_t ticks_till_spu = 0;
 
-    while (running)
-    {
+    while (psx_check_running()) {
 #ifdef GDBSTUB
         /* check if user interacting with stub */
         while (paused_gdb_stub())
@@ -64,14 +73,14 @@ void *task_core( void *_args )
         ticks_till_gpu++;
 
         /* devices synched to cpu clock */
-        if (ticks_till_cpu == 11)
-        {
+        if (ticks_till_cpu == 11) {
             ticks_till_cpu = 0;
             ticks_till_spu++;
+            
+            if (!dma_memory_locked())
+                task_cpu();
 
-            task_cpu();
             task_dma();
-
 
             if (ticks_till_spu == 768) {
                 ticks_till_spu = 0;
@@ -81,16 +90,11 @@ void *task_core( void *_args )
         }
 
         /* devices synched to gpu clock */
-        if (ticks_till_gpu ==  7)
-        {
+        if (ticks_till_gpu ==  7) {
             ticks_till_gpu = 0;
 
             task_gpu();
         }
-        // task_cpu();
-        // task_dma();
-        // task_spu();
-        // task_gpu();
     }
 
     return NULL;
@@ -103,7 +107,7 @@ void *task_debug( void * )
 
     init_gdb_stub();
 
-    while (running)
+    while (psx_check_running())
         task_gdb_stub();
 
     kill_gdb_stub();
@@ -121,17 +125,15 @@ int main( int argc , char **argv )
 
     char opt;
 
-    while ((opt = getopt(argc, argv, "b:e:g:h")) != -1)
-    {
-        switch (opt)
-        {
-            case 'b': bios = optarg; break;
-            case 'g': game = optarg; break;
-            case 'e': exe  = optarg; break;
-            case 'h':
-            default:
-                goto usage;
-                break;
+    while ((opt = getopt(argc, argv, "b:e:g:h")) != -1) {
+        switch (opt) {
+        case 'b': bios = optarg; break;
+        case 'g': game = optarg; break;
+        case 'e': exe  = optarg; break;
+        case 'h':
+        default:
+            goto usage;
+            break;
         }
     }
 
@@ -148,6 +150,7 @@ int main( int argc , char **argv )
         .exe  = exe,
         .tty  = tty
     };
+
 
     pthread_t thread_core;
     pthread_t thread_system;
@@ -172,9 +175,10 @@ int main( int argc , char **argv )
     return 0;
 
 usage:
-    fprintf(stderr, "usage: %s BIOS.bin GAME.bin\n", *argv);
+    fprintf(stderr, "usage: %s -b BIOS.bin -g GAME.bin -e SIDELOADEXE.bin\n", *argv);
     fprintf(stderr, "   BIOS.bin: path to bios\n");
     fprintf(stderr, "   GAME.bin: path to game\n");
+    fprintf(stderr, "   SIDELOADEXE.bin: path to sideloadexe\n");
 
     return 1;
 }
