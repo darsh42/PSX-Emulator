@@ -10,8 +10,7 @@
 #define TRACE_DMA(function, format, ...) \
     trace(TRACE_DMA_EN, "dma.c", function, format, __VA_ARGS__)
 
-enum dma_channels 
-{
+enum dma_channels {
     DMA0_MDEC_IN  = 0,
     DMA1_MDEC_OUT = 1,
     DMA2_GPU      = 2,
@@ -20,49 +19,45 @@ enum dma_channels
     DMA5_PIO      = 5,
     DMA6_OTC      = 6,
 
-    DMAX_UNUSED = -1
+    DMAX_UNUSED   = -1
 };
 
-enum dma_sync_mode 
-{
+enum dma_memory_locked {
+    DMA_MEMORY_UNLOCKED,
+    DMA_MEMORY_LOCKED
+};
+
+enum dma_sync_mode {
     MANUAL      = 0,
     REQUEST     = 1,
     LINKED_LIST = 2
 };
 
-enum dma_direction 
-{
+enum dma_direction {
     DEVICE_TO_RAM = 0,
     RAM_TO_DEVICE = 1
 };
 
-union madr
-{
+union madr {
     uint32_t value;
-    struct 
-    {
+    struct {
         uint32_t base_address: 24;
     };
 };
-union brc 
-{
+union brc {
     uint32_t value;
-    struct 
-    {
+    struct {
         uint32_t bc: 16;
         uint32_t   : 16;
     };
-    struct 
-    {
+    struct {
         uint32_t bs: 16;
         uint32_t ba: 16;
     };
 };
-union chcr 
-{
+union chcr {
     uint32_t value;
-    struct 
-    {
+    struct {
         uint32_t transfer_direction       : 1;
         uint32_t address_step             : 1;
         uint32_t                          : 6;
@@ -81,8 +76,7 @@ union chcr
 };
 
 
-struct dma 
-{
+struct dma {
     uint32_t dma0_mdec_in_madr;
     uint32_t dma0_mdec_in_brc;
     uint32_t dma0_mdec_in_chcr;
@@ -107,10 +101,12 @@ struct dma
     uint32_t dpcr;
     uint32_t dicr;
     
-    enum dma_channels channel;
+    enum dma_channels      channel;
+    enum dma_memory_locked memory_locked;
 };
 #endif // DMA_PRIVATE
 
+extern uint32_t dma_memory_locked(void);
 extern uint32_t  read_dma( uint32_t address );
 extern void     write_dma( uint32_t address, uint32_t data );
 

@@ -14,8 +14,264 @@
 
 static struct dma dma;
 
-uint32_t read_dma( uint32_t address )
-{
+static void dma_transfer_manual_cdrom( void ) {
+    union madr madr = { .value = dma.dma3_cdrom_madr };
+    union brc   brc = { .value = dma.dma3_cdrom_brc  };
+    union chcr chcr = { .value = dma.dma3_cdrom_chcr };
+}
+static void dma_transfer_manual_otc( void ) {
+    union madr madr = { .value = dma.dma6_otc_madr };
+    union brc   brc = { .value = dma.dma6_otc_brc  };
+    union chcr chcr = { .value = dma.dma6_otc_chcr };
+
+    /* Lock memory from CPU */
+    dma.memory_locked = DMA_MEMORY_LOCKED;
+
+    uint32_t source = madr.base_address;
+    uint32_t size   = brc.bc;
+     int32_t step   = 
+         (chcr.address_step) ? -4: +4;
+
+    TRACE_DMA("dma_transfer_manual_otc", "base address: %08x | size: %08x\n",
+            source, size);
+
+    /* clear */
+    for (; size > 1; source += step, size--)
+        memory_write(source, source + step, 4);
+
+    /* last double word is a terminator */
+    memory_write(source, 0xFFFFFF, 4);
+
+    /* transfer complete */
+
+    /* Unlock memory from CPU */
+    dma.memory_locked = DMA_MEMORY_UNLOCKED;
+
+    madr.base_address = 0xFFFFFF;
+    chcr.start_busy   = 0;
+
+    dma.dma6_otc_madr = madr.value;
+    dma.dma6_otc_chcr = chcr.value;
+
+    /* disable the master enable */
+    DISABLE_DMAn_DPCR(DMA6_OTC);
+}
+
+static void dma_transfer_request_mdec_in( void ) {
+    union madr madr = { .value = dma.dma0_mdec_in_madr };
+    union brc   brc = { .value = dma.dma0_mdec_in_brc  };
+    union chcr chcr = { .value = dma.dma0_mdec_in_chcr };
+}
+static void dma_transfer_request_mdec_out( void ) {
+    union madr madr = { .value = dma.dma1_mdec_out_madr };
+    union brc   brc = { .value = dma.dma1_mdec_out_brc  };
+    union chcr chcr = { .value = dma.dma1_mdec_out_chcr };
+}
+static void dma_transfer_request_gpu( void ) {
+    union gpustat gpustat;
+
+    gpu_get_gpustat(&gpustat);
+
+    if (!gpustat.ready_send_vram_cpu ||
+        !gpustat.dma_data_request)
+        return;
+
+    /* vram read and write */
+    union madr madr = { .value = dma.dma2_gpu_madr };
+    union brc   brc = { .value = dma.dma2_gpu_brc  };
+    union chcr chcr = { .value = dma.dma2_gpu_chcr };
+
+    /* Lock memory from CPU */
+    dma.memory_locked = DMA_MEMORY_LOCKED;
+
+    /* dma transfer variables */
+    uint32_t data;
+    uint32_t step = 
+        (chcr.address_step) ? -4: +4;
+
+    uint32_t block_count = brc.ba;
+    uint32_t block_size  = brc.bs;
+
+    uint32_t ram_address = madr.base_address;
+
+    TRACE_DMA("dma_transfer_request_gpu", "direction: %s, base address: %08x, block_count: %d, block_size: %d\n", 
+            (chcr.transfer_direction) ? "RAM_TO_DEV": "DEV_TO_RAM", ram_address, block_count, block_size);
+
+    switch (chcr.transfer_direction) {
+    case RAM_TO_DEVICE: goto handle_ram_to_dev;
+    case DEVICE_TO_RAM: goto handle_dev_to_ram;
+    }
+
+handle_ram_to_dev:
+    while (block_count != 0) {
+        memory_read(ram_address, &data, 4);
+        memory_write_vram(gpu_get_vram_address(), 
+                          data, 4);
+
+        block_size--; ram_address+=step;
+
+        /* if end of block go to next block */
+        if (block_size == 0) {
+            block_size = brc.bs;
+            block_count--;
+        }
+    } goto finished;
+
+handle_dev_to_ram:
+    while (block_count != 0) {
+        memory_read_vram(gpu_get_vram_address(), 
+                         &data, 4);
+        memory_write(ram_address,  data, 4);
+
+        block_size--; ram_address+=step;
+
+        /* if end of block go to next block */
+        if (block_size == 0) {
+            block_size = brc.bs;
+            block_count--;
+        }
+    } goto finished;
+
+finished:
+    /* finish dma transfer */
+
+    /* ensure all data has been transfered */
+    assert(block_count == 0 && 
+           block_size  == brc.bs);
+
+    /* Unlock memory from CPU */
+    dma.memory_locked = DMA_MEMORY_UNLOCKED;
+
+    /* notify gpu of block end */
+    gpustat.ready_recieve_dma_block = 0;
+    gpu_set_gpustat(gpustat);
+
+    chcr.start_busy   = 0;
+    dma.dma2_gpu_chcr = chcr.value;
+
+    /* disable the master enable */
+    DISABLE_DMAn_DPCR(DMA2_GPU);
+}
+static void dma_transfer_request_spu( void ) {
+    union madr madr = { .value = dma.dma4_spu_madr };
+    union brc   brc = { .value = dma.dma4_spu_brc  };
+    union chcr chcr = { .value = dma.dma4_spu_chcr };
+
+    printf("SPU_DMA\n");
+}
+
+static void dma_transfer_linkedlist_gpu( void ) {
+    union gpustat gpustat;
+
+    gpu_get_gpustat(&gpustat);
+
+    /* wait for gpustat dma data request bit    */
+    /* wait for gpustat dma ready recieve block */
+    if (!gpustat.ready_recieve_dma_block ||
+        !gpustat.dma_data_request)
+        return;
+
+    /* lock the memory */
+
+    static uint32_t next = 0x00FFFFFF;
+
+    uint32_t source, size, header, command;
+
+    /* new DMA transfer is determined by checking if the previous
+     * DMA transfers end address was preserved                    */
+    if (next == 0x00FFFFFF) {
+        TRACE_DMA("dma_transfer_linkedlist_gpu", "LIST START\n", 0);
+
+        /* get the start of the linked list */
+        next = ((union madr) dma.dma2_gpu_madr).base_address;
+
+        /* lock the memory for the CPU */
+        dma.memory_locked = DMA_MEMORY_LOCKED;
+    }
+
+    /* load next source address */
+    source = next;
+
+    /* read packet header */
+    memory_read(source, &header, 4);
+
+    next = (header >>  0) & 0X00FFFFFF; /* store next address  */
+    size = (header >> 24) & 0X000000FF; /* read size of packet */
+
+    if (size > 0) {
+        TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n",
+                    source, header, next, size);
+
+        /* notify the gpu to process this block */
+        gpustat.ready_recieve_dma_block = 0;
+        gpu_set_gpustat(gpustat);
+    }
+
+    source += 4;
+
+    while (size > 0) {
+        memory_read(source, &command, 4);       /* read command from memory */
+        memory_write(gp0_gpu_read, command, 4); /* write command to device  */
+
+        TRACE_DMA("", "%08x\n", command);
+
+        source += 4;
+        size--;
+    }
+
+    /* end of link list is denoted by the packet 0x00FFFFFF */
+    if (next == 0x00FFFFFF) {
+        TRACE_DMA("dma_transfer_linkedlist_dma", "LIST END\n", 0);
+
+        /* clear start busy */
+        union chcr chcr = {.value = dma.dma2_gpu_chcr};
+        dma.dma2_gpu_chcr = (chcr.start_busy = 0);
+
+        /* Unlock the memory for the CPU */
+        dma.memory_locked = DMA_MEMORY_UNLOCKED;
+
+        /* disable the master enable */
+        DISABLE_DMAn_DPCR(DMA2_GPU);
+    }
+}
+
+static void dma_trace_linked_list( void ) {
+    uint32_t source, size, next,
+             header, command;
+
+    fprintf(stderr, "Dma Linked List trace\n");
+
+    next = ((union madr) dma.dma2_gpu_madr).base_address;
+
+    while (next != 0xffffff) {
+        source = next;
+
+        memory_read(source, &header, 4);
+
+        next = (header >>  0) & 0xffffff;
+        size = (header >> 24) & 0x0000ff;
+
+        if (size == 0)
+            continue;
+
+        fprintf(stderr, "   Packet: %08x\n", source);
+
+        while (size > 0) {
+            memory_read(source, &command, 4);
+
+            fprintf(stderr, "       %08x\n", command);
+
+            source += 4;
+            size--;
+        }
+    }
+}
+
+uint32_t dma_memory_locked(void) {
+    return dma.memory_locked;
+}
+
+uint32_t read_dma( uint32_t address ) {
     uint32_t data;
     switch ( address ) {
     case(dma0_mdec_in_madr ): data = dma.dma0_mdec_in_madr ; break;
@@ -50,8 +306,7 @@ uint32_t read_dma( uint32_t address )
     return data;
 }
 
-void write_dma( uint32_t address, uint32_t data )
-{
+void write_dma( uint32_t address, uint32_t data ) {
     switch ( address ) {
     case(dma0_mdec_in_madr ): dma.dma0_mdec_in_madr  = data; break;
     case(dma0_mdec_in_brc  ): dma.dma0_mdec_in_brc   = data; break;
@@ -83,237 +338,6 @@ void write_dma( uint32_t address, uint32_t data )
     TRACE_DMA("write_dma", "address: %08x | data: %08x\n", address, data);
 }
 
-void dma_transfer_manual_cdrom( void )
-{
-    union madr madr = { .value = dma.dma3_cdrom_madr };
-    union brc   brc = { .value = dma.dma3_cdrom_brc  };
-    union chcr chcr = { .value = dma.dma3_cdrom_chcr };
-}
-void dma_transfer_manual_otc( void )
-{
-    union madr madr = { .value = dma.dma6_otc_madr };
-    union brc   brc = { .value = dma.dma6_otc_brc  };
-    union chcr chcr = { .value = dma.dma6_otc_chcr };
-
-    uint32_t source = madr.base_address;
-    uint32_t size = brc.bc;
-     int32_t step = (chcr.address_step) ? -4: +4;
-
-    TRACE_DMA("dma_transfer_manual_otc", "base address: %08x | size: %08x\n",
-            source, size);
-
-    /* clear otc busy flag */
-
-    /* clear */
-    while ( size > 1 ) {
-        // TRACE_DMA("dma_transfer_manual_otc", "current: %08x, next: %08x\n", source, source + step);
-
-        memory_write(source, source + step, 4);
-        source += step;
-        size--;
-    }
-
-    /* last double word is a terminator */
-    memory_write(source, 0xFFFFFF, 4);
-
-    /* transfer complete */
-    madr.base_address = 0xFFFFFF;
-    chcr.start_busy   = 0;
-
-    dma.dma6_otc_madr = madr.value;
-    dma.dma6_otc_chcr = chcr.value;
-
-    /* disable the master enable */
-    DISABLE_DMAn_DPCR(DMA6_OTC);
-}
-
-void dma_transfer_request_mdec_in( void )
-{
-    union madr madr = { .value = dma.dma0_mdec_in_madr };
-    union brc   brc = { .value = dma.dma0_mdec_in_brc  };
-    union chcr chcr = { .value = dma.dma0_mdec_in_chcr };
-}
-void dma_transfer_request_mdec_out( void )
-{
-    union madr madr = { .value = dma.dma1_mdec_out_madr };
-    union brc   brc = { .value = dma.dma1_mdec_out_brc  };
-    union chcr chcr = { .value = dma.dma1_mdec_out_chcr };
-}
-void dma_transfer_request_gpu( void )
-{
-    union gpustat gpustat;
-
-    gpu_get_gpustat(&gpustat);
-
-    if (!gpustat.ready_send_vram_cpu ||
-        !gpustat.dma_data_request)
-        return;
-
-    /* vram read and write */
-    union madr madr = { .value = dma.dma2_gpu_madr };
-    union brc   brc = { .value = dma.dma2_gpu_brc  };
-    union chcr chcr = { .value = dma.dma2_gpu_chcr };
-
-    /* dma transfer variables */
-    uint32_t data;
-    uint32_t ram_address = madr.base_address;
-    uint32_t vram_address = 0;
-    uint32_t block_count = brc.ba;
-    uint32_t block_size  = brc.bs;
-    uint32_t step = (chcr.address_step) ? -4: +4;
-
-    TRACE_DMA("dma_transfer_request_gpu", "direction: %s, base address: %08x, block_count: %d, block_size: %d\n", 
-            (chcr.transfer_direction) ? "RAM_TO_DEV": "DEV_TO_RAM", ram_address, block_count, block_size);
-
-    while (block_count != 0) {
-        vram_address = gpu_get_vram_address();
-
-        switch (chcr.transfer_direction) {
-        case RAM_TO_DEVICE:
-            memory_read(ram_address, &data, 4);
-            memory_write_vram(vram_address,  data, 4);
-            break;
-        case DEVICE_TO_RAM:
-            memory_read_vram(vram_address, &data, 4);
-            memory_write(ram_address,  data, 4);
-            break;
-        }
-
-        ram_address += step;
-        block_size--;
-
-        /* if end of block go to next block */
-        if (block_size == 0) {
-            block_size = brc.bs;
-            block_count--;
-        }
-    }
-
-    /* ensure all data has been transfered */
-    assert(block_count == 0 && 
-           block_size  == brc.bs);
-
-    /* finished block */
-    gpustat.ready_recieve_dma_block = 0;
-
-    /* notify gpu of block end */
-    gpu_set_gpustat(gpustat);
-
-    /* finish dma transfer */
-    chcr.start_busy   = 0;
-
-    dma.dma2_gpu_chcr = chcr.value;
-
-    /* disable the master enable */
-    DISABLE_DMAn_DPCR(DMA2_GPU);
-}
-void dma_transfer_request_spu( void )
-{
-    union madr madr = { .value = dma.dma4_spu_madr };
-    union brc   brc = { .value = dma.dma4_spu_brc  };
-    union chcr chcr = { .value = dma.dma4_spu_chcr };
-}
-
-void dma_transfer_linkedlist_gpu( void )
-{
-    union gpustat gpustat;
-
-    gpu_get_gpustat(&gpustat);
-
-    /* wait for gpustat dma data request bit    */
-    /* wait for gpustat dma ready recieve block */
-    if (!gpustat.ready_recieve_dma_block ||
-        !gpustat.dma_data_request)
-        return;
-
-    /* lock the memory */
-
-    static uint32_t next = 0x00FFFFFF;
-
-    uint32_t source, size, header, command;
-
-    /* new DMA transfer is determined by checking if the previous
-     * DMA transfers end address was preserved                    */
-    if (next == 0x00FFFFFF) {
-        TRACE_DMA("dma_transfer_linkedlist_gpu", "linked list transfer gpu\n", 0);
-        next = ((union madr) dma.dma2_gpu_madr).base_address;
-    }
-
-    /* load next source address */
-    source = next;
-
-    /* read packet header */
-    memory_read(source, &header, 4);
-
-    next = (header >>  0) & 0X00FFFFFF; /* store next address  */
-    size = (header >> 24) & 0X000000FF; /* read size of packet */
-
-    if (size > 0) {
-        TRACE_DMA("dma_transfer_linkedlist_gpu", "source: %08x, header: %08x, next: %08x, size: %08x\n",
-                    source, header, next, size);
-
-        /* notify the gpu to process this block */
-        gpustat.ready_recieve_dma_block = 0;
-        gpu_set_gpustat(gpustat);
-    }
-
-    source += 4;
-
-    while (size > 0)
-    {
-        memory_read(source, &command, 4);       /* read command from memory */
-        memory_write(gp0_gpu_read, command, 4); /* write command to device  */
-
-        TRACE_DMA("", "%08x\n", command);
-
-        source += 4;
-        size--;
-    }
-
-    /* end of link list is denoted by the packet 0x00FFFFFF */
-    if (next == 0x00FFFFFF) {
-        TRACE_DMA("dma_transfer_linkedlist_dma", "linked list transfer finished\n", 0);
-
-        /* clear start busy */
-        union chcr chcr = {.value = dma.dma2_gpu_chcr};
-        dma.dma2_gpu_chcr = (chcr.start_busy = 0);
-
-        /* disable the master enable */
-        DISABLE_DMAn_DPCR(DMA2_GPU);
-    }
-}
-
-void dma_trace_linked_list( void ) {
-    uint32_t source, size, next,
-             header, command;
-
-    fprintf(stderr, "Dma Linked List trace\n");
-
-    next = ((union madr) dma.dma2_gpu_madr).base_address;
-
-    while (next != 0xffffff) {
-        source = next;
-
-        memory_read(source, &header, 4);
-
-        next = (header >>  0) & 0xffffff;
-        size = (header >> 24) & 0x0000ff;
-
-        if (size == 0)
-            continue;
-
-        fprintf(stderr, "   Packet: %08x\n", source);
-
-        while (size > 0) {
-            memory_read(source, &command, 4);
-
-            fprintf(stderr, "       %08x\n", command);
-
-            source += 4;
-            size--;
-        }
-    }
-}
 
 void init_dma( void ) {
     dma.dpcr = 0x07654321;
@@ -337,43 +361,39 @@ void task_dma( void ) {
         &dma.dma6_otc_chcr
     };
 
+    /* check if any channel is enabled */
+    if (!(dma.dpcr & 0x08888888))
+        return;
+
     dma.channel = DMAX_UNUSED;
 
     uint32_t dev_priority = 10;
     uint32_t channel_bits, priority, enabled;
 
-    for (int32_t i = 6; i >= 1; i--)
-    {
-        channel_bits = (dma.dpcr >> (i * 4)) & 0xf;
-
-        priority = channel_bits & 0x7; /* get 0b0111 */
-        enabled  = channel_bits & 0x8; /* get 0b1000 */
-
+    for (uint32_t _dpcr = dma.dpcr, i = 0; _dpcr > 0; _dpcr >>= 4, i++) {
+        priority = _dpcr & 0x7;
+        enabled  = _dpcr & 0x8;
         chcr.value = *chcrs[i];
-
-        if (enabled && chcr.start_busy && priority < dev_priority)
-        {
+        if (enabled && chcr.start_busy && priority < dev_priority) {
             dev_priority = priority;
             dma.channel  = i;
         }
     }
 
     /* set the correct channel or set to IDLE till next check */
-    switch (dma.channel)
-    {
-        case DMA0_MDEC_IN:  dma_transfer_request_mdec_in();  break;
-        case DMA1_MDEC_OUT: dma_transfer_request_mdec_out(); break;
-        case DMA4_SPU:      dma_transfer_request_spu();      break;
-        case DMA3_CDROM:    dma_transfer_manual_cdrom();     break;
-        case DMA6_OTC:      dma_transfer_manual_otc();       break;
-        case DMA2_GPU:
-            switch (((union chcr) dma.dma2_gpu_chcr).sync_mode)
-            {
-                case REQUEST:     dma_transfer_request_gpu();    break;
-                case LINKED_LIST: dma_transfer_linkedlist_gpu(); break;
-            }
-            break;
-        default:
-            break;
+    switch (dma.channel) {
+    case DMA0_MDEC_IN:  dma_transfer_request_mdec_in();  break;
+    case DMA1_MDEC_OUT: dma_transfer_request_mdec_out(); break;
+    case DMA4_SPU:      dma_transfer_request_spu();      break;
+    case DMA3_CDROM:    dma_transfer_manual_cdrom();     break;
+    case DMA6_OTC:      dma_transfer_manual_otc();       break;
+    case DMA2_GPU:
+        switch (((union chcr) dma.dma2_gpu_chcr).sync_mode) {
+        case REQUEST:     dma_transfer_request_gpu();    break;
+        case LINKED_LIST: dma_transfer_linkedlist_gpu(); break;
+        }
+        break;
+    default:
+        break;
     }
 }
