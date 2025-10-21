@@ -26,11 +26,10 @@
 
 struct spu spu;
 
-uint32_t read_spu_voice( uint32_t address )
-{
+uint32_t read_spu_voice(uint32_t address) {
     uint32_t data, voice;
 
-    voice   = (address & 0x000000F0) >> 4;
+    voice   = (address - 0x1f801c00) >> 4;
     address = (address & 0xfffffe0f);
 
     switch (address) {
@@ -52,13 +51,10 @@ uint32_t read_spu_voice( uint32_t address )
     return data;
 }
 
-void write_spu_voice( uint32_t address, uint32_t data)
-{
-    /* check for voice registers */
-
+void write_spu_voice(uint32_t address, uint32_t data) {
     uint32_t voice;
 
-    voice   = (address & 0x000000F0) >> 4;
+    voice   = (address - 0x1f801c00) >> 4;
     address = (address & 0xfffffe0f);
 
     switch (address) {
@@ -78,8 +74,7 @@ void write_spu_voice( uint32_t address, uint32_t data)
     // TRACE_SPU("write_spu_voice", "address: %08x | data: %08x\n", address, data);
 }
 
-uint32_t read_spu( uint32_t address )
-{
+uint32_t read_spu(uint32_t address) {
     uint32_t data = 0;
 
     switch (address) {
@@ -115,8 +110,7 @@ uint32_t read_spu( uint32_t address )
     return data;
 }
 
-void write_spu( uint32_t address, uint32_t data )
-{
+void write_spu(uint32_t address, uint32_t data) {
     switch (address) {
     case (spu_main_volume_left_right             ): break;
     case (spu_reverb_output_volume_left_right    ): break;
@@ -178,7 +172,7 @@ void spu_decode_samples(struct spu_adpcm_sector *sector,
     /* previous samples */
     int16_t _old = *old, _older = *older;
     for (uint32_t s = 0; s < 14; s++) {
-        int16_t lsb, msb;
+        int32_t lsb, msb;
 
         /* get each four bit nibble */
         lsb = ((sector->data[s]) >> 0) & 0xf;
@@ -216,7 +210,7 @@ void spu_decode_samples(struct spu_adpcm_sector *sector,
     *old   = _old;
 }
 
-static inline void spu_decode_block( int32_t v ) {
+static inline void spu_decode_block(int32_t v) {
     struct spu_adpcm_sector *sector;
     struct spu_voice        *voice;
 
@@ -318,6 +312,9 @@ static inline int16_t spu_mix_samples(int32_t mix) {
     return sample;
 }
 
+void init_spu(void) {
+    spu = (struct spu) {};
+}
 void task_spu( void ) {
     int32_t acc = 0;
 
