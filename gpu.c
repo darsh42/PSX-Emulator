@@ -1268,7 +1268,7 @@ static void gpu_render_frame( void )
 void init_gpu( void )
 {
     /* create gp0 fifo */
-    fifo_create( &gpu.gp0, 255 );
+    fifo_create( &gpu.gp0, 12);
 
     /* clear stat register */
     gpu.gpustat.value = 0;
